@@ -1,7 +1,7 @@
 import './style.css';
 import { LEVELS } from '../data/levels.ts';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
-import { createState, step, terrainAt, hazardSample, ascii, DT, STILL } from '../core/simulation.ts';
+import { createState, step, hazardSample, ascii, DT, STILL } from '../core/simulation.ts';
 import { importLevel, parseLevel, type Level, type Point } from '../core/level.ts';
 import { paint, placeSaw, blankLevel, type Brush } from '../core/editor.ts';
 import { readProgress, recordFinish, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
@@ -25,6 +25,8 @@ const timeLabel = (ticks: number) => {
 let noticeTimer = 0;
 function notify(message: string, error = false) {
   clearTimeout(noticeTimer);
+  const menu = element<HTMLDialogElement>('game-menu');
+  (menu.open ? menu : element('boundstoy')).append(element('notice'));
   text('notice-text', message);
   element('notice').hidden = false;
   element('notice').classList.toggle('error', error);
@@ -41,23 +43,30 @@ const directions: Record<string, Point> = { up: { x: 0, y: -1 }, left: { x: -1, 
 const keyDirections: Record<string, string> = { KeyW: 'up', ArrowUp: 'up', KeyA: 'left', ArrowLeft: 'left', KeyS: 'down', ArrowDown: 'down', KeyD: 'right', ArrowRight: 'right' };
 
 function boot(scene: Scene) {
-  const viewport = element('viewport'), audio = new Audio();
+  const viewport = element('viewport'), menu = element<HTMLDialogElement>('game-menu'), audio = new Audio();
   const abort = new AbortController(), options = { signal: abort.signal };
   let level = LEVELS[0], state = createState(level), selectedCourse = 0;
   let mode: 'play' | 'edit' = 'play', draft: Level | null = null;
   let history: Level[] = [], brush: Brush = '.', sawStart: Point | null = null;
   let painting = false, lastPaint = '', testing = false, started = false, paused = true;
+  let paintingPointer: number | null = null;
   let accumulator = 0, lastFrame = 0, visualTime = 0, animation = 0;
   let progress: Progress = {};
-  let lastHudSurface = '';
   let storageFailed = false;
   let feedbackUntil = 0;
   try { progress = readProgress(localStorage.getItem(PROGRESS_KEY)); }
   catch (error) { report('Could not load local progress', error); }
 
   function clearInput() {
+    for (const pointer of touchPointers.keys()) {
+      document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
+        if (button.hasPointerCapture(pointer)) button.releasePointerCapture(pointer);
+      });
+    }
     keys.clear(); touchPointers.clear();
     document.querySelectorAll('.touch-controls button').forEach(button => button.classList.remove('pressed'));
+    if (paintingPointer !== null && viewport.hasPointerCapture(paintingPointer)) viewport.releasePointerCapture(paintingPointer);
+    paintingPointer = null; painting = false; lastPaint = '';
   }
   function movement(): Point {
     const active = new Set([...keys].map(key => keyDirections[key]).filter(Boolean));
@@ -78,91 +87,83 @@ function boot(scene: Scene) {
     }
   }
   function courseCards() {
-    text('completion-count', `${String(LEVELS.filter(course => progress[course.id]).length).padStart(2, '0')} / 02`);
+    text('completion-count', `${LEVELS.filter(course => progress[course.id]).length} / ${LEVELS.length} cleared`);
     const list = element('course-list'); list.replaceChildren();
     LEVELS.forEach((course, index) => {
       const button = document.createElement('button');
       button.className = `course-card${selectedCourse === index && !testing ? ' selected' : ''}`;
       button.dataset.level = String(index);
       button.setAttribute('aria-pressed', String(selectedCourse === index && !testing));
-      const number = document.createElement('span'); number.className = 'course-number'; number.textContent = `0${index + 1}`;
+      const number = document.createElement('span'); number.className = 'course-number'; number.textContent = String(index + 1).padStart(2, '0');
       const body = document.createElement('span'), title = document.createElement('strong'), subtitle = document.createElement('small');
       title.textContent = course.name;
       const best = progress[course.id];
-      subtitle.textContent = best ? `Best ${timeLabel(best.ticks)} / ${best.deaths} retries` : index === 0 ? 'Learn the glide. Find your line.' : 'A launch, a curve, a clean crossing.';
+      subtitle.textContent = best ? `Best ${timeLabel(best.ticks)} · ${best.deaths} retries` : 'Ready to play';
       body.append(title, subtitle);
       const arrow = document.createElement('span'); arrow.textContent = best ? '✓' : '↗';
       button.append(number, body, arrow); list.append(button);
     });
   }
   function overlay() {
-    element('overlay').hidden = mode === 'edit' || started && !paused && !state.won;
-    element('intro-rules').hidden = started || mode === 'edit';
+    element('overlay').hidden = menu.open || mode === 'edit' || started && !paused && !state.won;
     element('finish-stats').hidden = !state.won;
     element('retry-course').hidden = !started || mode === 'edit';
     if (mode === 'edit') return;
     if (state.won) {
-      const complete = !testing && selectedCourse === LEVELS.length - 1 && LEVELS.every(course => progress[course.id]);
-      text('overlay-kicker', testing ? 'EXPERIMENT COMPLETE' : state.deaths === 0 ? 'CLEAN RUN / ZERO RETRIES' : 'EVERY ATTEMPT COUNTS');
-      text('overlay-title', complete ? 'Momentum mastered.' : 'Course clear.');
-      text('overlay-copy', testing ? 'Your course works. Take it back to the workshop or run it again.'
-        : complete ? 'Both courses cleared. You have the glide, the timing, and the landing. Chase a cleaner run or make your own.'
-        : selectedCourse === 0 ? 'You have the glide. Next: time a launch, catch the island, and thread the saw.'
-        : 'A clean crossing. The first course is ready whenever you are.');
+      const lastCourse = selectedCourse === LEVELS.length - 1;
+      const complete = !testing && lastCourse && LEVELS.every(course => progress[course.id]);
+      text('overlay-kicker', testing ? 'PLAYTEST COMPLETE' : state.deaths === 0 ? 'CLEAN RUN · ZERO RETRIES' : 'NICE FINISH');
+      text('overlay-title', complete ? 'Campaign complete.' : 'Level clear.');
+      text('overlay-copy', testing ? 'Back to the editor, or give it another run.'
+        : complete ? `All ${LEVELS.length} levels cleared. Go again and chase your best times.`
+        : lastCourse ? 'You reached the final exit. Pick a level from the menu, or start again.'
+        : `Up next: ${LEVELS[selectedCourse + 1].name}.`);
       text('finish-time', timeLabel(state.tick));
       text('finish-retries', String(state.deaths));
       text('finish-best', testing ? 'PLAYTEST' : timeLabel(progress[level.id]?.ticks ?? state.tick));
-      text('primary-action', testing ? 'Back to workshop ↗' : selectedCourse === 0 ? 'Next course →' : 'Run from the beginning →');
-      text('overlay-foot', testing ? 'PLAYTESTS DO NOT CHANGE COURSE RECORDS' : 'BEST TIMES ARE SAVED ONLY ON THIS DEVICE');
+      text('primary-action', testing ? 'Back to editor ↗' : lastCourse ? 'Restart campaign →' : 'Next level →');
+      text('overlay-foot', testing ? 'PLAYTESTS DO NOT CHANGE LEVEL RECORDS' : 'BEST TIMES SAVED ON THIS DEVICE');
     } else if (started) {
       text('overlay-kicker', 'TAKE YOUR TIME');
-      text('overlay-title', 'A moment of stillness.');
-      text('overlay-copy', 'Your run is paused. The floor, the hazards, and your momentum can wait.');
-      text('primary-action', 'Keep rolling →'); text('overlay-foot', 'SPACE TO RESUME');
+      text('overlay-title', 'Paused.');
+      text('overlay-copy', 'Your next move can wait.');
+      text('primary-action', 'Resume →'); text('overlay-foot', 'SPACE TO RESUME');
     } else {
-      text('overlay-kicker', testing ? 'YOUR FLOOR. YOUR RULES.' : 'SMALL ROBOT. BIG MOMENTUM.');
-      text('overlay-title', selectedCourse === 0 || testing ? 'Stay in motion.' : 'Make your move.');
+      text('overlay-kicker', testing ? 'YOUR LEVEL' : `LEVEL ${selectedCourse + 1} / ${LEVELS.length}`);
+      text('overlay-title', level.name);
       text('overlay-copy', level.description);
-      text('primary-action', "Let's roll →"); text('overlay-foot', 'WASD / ARROW KEYS TO MOVE');
+      text('primary-action', 'Play →'); text('overlay-foot', 'WASD / ARROWS / TOUCH TO MOVE');
     }
   }
   function hud() {
     text('timer', timeLabel(state.tick)); text('deaths', String(state.deaths).padStart(2, '0'));
-    text('run-status', mode === 'edit' ? 'WORKSHOP / PAINT YOUR COURSE' : state.won ? 'COURSE COMPLETE' : !started ? 'READY WHEN YOU ARE' : paused ? 'PAUSED' : state.respawnTicks > 0 ? 'BACK IN A MOMENT' : 'FOLLOW THE MOMENTUM');
-    const surface = terrainAt(level, state.position);
-    text('speed-readout', `${Math.hypot(state.velocity.x, state.velocity.y).toFixed(1)} u/s`);
-    element('speed-readout').classList.toggle('gliding', surface.id === 'soft' && state.respawnTicks === 0 && !state.won);
+    text('run-status', mode === 'edit' ? 'Click or drag to paint' : state.won ? 'Complete' : !started ? 'Ready' : paused ? 'Paused' : '');
     const guide = courseGuide(level, state);
-    text('route-step', `${String(guide.index + 1).padStart(2, '0')} / ${String(guide.total).padStart(2, '0')}`);
-    text('route-title', state.won ? 'Route complete' : guide.title);
-    text('route-hint', state.won ? 'Your best run stays on this device. Try again or build a course in the workshop.' : guide.hint);
-    element('game-feedback').hidden = state.tick >= feedbackUntil || mode === 'edit' || state.won;
-    const surfaceName = mode === 'edit' ? 'CLICK OR DRAG TO PAINT' : surface.name.toUpperCase();
-    if (surfaceName !== lastHudSurface) {
-      const node = element('surface-readout'); node.replaceChildren();
-      const dot = document.createElement('i'); dot.style.background = surface.color;
-      node.append(dot, document.createTextNode(surfaceName)); node.title = surface.hint; lastHudSurface = surfaceName;
-    }
-    text('checkpoint-note', state.visited.length ? `${state.visited.length}/${level.checkpoints.length} checkpoints found` : 'Checkpoints keep you rolling');
-    element<HTMLButtonElement>('pause').disabled = mode === 'edit' || !started || state.won;
-    element('pause').firstChild!.textContent = started && paused ? 'Resume ' : 'Pause ';
+    text('route-hint', state.won ? 'Every finish is a new best to chase.' : guide.hint);
+    const hint = element('route-hint'), feedback = element('game-feedback'), pause = element<HTMLButtonElement>('pause');
+    if (hint.title !== guide.title) hint.title = guide.title;
+    const hideFeedback = state.tick >= feedbackUntil || mode === 'edit' || state.won;
+    if (feedback.hidden !== hideFeedback) feedback.hidden = hideFeedback;
+    const disablePause = mode === 'edit' || !started || state.won;
+    if (pause.disabled !== disablePause) pause.disabled = disablePause;
+    document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
+      const disabled = mode !== 'play' || !started || paused || state.won || menu.open;
+      if (button.disabled !== disabled) button.disabled = disabled;
+    });
   }
   function updateLayout() {
-    text('course-title', mode === 'edit' ? 'Make it your own.' : level.name);
-    text('course-number', mode === 'edit' || testing ? 'WORKSHOP' : `0${selectedCourse + 1}`);
-    text('map-id', mode === 'edit' || testing ? 'CUSTOM' : `0${selectedCourse + 1}`);
-    text('level-description', level.description);
-    element('play-panel').hidden = mode === 'edit';
+    text('course-title', mode === 'edit' ? 'Level editor' : level.name);
+    text('course-number', mode === 'edit' || testing ? 'YOUR LEVEL' : `LEVEL ${selectedCourse + 1} / ${LEVELS.length}`);
+    document.querySelector('.workspace')!.classList.toggle('editing', mode === 'edit');
     element('editor-panel').hidden = mode !== 'edit';
     element('test-badge').hidden = !testing || mode === 'edit';
     element('editor-coordinates').hidden = mode !== 'edit';
     element('touch-controls').hidden = mode === 'edit';
-    element('route-coach').hidden = mode === 'edit';
+    element('route-hint').hidden = mode === 'edit';
+    element('editor-return').hidden = !testing;
     element<HTMLButtonElement>('restart').disabled = mode === 'edit';
-    element('play-tab').classList.toggle('selected', mode === 'play');
-    element('editor-tab').classList.toggle('selected', mode === 'edit');
-    element('play-tab').setAttribute('aria-pressed', String(mode === 'play'));
-    element('editor-tab').setAttribute('aria-pressed', String(mode === 'edit'));
+    text('controls-note', mode === 'edit' ? 'Choose a brush, then click or drag on the board. Control or Command Z undoes a change. Escape opens the menu.'
+      : 'WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons after pressing Play.');
     viewport.setAttribute('aria-label', mode === 'edit' ? 'Level editor. Choose a brush, then click or drag on the board.' : 'Boundstoy course. WASD or arrows to move; R to restart; Space to pause.');
     courseCards(); overlay(); hud();
   }
@@ -173,20 +174,55 @@ function boot(scene: Scene) {
   function loadCourse(index: number) {
     if (!Number.isInteger(index) || !LEVELS[index]) throw new Error('Unknown course index.');
     selectedCourse = index; mode = 'play'; testing = false; load(LEVELS[index]);
+    element('primary-action').focus({ preventScroll: true });
   }
   function play() {
+    if (menu.open || mode === 'edit') return;
     if (state.won) {
       if (testing) { enterEditor(); return; }
       loadCourse(selectedCourse === LEVELS.length - 1 ? 0 : selectedCourse + 1);
       element('primary-action').focus({ preventScroll: true });
       return;
     }
-    started = true; paused = false; accumulator = 0; overlay(); viewport.focus();
+    clearInput(); started = true; paused = false; accumulator = 0; overlay(); hud(); viewport.focus({ preventScroll: true });
   }
   function setPaused(value: boolean) {
     if (!started || state.won || mode === 'edit') return;
     paused = value; clearInput(); accumulator = 0; overlay(); hud();
-    if (!value) viewport.focus();
+    if (!value) viewport.focus({ preventScroll: true });
+  }
+  function showHelp(show: boolean) {
+    element('menu-home').hidden = show; element('help-panel').hidden = !show;
+    text('menu-title', show ? 'How to play' : 'Take a breather.');
+    menu.scrollTop = 0;
+  }
+  function fillHelp() {
+    text('help-level-title', level.name);
+    text('help-description', level.description);
+    const list = element('help-terrain'); list.replaceChildren();
+    const add = (name: string, hint: string, color: string) => {
+      const item = document.createElement('li'), title = document.createElement('strong');
+      title.textContent = name; item.style.setProperty('--swatch', color);
+      item.append(title, document.createTextNode(hint)); list.append(item);
+    };
+    for (const [tile, terrain] of Object.entries(TERRAIN)) {
+      if (level.tiles.some(row => row.includes(tile))) add(terrain.name, terrain.hint, terrain.color);
+    }
+    if (level.hazards.some(hazard => hazard.kind === 'pulse')) add('Pulse pads', 'Amber warns of a blast. Cross only when the pad is dark.', '#ecae6a');
+    if (level.hazards.some(hazard => hazard.kind === 'saw')) add('Saws', 'Watch the patrol and cross when the way is clear.', '#e35b80');
+  }
+  function openMenu() {
+    if (menu.open) return;
+    clearInput(); setPaused(true); showHelp(false); courseCards();
+    text('menu-play', mode === 'edit' ? 'Back to editor →' : state.won ? 'View results →' : started ? 'Resume →' : 'Play →');
+    menu.append(element('notice'));
+    menu.showModal(); element('menu-toggle').setAttribute('aria-expanded', 'true');
+    overlay(); hud(); element('menu-play').focus({ preventScroll: true });
+  }
+  function closeMenu(target: HTMLElement = element('menu-toggle')) {
+    menu.close(); element('menu-toggle').setAttribute('aria-expanded', 'false');
+    element('boundstoy').append(element('notice'));
+    overlay(); hud(); target.focus({ preventScroll: true });
   }
   function tick(input: Point) {
     const previousTick = state.tick;
@@ -226,7 +262,7 @@ function boot(scene: Scene) {
       try {
         const saved = localStorage.getItem(DRAFT_KEY);
         if (saved) draft = importLevel(saved);
-      } catch (error) { report('Could not load workshop draft', error); }
+      } catch (error) { report('Could not load editor draft', error); }
     }
     draft ??= parseLevel({ ...LEVELS[selectedCourse], id: 'my-course', name: `${LEVELS[selectedCourse].name} remix` });
     load(draft); element<HTMLInputElement>('level-name').value = draft.name;
@@ -275,18 +311,21 @@ function boot(scene: Scene) {
     if (event.target !== scene.renderer.domElement) return;
     viewport.focus();
     if (mode !== 'edit' || event.button !== 0) return;
-    painting = true; lastPaint = ''; viewport.setPointerCapture(event.pointerId); paintAt(event, true);
+    painting = true; paintingPointer = event.pointerId; lastPaint = ''; viewport.setPointerCapture(event.pointerId); paintAt(event, true);
   }, options);
   viewport.addEventListener('pointermove', event => {
     if (mode === 'edit') paintAt(event, false);
   }, options);
-  viewport.addEventListener('pointerup', () => { painting = false; lastPaint = ''; }, options);
-  viewport.addEventListener('pointercancel', () => { painting = false; }, options);
+  const stopPainting = () => { painting = false; paintingPointer = null; lastPaint = ''; };
+  viewport.addEventListener('pointerup', stopPainting, options);
+  viewport.addEventListener('pointercancel', stopPainting, options);
+  viewport.addEventListener('lostpointercapture', stopPainting, options);
   viewport.addEventListener('pointerleave', () => { if (!painting) scene.highlight(null); }, options);
   viewport.addEventListener('keydown', event => {
     if (event.target !== viewport) return;
     if (event.code in keyDirections && mode === 'play') {
-      event.preventDefault(); keys.add(event.code);
+      event.preventDefault();
+      if (started && !paused && !state.won && !menu.open) keys.add(event.code);
     } else if (event.code === 'Space' && mode === 'play') {
       event.preventDefault();
       if (!event.repeat) { if (!started) play(); else setPaused(!paused); }
@@ -301,16 +340,14 @@ function boot(scene: Scene) {
   window.addEventListener('keyup', event => keys.delete(event.code), options);
   viewport.addEventListener('focusout', event => {
     clearInput();
-    const next = event.relatedTarget;
-    if (next instanceof HTMLElement && !viewport.contains(next) && !next.closest('.touch-controls')) setPaused(true);
+    if (event.relatedTarget !== viewport) setPaused(true);
   }, options);
   window.addEventListener('blur', () => { clearInput(); setPaused(true); }, options);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); setPaused(true); } }, options);
   document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
     button.addEventListener('pointerdown', event => {
       event.preventDefault();
-      if (mode !== 'play' || state.won) return;
-      if (!started || paused) play();
+      if (mode !== 'play' || state.won || !started || paused || menu.open) return;
       touchPointers.set(event.pointerId, button.dataset.direction!);
       button.classList.add('pressed'); button.setPointerCapture(event.pointerId);
     }, options);
@@ -342,17 +379,48 @@ function boot(scene: Scene) {
   }
   element('primary-action').addEventListener('click', play, options);
   element('retry-course').addEventListener('click', () => { load(level, true); viewport.focus(); }, options);
-  element('pause').addEventListener('click', () => setPaused(!paused), options);
+  element('pause').addEventListener('click', () => {
+    setPaused(true); element('primary-action').focus({ preventScroll: true });
+  }, options);
   element('restart').addEventListener('click', () => {
     if (mode === 'edit') return;
     load(level, true); viewport.focus();
   }, options);
-  element('play-tab').addEventListener('click', () => { if (mode === 'edit' || testing) loadCourse(selectedCourse); }, options);
-  element('editor-tab').addEventListener('click', () => { if (mode !== 'edit') enterEditor(); }, options);
-  element('remix').addEventListener('click', enterEditor, options);
+  element('play-tab').addEventListener('click', () => loadCourse(selectedCourse), options);
+  element('editor-return').addEventListener('click', enterEditor, options);
+  element('menu-toggle').addEventListener('click', openMenu, options);
+  element('menu-close').addEventListener('click', () => closeMenu(), options);
+  menu.addEventListener('cancel', event => { event.preventDefault(); closeMenu(); }, options);
+  menu.addEventListener('keydown', event => {
+    if (event.code !== 'Tab') return;
+    const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')].filter(button => button.getClientRects().length);
+    const first = buttons[0], last = buttons.at(-1);
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === element('menu-title'))) {
+      event.preventDefault(); last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first?.focus();
+    }
+  }, options);
+  element('menu-play').addEventListener('click', () => {
+    closeMenu(mode === 'edit' ? viewport : element('primary-action'));
+    if (mode === 'play' && !state.won) play();
+  }, options);
+  element('help').addEventListener('click', () => {
+    fillHelp(); showHelp(true); element('menu-title').focus({ preventScroll: true });
+  }, options);
+  element('help-back').addEventListener('click', () => {
+    showHelp(false); element('help').focus();
+  }, options);
+  element('editor-tab').addEventListener('click', () => {
+    closeMenu(); if (mode !== 'edit') enterEditor(); else viewport.focus();
+  }, options);
+  document.addEventListener('keydown', event => {
+    if (event.code !== 'Escape' || menu.open || event.repeat) return;
+    event.preventDefault(); openMenu();
+  }, options);
   element('course-list').addEventListener('click', event => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-level]');
-    if (button) loadCourse(Number(button.dataset.level));
+    if (button) { closeMenu(); loadCourse(Number(button.dataset.level)); }
   }, options);
   element('audio').addEventListener('click', async () => {
     try {
@@ -368,6 +436,11 @@ function boot(scene: Scene) {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await element('boundstoy').requestFullscreen();
     } catch (error) { report('Fullscreen is not available here', error); }
+  }, options);
+  document.addEventListener('fullscreenchange', () => {
+    const active = Boolean(document.fullscreenElement);
+    text('fullscreen', active ? 'Exit fullscreen ⛶' : 'Fullscreen ⛶');
+    element('fullscreen').setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
   }, options);
   element('dismiss-notice').addEventListener('click', () => { element('notice').hidden = true; }, options);
   element('undo').addEventListener('click', undo, options);
@@ -433,7 +506,7 @@ function boot(scene: Scene) {
     hud(); scene.draw(state, visualTime, mode === 'edit');
     animation = requestAnimationFrame(frame);
   }
-  load(level); animation = requestAnimationFrame(frame);
+  load(level); element('primary-action').focus({ preventScroll: true }); animation = requestAnimationFrame(frame);
   window.addEventListener('pagehide', event => {
     setPaused(true);
     if (event.persisted) return;
@@ -449,7 +522,7 @@ try {
   boot(new Scene(element('viewport')));
 } catch (error) {
   element('overlay').hidden = false;
-  text('overlay-title', 'The lab could not start.');
+  text('overlay-title', 'The game could not start.');
   text('overlay-copy', 'This game needs a browser with WebGL2 and hardware acceleration. Nothing was sent over the network.');
   element<HTMLButtonElement>('primary-action').disabled = true;
   text('primary-action', 'Reload after enabling WebGL2');

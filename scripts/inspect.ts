@@ -4,7 +4,7 @@ import { createState, step, ascii, DT } from '../core/simulation.ts';
 
 const index = Number(process.argv[2] ?? 0);
 if (!Number.isInteger(index) || !LEVELS[index]) {
-  throw new Error('Usage: npm run inspect -- <0|1> [--replay]');
+  throw new Error(`Invalid course index. Usage: npm run inspect -- <0..${LEVELS.length - 1}> [--replay]`);
 }
 const level = LEVELS[index];
 let state = createState(level);

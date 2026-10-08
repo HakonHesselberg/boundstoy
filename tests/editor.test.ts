@@ -5,21 +5,22 @@ import { paint, placeSaw, blankLevel } from '../core/editor.ts';
 import { importLevel, parseLevel } from '../core/level.ts';
 
 test('Paint_Ground_ChangesOneTileWithoutMutatingLevel', () => {
-  const level = LEVELS[0];
+  const level = blankLevel();
   const edited = paint(level, { x: 5, y: 13 }, '~');
   assert.equal(edited.tiles[13][5], '~');
   assert.equal(level.tiles[13][5], '.');
 });
 test('Paint_UnsafeSpawnTile_RejectsEdit', () => {
-  assert.throws(() => paint(LEVELS[0], LEVELS[0].spawn, ' '), /spawn|safe/i);
+  const level = blankLevel();
+  assert.throws(() => paint(level, level.spawn, ' '), /spawn|safe/i);
 });
 test('Paint_PulseTwice_ReplacesRatherThanDuplicates', () => {
   const point = { x: 5, y: 13 };
-  const first = paint(LEVELS[0], point, 'pulse');
+  const first = paint(blankLevel(), point, 'pulse');
   assert.equal(paint(first, point, 'pulse').hazards.length, first.hazards.length);
 });
 test('Paint_MarkerOnVoid_CreatesSafeFloor', () => {
-  const edited = paint(LEVELS[0], { x: 1, y: 1 }, 'checkpoint');
+  const edited = paint(blankLevel(), { x: 1, y: 1 }, 'checkpoint');
   assert.equal(edited.tiles[1][1], '.');
   assert.ok(edited.checkpoints.some(p => p.x === 1 && p.y === 1));
 });

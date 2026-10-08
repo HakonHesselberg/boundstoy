@@ -9,6 +9,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 export class Scene {
   readonly renderer: THREE.WebGLRenderer;
+  onInvalidate?: () => void;
+  private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.OrthographicCamera(-12, 12, 10, -10, 0.1, 100);
   private board = new THREE.Group();
@@ -311,7 +313,7 @@ export class Scene {
   }
 
   resize() {
-    if (!this.level) return;
+    if (this.disposed || !this.level) return;
     const width = this.container.clientWidth, height = this.container.clientHeight;
     if (!width || !height) return;
     this.renderer.setSize(width, height);
@@ -322,6 +324,7 @@ export class Scene {
     const x = this.level.tiles[0].length / 2, z = this.level.tiles.length / 2;
     this.camera.position.set(x, 25, z + 17);
     this.camera.lookAt(x, 0, z); this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld();
+    this.onInvalidate?.();
   }
 
   pick(clientX: number, clientY: number): Point | null {
@@ -338,8 +341,11 @@ export class Scene {
     return { x: rect.left + (p.x + 1) / 2 * rect.width, y: rect.top + (1 - p.y) / 2 * rect.height };
   }
   highlight(point: Point | null) {
+    const changed = this.hover.visible !== !!point || !!point
+      && (this.hover.position.x !== point.x + 0.5 || this.hover.position.z !== point.y + 0.5);
     this.hover.visible = !!point;
     if (point) this.hover.position.set(point.x + 0.5, 0.04, point.y + 0.5);
+    if (changed) this.onInvalidate?.();
   }
   draw(state: State, visualTime: number, editing: boolean) {
     const time = this.reducedMotion ? 0 : visualTime;
@@ -390,6 +396,7 @@ export class Scene {
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
+    this.disposed = true; this.onInvalidate = undefined;
     this.observer.disconnect();
     for (const g of [...this.geometries, ...this.boardGeometries]) g.dispose();
     for (const m of [...this.materials, ...this.boardMaterials]) m.dispose();

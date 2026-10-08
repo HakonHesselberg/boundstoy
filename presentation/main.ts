@@ -7,6 +7,7 @@ import { paint, placeSaw, blankLevel, type Brush } from '../core/editor.ts';
 import { readProgress, recordFinish, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
 import { Audio } from './audio.ts';
 import { courseGuide, deathMessage } from '../application/guidance.ts';
+import { createRenderLoop } from '../application/render-loop.ts';
 import { Scene } from './scene.ts';
 
 function element<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -50,10 +51,17 @@ function boot(scene: Scene) {
   let history: Level[] = [], brush: Brush = '.', sawStart: Point | null = null;
   let painting = false, lastPaint = '', testing = false, started = false, paused = true;
   let paintingPointer: number | null = null;
-  let accumulator = 0, lastFrame = 0, visualTime = 0, animation = 0;
+  let accumulator = 0, visualTime = 0;
   let progress: Progress = {};
   let storageFailed = false;
   let feedbackUntil = 0;
+  const loop = createRenderLoop({
+    request: callback => requestAnimationFrame(callback),
+    cancel: id => cancelAnimationFrame(id),
+    render: frame,
+  });
+  loop.setVisible(!document.hidden);
+  scene.onInvalidate = loop.invalidate;
   try { progress = readProgress(localStorage.getItem(PROGRESS_KEY)); }
   catch (error) { report('Could not load local progress', error); }
 
@@ -74,6 +82,10 @@ function boot(scene: Scene) {
     let x = 0, y = 0;
     for (const dir of active) { x += directions[dir].x; y += directions[dir].y; }
     return { x, y };
+  }
+  function syncRendering() {
+    // A modal freezes all background visuals, including intro/editor/victory.
+    loop.setActive(!menu.open && (!started || mode === 'edit' || state.won || !paused));
   }
   function saveDraft() {
     if (!draft) return;
@@ -170,6 +182,7 @@ function boot(scene: Scene) {
   function load(next: Level, autoStart = false) {
     level = next; state = createState(level); started = autoStart; paused = !autoStart;
     accumulator = 0; feedbackUntil = 0; clearInput(); scene.setLevel(level); scene.highlight(null); updateLayout();
+    syncRendering();
   }
   function loadCourse(index: number) {
     if (!Number.isInteger(index) || !LEVELS[index]) throw new Error('Unknown course index.');
@@ -185,10 +198,12 @@ function boot(scene: Scene) {
       return;
     }
     clearInput(); started = true; paused = false; accumulator = 0; overlay(); hud(); viewport.focus({ preventScroll: true });
+    syncRendering();
   }
   function setPaused(value: boolean) {
     if (!started || state.won || mode === 'edit') return;
     paused = value; clearInput(); accumulator = 0; overlay(); hud();
+    syncRendering();
     if (!value) viewport.focus({ preventScroll: true });
   }
   function showHelp(show: boolean) {
@@ -218,11 +233,13 @@ function boot(scene: Scene) {
     menu.append(element('notice'));
     menu.showModal(); element('menu-toggle').setAttribute('aria-expanded', 'true');
     overlay(); hud(); element('menu-play').focus({ preventScroll: true });
+    syncRendering();
   }
   function closeMenu(target: HTMLElement = element('menu-toggle')) {
     menu.close(); element('menu-toggle').setAttribute('aria-expanded', 'false');
     element('boundstoy').append(element('notice'));
     overlay(); hud(); target.focus({ preventScroll: true });
+    syncRendering();
   }
   function tick(input: Point) {
     const previousTick = state.tick;
@@ -343,7 +360,10 @@ function boot(scene: Scene) {
     if (event.relatedTarget !== viewport) setPaused(true);
   }, options);
   window.addEventListener('blur', () => { clearInput(); setPaused(true); }, options);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); setPaused(true); } }, options);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearInput(); setPaused(true); }
+    loop.setVisible(!document.hidden);
+  }, options);
   document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
     button.addEventListener('pointerdown', event => {
       event.preventDefault();
@@ -480,38 +500,40 @@ function boot(scene: Scene) {
   const debug = {
     snapshot: () => structuredClone({ state, level, mode, paused, started, testing, input: movement() }),
     ascii: () => ascii(level, state),
-    load: (index: number) => { loadCourse(index); scene.draw(state, 0, false); },
+    load: (index: number) => {
+      if (abort.signal.aborted) throw new Error('The game has been disposed.');
+      loadCourse(index); visualTime = 0; loop.drawNow();
+    },
     advance: (ticks: number, input: Point = STILL) => {
+      if (abort.signal.aborted) throw new Error('The game has been disposed.');
       if (!Number.isInteger(ticks) || ticks < 0 || ticks > 100_000) throw new Error('advance accepts 0-100000 ticks.');
       if (mode !== 'play') throw new Error('Use Play or Playtest before advancing the simulation.');
-      paused = true; started = true; accumulator = 0;
+      paused = true; started = true; accumulator = 0; clearInput();
       for (let i = 0; i < ticks && !state.won; i++) tick(input);
-      hud(); overlay(); scene.draw(state, state.tick * DT, false);
+      visualTime = state.tick * DT; hud(); overlay(); syncRendering(); loop.drawNow();
       return structuredClone(state);
     },
     project: (point: Point) => scene.project(point),
     export: () => JSON.stringify(level),
-    metrics: () => ({ drawCalls: scene.renderer.info.render.calls, triangles: scene.renderer.info.render.triangles, geometries: scene.renderer.info.memory.geometries, textures: scene.renderer.info.memory.textures }),
+    metrics: () => ({ frames: scene.renderer.info.render.frame, drawCalls: scene.renderer.info.render.calls, triangles: scene.renderer.info.render.triangles, geometries: scene.renderer.info.memory.geometries, textures: scene.renderer.info.memory.textures }),
   };
   if (new URLSearchParams(location.search).has('debug')) window.__BOUNDSTOY__ = debug;
 
-  function frame(now: number) {
-    const elapsed = lastFrame ? Math.min((now - lastFrame) / 1000, 0.1) : 0;
-    lastFrame = now;
-    if (!paused && mode === 'play' && !state.won) {
+  function frame(elapsed: number) {
+    if (!menu.open && !paused && mode === 'play' && !state.won) {
       visualTime += elapsed; accumulator += elapsed;
       const input = movement();
       while (accumulator >= DT && !state.won) { tick(input); accumulator -= DT; }
-    } else if (!started || mode === 'edit' || state.won) visualTime += elapsed;
+    } else if (!menu.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
     hud(); scene.draw(state, visualTime, mode === 'edit');
-    animation = requestAnimationFrame(frame);
   }
-  load(level); element('primary-action').focus({ preventScroll: true }); animation = requestAnimationFrame(frame);
+  load(level); element('primary-action').focus({ preventScroll: true });
   window.addEventListener('pagehide', event => {
-    setPaused(true);
+    clearInput(); setPaused(true); loop.setVisible(false);
     if (event.persisted) return;
-    cancelAnimationFrame(animation); abort.abort(); scene.dispose(); audio.dispose(); delete window.__BOUNDSTOY__;
+    loop.dispose(); abort.abort(); clearTimeout(noticeTimer); scene.dispose(); audio.dispose(); delete window.__BOUNDSTOY__;
   }, options);
+  window.addEventListener('pageshow', () => loop.setVisible(!document.hidden), options);
   return debug;
 }
 

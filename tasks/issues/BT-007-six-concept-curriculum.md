@@ -3,7 +3,7 @@
   "id": "BT-007",
   "title": "Build six focused levels from the existing mechanics",
   "type": "feature",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": ["BT-006"],
   "parent": "BT-005",
@@ -11,7 +11,7 @@
   "approval": "Approved by the user's 2026-10-08 maximum-ten-levels, one-concept-at-a-time request, recorded in BT-005; the orchestrator selected six levels.",
   "assignment": {
     "owner": "curriculum-worker",
-    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "run": "cb987482-eafd-4ca7-899a-bdb8eb078f41",
     "branch": "task/bt-007",
     "worktree": ".worktrees/BT-007"
   },
@@ -41,13 +41,13 @@ Update only the six declared data/test/inspection surfaces.
 
 ## Acceptance criteria
 
-- [ ] Exactly six levels ship, each with one named primary concept and no not-yet-taught special mechanic.
-- [ ] Every level has a legal input-only deathless replay, visits its checkpoints and finishes at a reproducible tick.
-- [ ] Soft ice requires turning at constant speed; hard ice requires alignment/curb use; timing levels require observing the actual hazard instead of bypassing it.
-- [ ] Entry/landing zones, checkpoints and timing windows are forgiving enough for learning, with measurable tolerance checks where relevant.
-- [ ] Lessons are short, accurate, ordered with checkpoints and appropriate for each concept.
-- [ ] Inspection CLI and tests handle the full curriculum; editor tests no longer accidentally depend on old map coordinates.
-- [ ] Core physics and validation code are unchanged and the full repository suite/build passes.
+- [x] Exactly six levels ship, each with one named primary concept and no not-yet-taught special mechanic.
+- [x] Every level has a legal input-only deathless replay, visits its checkpoints and finishes at a reproducible tick.
+- [x] Soft ice requires turning at constant speed; hard ice requires alignment/curb use; timing levels require observing the actual hazard instead of bypassing it.
+- [x] Entry/landing zones, checkpoints and timing windows are forgiving enough for learning, with measurable tolerance checks where relevant.
+- [x] Lessons are short, accurate, ordered with checkpoints and appropriate for each concept.
+- [x] Inspection CLI and tests handle the full curriculum; editor tests no longer accidentally depend on old map coordinates.
+- [x] Core physics and validation code are unchanged and the full repository suite/build passes.
 
 ## Implementation context
 
@@ -73,8 +73,25 @@ verify wrong strategies fail where the lesson requires a decision.
 
 ## Handoff
 
-Pending.
+- Summary: Six focused levels replace the two mixed courses; implementation is ready for acceptance.
+- Changes: Exactly data/levels.ts, data/replays.ts, tests/courses.test.ts, tests/guidance.test.ts, tests/editor.test.ts and scripts/inspect.ts.
+- Verification: Worker ran 39 targeted tests and npm run evaluate with 87 total tests passing, tracker/typecheck/build successful, all six inspection witnesses and git diff --check. Inputs are keyboard-realizable, visit checkpoints in order, finish on the exact final tick and never die. Wrong-strategy and safe-window checks are included.
+- Risks: Combined production-browser acceptance remains BT-008. Existing Vite bundle-size warning remains non-blocking.
+- Commit: 21a270a108469298f4d33b24b9799cae900333fe on task/bt-007.
+- Resources: No preview server, browser context or scratch files created by the worker.
+- Decisions: New score IDs; mud reuses the taught pulse (104 exposure ticks versus 44 for walking). No physics/UI changes, tracker edits, pushes or worker merges.
+
+| Level / ID | Focus | Checkpoints | Witness ticks | Evidence |
+| --- | --- | --- | --- | --- |
+| First steps / first-steps-v1 | Walking | 2 | 484 | Release-stop and safe 600-tick wall hold |
+| Gentle curve / gentle-curve-v1 | Soft ice | 1 | 435 | Both turn durations +/-6 ticks; 169 safe landing trials |
+| Curb turn / curb-turn-v1 | Hard ice | 2 | 575 | Alignment +/-6, curb arrival -24/0/+24; 39 trials |
+| Pulse crossing / pulse-crossing-v1 | Pulse timing | 1 | 520 | Every launch offset within +/-24 ticks |
+| Saw crossing / saw-crossing-v1 | Saw timing | 1 | 440 | Every launch offset within +/-24 ticks |
+| Take your time / mud-crossing-v1 | Mud | 1 | 806 | Every launch offset within +/-24 ticks |
 
 ## Result
 
-Pending.
+- Summary: Accepted the six-concept curriculum and unlocked release integration.
+- Verification: Orchestrator confirmed exactly the authorized six files changed, clean worker/root trees, whitespace checks, and all 87 tests/typecheck/build passing after integration. Native checks exercise real course behaviour, not just terrain counts.
+- Integration: Fast-forwarded master to 21a270a108469298f4d33b24b9799cae900333fe. No remote push; combined browser/UI acceptance is BT-008.

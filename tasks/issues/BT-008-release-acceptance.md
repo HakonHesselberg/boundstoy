@@ -3,13 +3,18 @@
   "id": "BT-008",
   "title": "Verify and document the integrated consumer release",
   "type": "chore",
-  "status": "ready",
+  "status": "in_progress",
   "priority": "P1",
   "depends_on": ["BT-006", "BT-007"],
   "parent": "BT-005",
   "scope": ["README.md", "docs/", "package.json", "package-lock.json", "CLAUDE.md", "tasks/", ".github/agents/"],
   "approval": "Approved as release integration and acceptance under the user's 2026-10-08 shippable-game request in BT-005.",
-  "assignment": null,
+  "assignment": {
+    "owner": "orchestrator-release",
+    "run": "ae1df791-ee88-45da-87ca-bc2da2630c7d",
+    "branch": "master",
+    "worktree": "."
+  },
   "blocked_reason": null
 }
 ---

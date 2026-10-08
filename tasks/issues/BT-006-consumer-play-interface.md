@@ -3,13 +3,18 @@
   "id": "BT-006",
   "title": "Replace the development dashboard with a consumer play interface",
   "type": "feature",
-  "status": "ready",
+  "status": "in_progress",
   "priority": "P1",
   "depends_on": [],
   "parent": "BT-005",
   "scope": ["index.html", "presentation/main.ts", "presentation/style.css"],
   "approval": "Approved by the user's 2026-10-08 consumer-facing UI and shippable-game request, recorded in BT-005.",
-  "assignment": null,
+  "assignment": {
+    "owner": "consumer-ui-worker",
+    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "branch": "task/bt-006",
+    "worktree": ".worktrees/BT-006"
+  },
   "blocked_reason": null
 }
 ---

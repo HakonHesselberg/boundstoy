@@ -150,6 +150,21 @@ npm run inspect -- 1 --replay    # deathless reference playthrough
 npm run inspect -- 5 --replay    # the sixth lesson; valid indices are 0-5
 ```
 
+For repeatable production-browser acceptance, with an installed Chromium:
+
+```sh
+npm run test:browser
+```
+
+This builds the game, starts an owned temporary loopback server/browser, drives
+real input and all current replays, checks editor/saves/offline behaviour, then
+cleans up. It uses Node's built-in APIs rather than an added npm dependency or
+an AI/MCP session. Chromium's sandbox stays enabled and its profile is isolated.
+Missing prerequisites and failed checks exit nonzero, never silently skip.
+See [browser checks](docs/BROWSER_CHECKS.md) for executable overrides, evidence,
+cleanup verification and platform limitations. The regular `evaluate` command
+does not require Chromium.
+
 Open `http://127.0.0.1:4321/?debug` to opt into `window.__BOUNDSTOY__`:
 
 ```js
@@ -159,7 +174,7 @@ game.ascii();                    // text view of the current board
 game.load(0);                    // reset a built-in course
 game.advance(120, { x: 1, y: 0 }); // pause real time and step one simulated second
 game.project({ x: 3, y: 5 });     // cell center in browser client coordinates
-game.metrics();                  // Three.js draw calls / geometry / textures
+game.metrics();                  // cumulative frames, draw calls, geometry, textures
 game.export();                   // current level JSON
 ```
 
@@ -169,6 +184,11 @@ play; it does not teleport or disable hazards. The reference inputs in
 solvability, **not** an exhaustive BFS proof, and it cannot decide whether the
 game feels fun. Use real browser screenshots and human play alongside the tests.
 The debug API is absent without `?debug`.
+
+Paused gameplay and hidden documents stop scheduling unchanged render frames.
+Resize and explicit debug steps invalidate the scene for a fresh frame; resume
+does not catch up elapsed paused time. Visible intro/editor/victory animation
+continues, while modal menus freeze the covered scene.
 
 See [mechanics](docs/GAME_SYSTEMS.md), [architecture](docs/ARCHITECTURE.md),
 [testing](docs/TESTING.md), and [platform](docs/PLATFORM.md).

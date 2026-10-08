@@ -4,6 +4,13 @@
 the production build. There is no added test framework or browser automation
 dependency. Regenerate `tasks/INDEX.md` after editing issue metadata.
 
+For automated production-browser acceptance, run `npm run test:browser` with an
+installed Chromium. It builds, serves an owned temporary origin and drives an
+isolated sandboxed browser using native Node/CDP APIs. No AI/MCP session or npm
+automation package is required. The default `evaluate` suite remains independent
+of Chromium. See [BROWSER_CHECKS.md](BROWSER_CHECKS.md) for prerequisites, failure
+fixtures, evidence and cleanup checks.
+
 ## Simulation and curriculum
 
 The suite covers walking/release, constant-speed soft-ice steering and U-turns,
@@ -80,8 +87,9 @@ for a board cell without modifying the game.
 
 ## Current release evidence
 
-The integrated release passes 88 Node tests (68 game/visual/tooling checks and
-20 tracker checks), TypeScript and the static build.
+The integrated tree passes 116 Node tests: 68 original game/visual/tooling
+checks, 15 renderer-scheduling checks, 13 browser-runner infrastructure checks,
+and 20 tracker checks, plus TypeScript and the static build.
 
 The orchestrator replayed all six levels in Chromium through the next-level
 intro and final campaign screen: exact ticks above, zero retries, all
@@ -109,6 +117,34 @@ Safari/Firefox/mobile GPU behaviour have not been certified. The Astro wrapper
 has not yet been compiled in a real Astro consumer. Rendering quality and fun
 still need human play and tuning; tests cannot prove those.
 
+## Browser hardening evidence
+
+BT-002 makes input, all current replay data, editor validation/isolation,
+save/reload, non-debug privacy and offline-after-load checks repeatable. The
+integrated command passed after BT-011, including 44 live constant-speed
+reversal/release samples and all six exact finishes. A deliberately wrong-title
+fixture exited 1 with `passed: false, cleaned: true`; a subsequent real run
+passed. Recorded profiles, PIDs/process groups and ports were checked absent.
+The command also uses an argv/URL entrypoint guard; a regression prevents a
+silent pass when `import.meta.main` metadata is absent.
+
+BT-011 replaces the continuously running paused loop with a single-chain
+scheduler. Fake-host tests cover coalescing, elapsed-time reset, hidden
+invalidation, stale callbacks, immediate debug draws and disposal. The worker
+also observed native hidden-tab quiescence and a one-frame paused restoration.
+
+The orchestrator's integrated visible-pause probe observed live rendering first,
+then **zero** new WebGL submissions or renderer frames during 650 ms of settled
+pause (baseline: 297 submissions in 600 ms). Paused portrait resize produced
+one fresh 360x586 frame without changing tick 24. Resume's first frame kept
+tick 24, then normal play advanced to 55. The resized frozen canvas was visually
+inspected and returned to idle after screenshot/focus invalidation.
+
+These are scheduler/render-submission checks, not a hardware energy benchmark.
+Visible uncovered intro/editor/victory animation still runs; modal menus freeze
+the covered scene. Screenshot tools can themselves cause a valid focus/viewport
+invalidation, so assess settled idle windows separately from interactions.
+
 ## Tracker verification
 
 `node --test tests/tasks.test.ts` checks the local Markdown tool independently
@@ -118,10 +154,11 @@ conflicts, completion evidence, deterministic index output, stale-index
 rejection, JSON output, CLI exit codes, symlink rejection and ID limits.
 Examples and comments do not count as acceptance evidence.
 
-The tracker has no background queue service. Two bounded implementation agents
-were actually launched in isolated worktrees for BT-006 and BT-007, their
-commits reviewed for scope and integrated by the orchestrator. The committed
-baseline and accepted SHAs are recorded in Git and the issue handoffs.
+The tracker has no background queue service. The consumer release used bounded
+workers for BT-006 and BT-007; the follow-up batch used two independent parallel
+workers for BT-002 and BT-011. Their scoped commits were reviewed and integrated
+by the orchestrator. Baselines, worker IDs, accepted SHAs and evidence are
+recorded in Git and the issue handoffs.
 
 Keep the original template's discipline: add regressions before physics fixes,
 use immutable inputs, keep checks green, and verify the browser rather than

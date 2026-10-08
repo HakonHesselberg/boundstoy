@@ -4,6 +4,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import type { Socket as NetSocket } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { Cdp, Cleanup, chromiumArgs, chromiumEnvironment, parseOptions, startPreview, stopChild, waitFor } from './browser/runtime.ts';
 
 class Socket extends EventTarget {
@@ -13,6 +15,19 @@ class Socket extends EventTarget {
   close() { this.closed = true; this.dispatchEvent(new Event('close')); }
   message(value: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) })); }
 }
+
+test('BrowserCli_WithoutImportMetaMain_StillExecutesInsteadOfSilentlyPassing', async () => {
+  const source = await readFile(new URL('../scripts/browser-check.ts', import.meta.url), 'utf8');
+  const fixture = new URL(`../scripts/.browser-entry-${randomUUID()}.ts`, import.meta.url);
+  await writeFile(fixture, `Reflect.deleteProperty(import.meta, 'main');\n${source}`, { flag: 'wx' });
+  try {
+    const result = spawnSync(process.execPath, [fileURLToPath(fixture), '--browser', '/missing-boundstoy-browser'], {
+      encoding: 'utf8', timeout: 10_000,
+    });
+    assert.equal(result.status, 1, `CLI did not execute: ${result.stderr}`);
+    assert.match(result.stderr, /missing or not executable/);
+  } finally { await unlink(fixture); }
+});
 
 test('BrowserOptions_InvalidOrUnsafeArguments_RejectRatherThanSkip', () => {
   assert.deepEqual(parseOptions([]), { browser: '/usr/bin/chromium', timeout: 90_000 });

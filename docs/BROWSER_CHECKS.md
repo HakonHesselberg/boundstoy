@@ -16,6 +16,8 @@ protocol errors/timeouts and cleanup without requiring Chromium.
 ## Prerequisites and options
 
 - Node **24+**, locked project dependencies, and an installed Chromium.
+- The entrypoint uses the repository's argv/URL guard rather than requiring
+  `import.meta.main`; absence of that metadata cannot turn a run into a silent pass.
 - Default executable: `/usr/bin/chromium`. Linux is the verified host platform.
 - Chromium must run as a non-root user with its normal sandbox available
   (including supported user namespaces). The runner never uses `--no-sandbox`,

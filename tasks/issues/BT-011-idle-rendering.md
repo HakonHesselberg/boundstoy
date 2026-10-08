@@ -3,7 +3,7 @@
   "id": "BT-011",
   "title": "Stop submitting unchanged frames while paused or hidden",
   "type": "bug",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": "BT-010",
@@ -11,7 +11,7 @@
   "approval": "Approved under the user's 2026-10-08 follow-up issue/fix request and the measured performance defect recorded in BT-010.",
   "assignment": {
     "owner": "idle-render-worker",
-    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "run": "1e4380d6-7c3d-470f-9f63-0370d667ae1b",
     "branch": "task/bt-011",
     "worktree": ".worktrees/BT-011"
   },
@@ -42,13 +42,13 @@ manifests, docs or tracker state. No new dependency.
 
 ## Acceptance criteria
 
-- [ ] After settling a pause or a frozen menu state, renderer frame/draw counters do not grow during an idle observation window.
-- [ ] Hidden documents stop requesting/drawing animation frames; restoration redraws safely without unpausing a manually paused game.
-- [ ] Resizing a paused game produces a correct fresh frame, not an empty/stretched canvas, without advancing simulation.
-- [ ] Resume continues the current state without catch-up ticks or duplicate RAF loops.
-- [ ] Intro, editor and victory visuals still animate when visible; editor hover/paint and debug.advance remain immediately observable.
-- [ ] Disposal cancels pending work and repeated transitions cannot restart a disposed loop.
-- [ ] Native regression tests and real-browser verification pass, along with the full repository suite/build.
+- [x] After settling a pause or a frozen menu state, renderer frame/draw counters do not grow during an idle observation window.
+- [x] Hidden documents stop requesting/drawing animation frames; restoration redraws safely without unpausing a manually paused game.
+- [x] Resizing a paused game produces a correct fresh frame, not an empty/stretched canvas, without advancing simulation.
+- [x] Resume continues the current state without catch-up ticks or duplicate RAF loops.
+- [x] Intro, editor and victory visuals still animate when visible; editor hover/paint and debug.advance remain immediately observable.
+- [x] Disposal cancels pending work and repeated transitions cannot restart a disposed loop.
+- [x] Native regression tests and real-browser verification pass, along with the full repository suite/build.
 
 ## Implementation context
 
@@ -72,8 +72,16 @@ close owned pages before returning. Do not touch other previews/profiles.
 
 ## Handoff
 
-Pending.
+- Summary: Worker implemented a single-chain idle-aware render loop with explicit invalidation.
+- Changes: Exactly application/render-loop.ts, presentation/main.ts, presentation/scene.ts and tests/render-loop.test.ts. Added cumulative opt-in frame metrics, visibility handling and resize/highlight invalidation.
+- Verification: Worker passed 103 tests/typecheck/build and all six witnesses. During 650 ms pause, frames 384->384, draw submissions 11584->11584, requests 350->350, tick 24->24, pending RAF 0. Native background-tab measurements also stayed unchanged for 650 ms; restoration drew once and remained paused. Paused resize drew one correctly-sized frame; first resume frame added zero ticks. Editor and disposal/rearm checks passed.
+- Risks: Chromium software-WebGL evidence is not a hardware battery benchmark. Existing bundle-size warning remains. Screenshot artifacts were inspected inline because export was denied.
+- Commit: f9ecc6ac3de8fab091a6c1608cb5857942e14a1e from worker 1e4380d6-7c3d-470f-9f63-0370d667ae1b, merged into master.
+- Resources: Worker stopped preview 4333 and closed owned pages/auxiliary browser/profile. The orchestrator independently verified the combined build on owned port 4331.
+- Decisions: Modal menus freeze background animation consistently. Visibility restoration does not unpause gameplay. Intro/editor/victory animations remain active when visible and uncovered.
 
 ## Result
 
-Pending.
+- Summary: Accepted the performance fix with unchanged gameplay.
+- Verification: Combined production probe observed 132 live control draw calls, then zero additional frames/draw calls during 650 ms of settled pause with tick fixed at 24 (baseline was 297 draws/600 ms). Portrait resize drew exactly one frame at 360x586 without changing tick; first resumed frame retained tick 24, then play advanced to 55. The frozen resized canvas was visually inspected and settled back to zero redraws after external screenshot/focus invalidation. All six integrated browser witnesses and 116 portable tests passed.
+- Integration: Worker commit f9ecc6a is merged into master alongside the browser harness; no UI layout, level, physics or dependency changes.

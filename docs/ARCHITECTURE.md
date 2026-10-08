@@ -12,6 +12,7 @@ The template's useful ideas are kept without introducing a framework:
 | `core/editor.ts` | Pure paint/place/blank-level transformations |
 | `application/storage.ts` | Progress validation and best-run selection |
 | `application/guidance.ts` | Checkpoint-aware lessons and cause-specific retry text |
+| `application/render-loop.ts` | Single RAF chain, visibility, invalidation and disposal |
 | `presentation/main.ts` | DOM UI, input, accumulator loop, editor orchestration |
 | `presentation/scene.ts` | Three.js rendering and ray/plane pointer picking |
 | `presentation/hazard-visuals.ts` | Testable spike geometry and tick-driven charge/blast visuals |
@@ -54,3 +55,15 @@ menu owns level selection, sound, fullscreen, help and secondary editor entry.
 Counts and intro/next/final progression derive from `LEVELS.length`, not a fixed
 first/second-level flow. The debug API remains opt-in and has no permanent
 developer-facing UI in ordinary play.
+
+The render loop owns at most one pending RAF. Static paused scenes sleep until
+invalidated; hidden pages cancel pending work. `Scene.resize` and highlight
+changes invalidate presentation without stepping physics. `drawNow` keeps
+debug stepping synchronous. Resume/mode changes reset the elapsed-time anchor
+so an idle interval never becomes simulation catch-up. Menus freeze covered
+intro/editor/victory animation, which resumes when visible and uncovered.
+
+Production-browser testing lives outside the runtime bundle: `scripts/browser-check.ts`
+and private `tests/browser/` helpers use native Node HTTP/WebSocket plus an
+installed isolated Chromium. It is an opt-in check, not a game dependency or
+background service.

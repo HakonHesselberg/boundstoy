@@ -3,7 +3,7 @@
   "id": "BT-010",
   "title": "Harden browser verification and idle rendering",
   "type": "epic",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": null,
@@ -33,10 +33,10 @@ BT-003 and BT-004 remain backlog candidates outside this batch.
 
 ## Acceptance criteria
 
-- [ ] Browser acceptance can be run repeatedly from a documented local command without a new dependency.
-- [ ] A frozen paused/hidden game does not continually redraw, while required redraws and animations remain correct.
-- [ ] Both worker commits are scoped, reviewed and integrated with passing combined checks.
-- [ ] Only owned test resources are stopped/cleaned, and all child issues have truthful evidence.
+- [x] Browser acceptance can be run repeatedly from a documented local command without a new dependency.
+- [x] A frozen paused/hidden game does not continually redraw, while required redraws and animations remain correct.
+- [x] Both worker commits are scoped, reviewed and integrated with passing combined checks.
+- [x] Only owned test resources are stopped/cleaned, and all child issues have truthful evidence.
 
 ## Implementation context
 
@@ -57,8 +57,16 @@ quiescence, wake-ups, input/replays, failure cleanup and clean resources.
 
 ## Handoff
 
-Pending.
+- Summary: Two independent workers completed the scoped follow-up issues, followed by orchestrator review and combined acceptance.
+- Changes: BT-002 added dependency-free production Chromium checks; BT-011 removed unnecessary paused/hidden rendering; BT-012 verified integration and documented the workflow.
+- Verification: 116 portable tests/typecheck/build pass; integrated browser acceptance passes all current input/editor/save/offline/replay checks. Intentional failure returns nonzero with verified cleanup. Paused WebGL submissions fell from the measured 297/600 ms baseline to zero over a 650 ms settled observation.
+- Risks: Documented browser/platform and uncatchable-cleanup limitations remain; no broad cross-browser or battery-life guarantee is implied.
+- Commit: Worker commits a5d9d7a and f9ecc6a are integrated, with the small same-scope entrypoint fix and acceptance records in the closing commit.
+- Resources: Both workers are idle, no owned preview/browser process remains active, and evidence is retained under ignored artifacts directories.
+- Decisions: Preserved the six existing levels and mechanics. The new browser runner uses installed Chromium, native Node APIs and its own isolated sandboxed profile, not additional npm packages.
 
 ## Result
 
-Pending.
+- Summary: Accepted and complete; no approved work remains in this batch.
+- Verification: BT-002, BT-011 and BT-012 each have checked acceptance criteria, real command/browser evidence and resource-cleanup results.
+- Integration: Source, command documentation and local issue records are ready in master; no remote push or deployment.

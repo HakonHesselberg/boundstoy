@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Cdp, Cleanup, chromiumArgs, chromiumEnvironment, parseOptions, startPreview, stopChild, waitFor } from '../tests/browser/runtime.ts';
 import { checkGame, type BrowserContext } from '../tests/browser/scenarios.ts';
@@ -145,4 +145,4 @@ export async function main(args = process.argv.slice(2), check: (context: Browse
   } else log('PASS: all production browser checks.');
 }
 
-if (import.meta.main) await main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

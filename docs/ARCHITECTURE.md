@@ -5,7 +5,7 @@ The template's useful ideas are kept without introducing a framework:
 | Location | Responsibility |
 | --- | --- |
 | `data/terrain.ts` | Frozen terrain registry and balance constants |
-| `data/levels.ts` | Two frozen, validated course definitions |
+| `data/levels.ts` | Six frozen, validated teaching levels and checkpoint lessons |
 | `data/replays.ts` | Successful, deterministic input sequences |
 | `core/level.ts` | Typed level format, strict import validation, coordinates |
 | `core/simulation.ts` | Pure `createState`, `step`, hazard sampling and ASCII view |
@@ -48,3 +48,9 @@ page teardown releases renderer, textures, audio and event listeners.
 The application intentionally has no event bus, ECS, physics package, UI
 framework or plugin system. New behaviour should first extend the narrow,
 typed core interfaces rather than introducing an abstraction.
+
+The player interface is a playfield plus a small HUD/contextual hint. A compact
+menu owns level selection, sound, fullscreen, help and secondary editor entry.
+Counts and intro/next/final progression derive from `LEVELS.length`, not a fixed
+first/second-level flow. The debug API remains opt-in and has no permanent
+developer-facing UI in ordinary play.

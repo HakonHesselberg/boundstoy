@@ -53,24 +53,32 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
 - Exit: touch within 0.42 tiles to finish; hazards take precedence if both collide
   on the same tick. The finish tick is frozen.
 
-Both courses are always available. Best runs compare time first, then falls to
+All six levels are always available. Best runs compare time first, then retries to
 break equal-time ties. Restart clears checkpoints, falls and time.
 
 ## Course design
 
-- **Slalom & slide:** soft-ice spike banks alternate between the bottom and top
-  of the route, requiring continuous steering arcs. Broad entry/landing pads
-  leave room to learn the turn without frame-perfect input. The right-hand curb
-  catches an eastward hard slide so it can turn north around another spike bank.
-  A normal-ground landing lets the player align with a one-tile gap before
-  launching west through an explosion gate. The far curb provides a second turn
-  into the mud exit.
-- **Commit & cross:** the first hard-ice lane must be aligned before entry,
-  launched through a safe explosion window, and stopped at the far curb.
-  A northward launch leads to a checkpoint and a wide soft-ice turn. A second
-  solid-ground checkpoint island lets the player stop and observe the saw.
-  Launch diagonally below the spikes, then turn east to the third checkpoint.
-  The final mud corridor is slow enough that a late crossing of the explosion row fails.
+The release uses six short lessons, not mixed introductory courses:
+
+| Level | Special mechanic | Existing ideas reused |
+| --- | --- | --- |
+| First steps | Normal walking and release-to-stop | Static curbs, spikes, void, checkpoints |
+| Gentle curve | Constant-speed soft-ice turning | Normal staging/landing pads and static obstacles |
+| Curb turn | Locked hard-ice movement and curb relaunch | Normal ground and static alignment obstacles |
+| Pulse crossing | Periodic explosion timing | Normal ground, checkpoints, safe waiting pads |
+| Saw crossing | Moving-patrol timing | Normal ground and a crossing that cannot be walked around |
+| Take your time | Mud slowdown | The already-taught pulse; no other special terrain/hazard |
+
+No level introduces an additional mechanic that belongs to a later lesson.
+The maximum curriculum size remains ten; adding more mixed challenges is not
+part of this release. Keep each future level's primary concept explicit.
+
+The soft-ice lesson requires actual heading changes and has a broad landing.
+The hard-ice lesson requires choosing the lane before entering and stopping at
+a curb to turn. Each timed crossing has a safe place to wait and a reference
+launch away from the edge of its safe window. The mud lesson's hazard exposure
+lasts 104 ticks versus 44 when walking over the same crossing, making the slower
+speed relevant rather than merely cosmetic.
 
 Barriers are 0.24 tiles tall with a contrasting top edge; their collision is
 still a full solid cell. Each spike tile has five pointed metal teeth rather

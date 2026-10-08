@@ -1,6 +1,6 @@
 {
   "name": "boundstoy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "A static, headless-first browser playground for ice sliding and bounds.",
   "type": "module",

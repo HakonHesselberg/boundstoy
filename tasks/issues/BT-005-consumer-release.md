@@ -3,7 +3,7 @@
   "id": "BT-005",
   "title": "Ship a focused consumer-facing teaching game",
   "type": "epic",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": null,
@@ -34,11 +34,11 @@ commits as needed; no remote push or deployment is requested.
 
 ## Acceptance criteria
 
-- [ ] Main play is consumer-facing with minimal surrounding chrome and no permanent development dashboard.
-- [ ] Six distinct, focused teaching levels have legal deathless witnesses and concept-specific checks.
-- [ ] Full progression, retries, persistence, input, mobile layout and editor access work together.
-- [ ] Static production build, documentation and open-source notices are ready to copy to a static host or Astro site.
-- [ ] Child issues are reviewed, integrated and verified before this epic closes.
+- [x] Main play is consumer-facing with minimal surrounding chrome and no permanent development dashboard.
+- [x] Six distinct, focused teaching levels have legal deathless witnesses and concept-specific checks.
+- [x] Full progression, retries, persistence, input, mobile layout and editor access work together.
+- [x] Static production build, documentation and open-source notices are ready to copy to a static host or Astro site.
+- [x] Child issues are reviewed, integrated and verified before this epic closes.
 
 ## Implementation context
 
@@ -65,8 +65,16 @@ browser, and check small-screen UI and static/offline operation.
 
 ## Handoff
 
-Pending.
+- Summary: The requested six-lesson consumer game is implemented, integrated and accepted as v0.3.0.
+- Changes: BT-006 minimized the UI; BT-007 introduced the six-concept curriculum; BT-008 handled combined release acceptance; BT-009 fixed a misleading tutorial retry message discovered during QA.
+- Verification: Each child has explicit evidence. All six production-browser witnesses match Node, and the full 88-test/typecheck/build pipeline passes.
+- Risks: Further human tuning and broader real-device/browser coverage remain useful; no claim of actual Astro compilation or remote deployment is made.
+- Commit: Approved baseline 782e6b0; implementation commits 4d45f66, 21a270a and e1fe4fe are integrated on master, followed by the release documentation/closure commit.
+- Resources: Both implementation agents returned bounded handoffs; no implementation or preview process remains active. Worktrees are retained, not deleted.
+- Decisions: Used isolated Git worktrees after the user authorized commits. The earlier serial fallback was not used. Unapproved backlog candidates remain untouched.
 
 ## Result
 
-Pending.
+- Summary: Accepted. The scope is a shippable static game with six focused existing-mechanic lessons and minimal consumer UI, below the ten-level cap.
+- Verification: All four child issues are done with acceptance evidence, and BT-008 covers the integrated behaviour and documented limitations.
+- Integration: The main branch and dist output contain the release; no remote push or deployment was performed.

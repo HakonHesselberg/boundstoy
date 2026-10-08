@@ -1,8 +1,9 @@
 # Boundstoy
 
-A static, two-course browser vertical slice about movement and timing. Walk,
-steer a constant-speed glide across soft ice, commit to a hard-ice slide, and
-slow down in mud. The workshop lets you build the next course.
+A small, static browser game about movement and timing, with six focused
+teaching levels and a minimal player-facing interface. Walk, steer a
+constant-speed glide across soft ice, commit to a hard-ice slide, and learn
+when to cross moving hazards. A secondary level editor lets you build more.
 
 Started from a copy of [ai-game-template](https://github.com/HakonHesselberg/ai-game-template).
 Its headless-first structure is retained. There is no game engine code in the
@@ -18,23 +19,25 @@ npm run dev
 # http://127.0.0.1:4321
 ```
 
-Click **Let's roll**, then use **WASD / arrow keys**. **Space** pauses, **R**
-restarts the course. Checkpoints save your position after a fall. Mobile layouts
-include hold-to-move direction buttons. Sound starts muted; enable it explicitly.
+Click **Play**, then use **WASD / arrow keys**. **Space** pauses, **R** restarts,
+and **Escape** opens the menu. Checkpoints save your position after a fall.
+Mobile layouts include hold-to-move direction buttons. **Menu** contains level
+selection, sound, fullscreen, help and the editor. Sound starts muted.
 
 **Soft ice has no brakes.** You glide at 4.4 tiles/second even when you release
 the controls or hold reverse. Input changes your heading through a bounded turn;
 reverse makes a U-turn. Curbs reflect soft-ice momentum instead of stopping it.
 Hard ice still locks direction and stops at curbs. Land on normal ground or mud
-to wait. The heading arrow and speed readout show your actual movement.
+to wait. The heading arrow shows your actual direction; developer readouts are
+not part of the normal play screen.
 
 ## What's included
 
 - Normal ground, steerable soft ice, direction-locked hard ice, and mud.
 - Void, low striped barriers, metal spike clusters, telegraphed explosions, and moving saws.
-- Two obstacle courses, unlimited retries, checkpoints, local best times.
+- Six focused levels, unlimited retries, checkpoints, local best times.
 - Numbered route markers, checkpoint-aware lessons, cause-specific retry
-  feedback, and a two-course completion screen with run and best-time results.
+  feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
   local draft saving, and validated JSON import/export/download.
 - Original procedural 3D geometry, studio reflections, neon accents and audio.
@@ -42,19 +45,30 @@ to wait. The heading arrow and speed readout show your actual movement.
 - Pure TypeScript simulation with immutable state updates, 120 Hz fixed steps,
   reference input replays, and an optional browser inspection API.
 
-This is a finished two-course slice, not a full campaign. No accounts, analytics,
-ads, multiplayer, backend, or runtime external services. After the initial page
+No accounts, analytics, ads, multiplayer, backend, or runtime external services.
+After the initial page
 and assets load, play and editing need no network. Offline **reload** is not
 guaranteed: there is intentionally no service worker.
 
-**Slalom & slide** teaches continuous arcs around alternating spike banks,
-landing on solid ground, using a curb to stop and turn a hard slide, then lining
-up a one-tile gap. **Commit & cross** combines a timed hard-ice launch, a sweeping
-turn to a safe island, a moving-saw crossing, and a slower mud crossing.
-Solid-ground islands give you time to observe hazards without inventing brakes
-on ice. The no-braking courses have versioned IDs, so earlier physics records
-are retained but not compared against these runs. Existing drafts are preserved;
-choose **Remix course** for a fresh copy of the new layout.
+## The six lessons
+
+| Level | Focus |
+| --- | --- |
+| First steps | Walking, stopping, navigation and static obstacles |
+| Gentle curve | Turning on soft ice without braking |
+| Curb turn | Hard-ice alignment, stopping at a curb and relaunching |
+| Pulse crossing | Waiting for a safe explosion window |
+| Saw crossing | Reading a moving patrol and choosing a crossing |
+| Take your time | Slower mud movement, reusing the already-taught pulse |
+
+There is no mixed-mechanics final gauntlet. Each level introduces one concept
+using existing systems, with safe staging areas and forgiving timing margins.
+All levels are available from the menu. They are deliberately short and easy to
+tune; the curriculum stays below the ten-level cap.
+
+New level IDs keep earlier prototype scores separate. Existing drafts and
+older records are preserved; choose **Remix level** in the editor to copy a
+current layout.
 
 Explosion pads are dark when safe, charge in amber, then erupt into bright
 fireballs, shock rings and sparks. The outlined square is the danger footprint.
@@ -97,26 +111,28 @@ No Astro dependency is needed in this project.
 ---
 import Boundstoy from '../components/Boundstoy.astro';
 ---
-<Boundstoy />
+<Boundstoy height="min(900px, 100dvh)" />
 ```
 
 The component uses a titled, lazy-loaded iframe so game CSS and keyboard handling
 stay isolated from the host site. No hydration framework is required. For a
-custom location use `<Boundstoy src="/play/boundstoy/index.html" height="1100px" />`.
-The default URL respects Astro's configured base path. On narrow layouts the
-iframe scrolls internally. A static link to the standalone game also works.
+custom location use `<Boundstoy src="/play/boundstoy/index.html" height="100dvh" />`.
+The default URL respects Astro's configured base path. Choose an iframe height
+that leaves the game's controls visible on the host page; the wrapper's default
+is 1100px if no height is supplied. A static link to the standalone game also works.
 
-## Workshop
+## Level editor
 
-Open **Workshop** to remix the selected course or restore your last draft.
+Open **Menu → Level editor** to remix the selected level or restore your last draft.
 Choose a brush, then click/drag on the board. For a saw, click its start and end.
 **Erase object** removes a hazard at its start cell or a checkpoint, not the
 ground. Start/exit/checkpoints require safe floor; painting unsafe terrain under
 one is rejected. Move the marker or erase the checkpoint first.
 
-**New blank** and **Remix course** can be undone. Up to 40 edits are kept in
-session memory. **Playtest course** starts from the draft's spawn; return with
-**Workshop**. Playtests never alter the built-in course records.
+**New blank** and **Remix level** can be undone. Up to 40 edits are kept in
+session memory. **Playtest level** starts from the draft's spawn; return with
+**Menu → Level editor**. **Back to game** leaves editing. Playtests never alter
+built-in records.
 
 Drafts and records stay in `localStorage`, scoped to the hosting origin. Storage
 failures are shown in the UI; export JSON if saving is unavailable. There is no
@@ -128,9 +144,10 @@ and period. Times are integer simulation ticks, not milliseconds.
 ```sh
 npm test
 npm run typecheck
-npm run evaluate                 # tests + production build
+npm run evaluate                 # tracker + tests + production build
 npm run inspect -- 0             # ASCII course and state
 npm run inspect -- 1 --replay    # deathless reference playthrough
+npm run inspect -- 5 --replay    # the sixth lesson; valid indices are 0-5
 ```
 
 Open `http://127.0.0.1:4321/?debug` to opt into `window.__BOUNDSTOY__`:
@@ -141,14 +158,14 @@ game.snapshot();                 // cloned state, level, mode, pause and inputs
 game.ascii();                    // text view of the current board
 game.load(0);                    // reset a built-in course
 game.advance(120, { x: 1, y: 0 }); // pause real time and step one simulated second
-game.project({ x: 3, y: 13 });    // cell center in browser client coordinates
+game.project({ x: 3, y: 5 });     // cell center in browser client coordinates
 game.metrics();                  // Three.js draw calls / geometry / textures
 game.export();                   // current level JSON
 ```
 
 `advance` runs the same collision, hazards, checkpoint and win logic as keyboard
 play; it does not teleport or disable hazards. The reference inputs in
-`data/replays.ts` reach both exits with no falls. This is evidence of
+`data/replays.ts` reach all six exits with no falls. This is evidence of
 solvability, **not** an exhaustive BFS proof, and it cannot decide whether the
 game feels fun. Use real browser screenshots and human play alongside the tests.
 The debug API is absent without `?debug`.

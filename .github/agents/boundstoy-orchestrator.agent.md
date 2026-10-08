@@ -39,8 +39,9 @@ implementation workers may run together. This is a ceiling, not a target.
 Do not spawn a large workflow or fleet automatically.
 
 Before parallel work, confirm a committed baseline exists and Git operations
-are authorized. There is no initial Git commit in the original project setup;
-do not make a broad baseline commit merely to unlock automation. If needed,
+are authorized. The original setup had no Git commit; inspect the current state
+rather than assuming a baseline is present or absent. Do not make a broad
+baseline commit merely to unlock automation. If needed,
 stop for approval or use an explicitly bounded sequential/direct mode.
 The `serial-primary` fallback in tasks/README.md permits one explicitly assigned
 worker in the existing tree without creating an unauthorized baseline commit.

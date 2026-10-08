@@ -26,7 +26,16 @@ See the README for copying into Astro. The supplied wrapper is a plain iframe;
 it deliberately avoids assuming a host site's styling, router or hydration
 framework. If the host applies CSP, allow same-origin scripts/styles/images.
 Fullscreen remains subject to the embedding site's permissions.
+The consumer interface fits its own viewport; for an iframe, prefer an explicit
+height such as `min(900px, 100dvh)` so the host page does not place touch controls
+far below the visible screen. The static embedding path has been browser-tested;
+an actual Astro consumer compilation is still tracked separately.
 
 Progress keys: `boundstoy.progress.v1`, `boundstoy.draft.v1`.
 Clear those keys to reset local data. Storage permission/quota failures are
 visible and do not prevent play; export JSON to preserve drafts manually.
+
+Release scope: six teaching levels using existing mechanics only, no more than
+ten levels without a new scope decision. The editor is a secondary menu action.
+Desktop Chromium and emulated mobile viewports are checked; real Safari/Firefox
+and physical mobile GPU/device behaviour are not certified by those checks.

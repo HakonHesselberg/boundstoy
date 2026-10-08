@@ -3,19 +3,14 @@
   "id": "BT-008",
   "title": "Verify and document the integrated consumer release",
   "type": "chore",
-  "status": "in_progress",
+  "status": "blocked",
   "priority": "P1",
-  "depends_on": ["BT-006", "BT-007"],
+  "depends_on": ["BT-006", "BT-007", "BT-009"],
   "parent": "BT-005",
   "scope": ["README.md", "docs/", "package.json", "package-lock.json", "CLAUDE.md", "tasks/", ".github/agents/"],
   "approval": "Approved as release integration and acceptance under the user's 2026-10-08 shippable-game request in BT-005.",
-  "assignment": {
-    "owner": "orchestrator-release",
-    "run": "ae1df791-ee88-45da-87ca-bc2da2630c7d",
-    "branch": "master",
-    "worktree": "."
-  },
-  "blocked_reason": null
+  "assignment": null,
+  "blocked_reason": "Production QA reproduced a walking-level void message that teaches green-ice rules. BT-009 fixes this small feedback defect before release acceptance."
 }
 ---
 # BT-008: Verify and document the integrated consumer release
@@ -29,8 +24,8 @@ ship. Existing documentation still describes the old two-course slice.
 
 Review worker scope/handoffs, update release documentation and version, verify
 the six-course player flow in a real browser, and close accepted local issues.
-The orchestrator owns this integration task directly. Reopen a child issue for
-any code defect found rather than silently changing a worker's scope.
+The orchestrator owns this integration task directly. Record a scoped bug child
+or reopen the relevant child for defects rather than silently expanding scope.
 
 No external deployment, remote push, new dependencies, new game mechanics or
 automatic execution of the earlier unapproved backlog. Local commits and
@@ -60,7 +55,13 @@ was added and no worker/server remains active at the end.
 
 ## Handoff
 
-Pending.
+- Summary: Release verification is paused for BT-009; the six witnesses, next/final flow, menu layouts, editor round-trip and offline completion already passed in the production browser.
+- Changes: Release documentation and version 0.3.0 are prepared in the main working tree and preserved while the small feedback fix is active.
+- Verification: npm run evaluate passed 87 tests/typecheck/build. Real browser void death in First steps displayed "Over the edge. Turn earlier; green ice has no brakes.", which is inappropriate for the walking lesson.
+- Risks: Accept the final build only after BT-009 and the remaining resource cleanup.
+- Commit: UI 4d45f66 and curriculum 21a270a are integrated; release docs/version are not yet committed.
+- Resources: Orchestrator-owned release previews on 4321 and temporary embedding host 4322 remain active for verification; they will be stopped before final acceptance.
+- Decisions: Released the orchestrator-release assignment on master/. to permit the single-writer BT-009 fix. Original run: ae1df791-ee88-45da-87ca-bc2da2630c7d. No worker is currently writing.
 
 ## Result
 

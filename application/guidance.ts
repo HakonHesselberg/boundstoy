@@ -15,8 +15,8 @@ export function courseGuide(level: Level, state: State) {
 }
 
 const DEATH_MESSAGES: Readonly<Record<DeathCause, string>> = Object.freeze({
-  void: 'Over the edge. Turn earlier; green ice has no brakes.',
-  spikes: 'Caught the spikes. Give your turning arc more room.',
+  void: 'Over the edge. Stay on the floor and plan your next move.',
+  spikes: 'Caught the spikes. Leave more room around the obstacles.',
   pulse: 'Caught the blast. Wait on solid ground for a safe window.',
   saw: 'Caught by the saw. Watch its return trip before you launch.',
 });

@@ -39,3 +39,9 @@ test('DeathMessage_EachCause_ExplainsWhatWentWrong', () => {
   assert.match(deathMessage('pulse'), /blast/i);
   assert.match(deathMessage('saw'), /saw/i);
 });
+
+test('DeathMessage_StaticHazards_DoesNotAssumeAnIceLesson', () => {
+  for (const cause of ['void', 'spikes'] as const) {
+    assert.doesNotMatch(deathMessage(cause), /ice|brak|glid|turning arc/i);
+  }
+});

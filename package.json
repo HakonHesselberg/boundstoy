@@ -1,0 +1,32 @@
+{
+  "name": "boundstoy",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A static, headless-first browser playground for ice sliding and bounds.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --port 4321",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "test:watch": "node --test --watch tests/*.test.ts",
+    "inspect": "node scripts/inspect.ts",
+    "tasks": "node scripts/tasks.ts",
+    "tasks:check": "node scripts/tasks.ts check",
+    "evaluate": "npm run tasks:check && npm test && npm run build"
+  },
+  "dependencies": {
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "@types/three": "0.186.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.3"
+  }
+}

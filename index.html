@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b101b" />
+    <meta name="description" content="A tiny playground for momentum. Walk, drift and slide through handcrafted courses, or make your own." />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <title>Boundstoy - a playground for momentum</title>
+  </head>
+  <body>
+    <div id="boundstoy">
+      <header class="site-header">
+        <a class="brand" href="./" aria-label="Boundstoy home">
+          <svg viewBox="0 0 36 40" fill="none" aria-hidden="true"><path d="M18 2 34 11v18L18 38 2 29V11Z" stroke="currentColor" stroke-width="2"/><path d="m10 14 8-5 8 5-8 5-8-5Zm0 12 8-5 8 5-8 5-8-5Z" fill="currentColor"/></svg>
+          <span>bounds<span class="brand-light">toy</span><small>A PLAYGROUND FOR MOMENTUM</small></span>
+        </a>
+        <nav class="mode-tabs" aria-label="Game mode">
+          <button id="play-tab" class="selected" aria-pressed="true">Play</button>
+          <button id="editor-tab" aria-pressed="false">Workshop <span class="tiny">↗</span></button>
+        </nav>
+        <span class="local-label"><i></i> ALL PLAY. NO NETWORK.</span>
+      </header>
+
+      <main>
+        <div class="workspace-heading">
+          <div><span class="eyebrow">MOMENTUM LAB / <span id="course-number">01</span></span><h1 id="course-title">Slalom &amp; slide</h1></div>
+          <div class="utility">
+            <span class="test-badge" id="test-badge" hidden>PLAYTEST</span>
+            <button id="audio" class="icon-button" aria-label="Enable sound" aria-pressed="false" title="Sound is off">Sound off</button>
+            <button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Fullscreen">⛶</button>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <section class="game-column" aria-label="Game">
+            <div id="viewport" class="viewport" tabindex="0" role="application" aria-label="Boundstoy course. Use WASD or arrow keys to move. R to restart, Space to pause." aria-describedby="controls-note">
+              <div class="game-hud">
+                <div class="live-tag"><i></i><span id="run-status">READY WHEN YOU ARE</span></div>
+                <div class="counters"><span><small>TIME</small><b id="timer">00:00.00</b></span><span><small>RETRIES</small><b id="deaths">00</b></span></div>
+              </div>
+              <div class="map-label"><span class="compass">↑</span> N <span class="map-rule"></span> FIELD / <span id="map-id">01</span></div>
+              <div id="overlay" class="overlay">
+                <div class="overlay-card">
+                  <span class="eyebrow" id="overlay-kicker">SMALL ROBOT. BIG MOMENTUM.</span>
+                  <h2 id="overlay-title">Find your footing.</h2>
+                  <p id="overlay-copy">Green ice keeps moving. Steer through the turns, find the numbered checkpoints, then reach the golden exit.</p>
+                  <div id="intro-rules" class="intro-rules"><span><i></i> Soft ice: turn only. No brakes.</span><span><i></i> Hard ice: locked line. Curbs stop you.</span></div>
+                  <div id="finish-stats" class="finish-stats" hidden><div><small>RUN TIME</small><strong id="finish-time"></strong></div><div><small>RETRIES</small><strong id="finish-retries"></strong></div><div><small>BEST TIME</small><strong id="finish-best"></strong></div></div>
+                  <button id="primary-action" class="primary">Let's roll <span>→</span></button>
+                  <button id="retry-course" class="secondary-action" hidden>Retry this course ↻</button>
+                  <span class="overlay-foot" id="overlay-foot">WASD / ARROW KEYS TO MOVE</span>
+                </div>
+              </div>
+              <div id="game-feedback" class="game-feedback" role="status" aria-live="polite" hidden></div>
+              <div class="canvas-bottom"><div class="motion-readout"><span id="surface-readout"><i></i> NORMAL GROUND</span><span id="speed-readout" title="Actual speed in tiles per second">0.0 u/s</span></div><button id="pause" class="small-button">Pause <kbd>Space</kbd></button></div>
+              <span class="editor-coordinates" id="editor-coordinates" hidden>SELECT A TILE</span>
+            </div>
+            <div class="under-stage">
+              <p id="controls-note"><kbd>W</kbd><span class="key-row"><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Move <span class="muted">/ arrows work too</span></span></p>
+              <span class="control-extra"><kbd>R</kbd> Restart <span class="divider">/</span> <span id="checkpoint-note">Checkpoints keep you rolling</span></span>
+              <button id="restart" class="text-button">Start over ↻</button>
+            </div>
+            <div id="touch-controls" class="touch-controls" aria-label="Touch movement controls">
+              <button data-direction="up" aria-label="Move up">↑</button><button data-direction="left" aria-label="Move left">←</button>
+              <button data-direction="down" aria-label="Move down">↓</button><button data-direction="right" aria-label="Move right">→</button>
+            </div>
+            <div id="route-coach" class="route-coach" aria-label="Current route objective">
+              <span id="route-step" class="route-step">01 / 03</span>
+              <div><strong id="route-title">Always in motion</strong><p id="route-hint">Green ice has no brakes. Aim up-right and start your turns early.</p></div>
+            </div>
+            <div class="terrain-strip" aria-label="Ground types">
+              <div><span class="terrain-swatch normal"></span><span><strong>Normal</strong><small>Stay in control</small></span><span class="terrain-symbol">+</span></div>
+              <div><span class="terrain-swatch soft"></span><span><strong>Soft ice</strong><small>Turn. Never brake.</small></span><span class="terrain-symbol">≈</span></div>
+              <div><span class="terrain-swatch hard"></span><span><strong>Hard ice</strong><small>Commit to a line</small></span><span class="terrain-symbol">≡</span></div>
+              <div><span class="terrain-swatch mud"></span><span><strong>Mud</strong><small>Take it slow</small></span><span class="terrain-symbol">∴</span></div>
+            </div>
+          </section>
+
+          <aside class="sidebar">
+            <section id="play-panel">
+              <div class="panel-heading"><span class="eyebrow">THE TWO-COURSE RUN</span><span class="count-label" id="completion-count">00 / 02</span></div>
+              <div class="course-list" id="course-list"></div>
+              <div class="field-notes">
+                <span class="eyebrow">FIELD NOTES</span>
+                <h2>Same toy.<br>Different rules.</h2>
+                <p id="level-description">Weave through the spikes, use the curbs to stop a hard slide, and line up your next launch.</p>
+                <div class="note-row"><span class="note-icon mint">◇</span><div><strong>No brakes on green ice</strong><p>Hold the direction you want to face. Reverse makes a U-turn, not a stop. Land on stone to wait.</p></div></div>
+                <div class="note-row"><span class="note-icon rose">◉</span><div><strong>Charge. Blast. Cross.</strong><p>Amber means charging. Fire means danger. Cross only when the pad is dark.</p></div></div>
+                <div class="note-row"><span class="note-icon gold">▰</span><div><strong>Use the curbs</strong><p>Soft ice bounces. Hard ice stops, ready for a new launch. Numbered checkpoints save your place.</p></div></div>
+              </div>
+              <div class="workshop-invite"><span class="eyebrow">WHAT IF THE FLOOR WAS ICE?</span><p>Make a little trouble of your own.</p><button id="remix" class="text-button">Open the workshop <span>↗</span></button></div>
+            </section>
+
+            <section id="editor-panel" hidden>
+              <div class="panel-heading"><span class="eyebrow">YOUR WORKSHOP</span><span class="count-label">01</span></div>
+              <label class="field-label" for="level-name">Course name</label><input id="level-name" maxlength="60" value="My course" />
+              <div class="editor-toolbar"><button id="undo">Undo</button><button id="new-course">New blank</button><button id="copy-course">Remix course</button></div>
+              <span class="eyebrow palette-heading">GROUND & OBSTACLES</span>
+              <div id="palette" class="palette" role="group" aria-label="Editor brushes"></div>
+              <p class="brush-help" id="brush-help">Paint normal ground. Click or drag over the board.</p>
+              <button id="playtest" class="primary">Playtest course <span>→</span></button>
+              <p class="editor-save" id="draft-status">Draft stays in this browser.</p>
+              <details class="json-panel"><summary>Import / export JSON</summary>
+                <label class="field-label" for="level-json">Portable level data</label>
+                <textarea id="level-json" rows="6" spellcheck="false" placeholder="Export your course or paste a level here."></textarea>
+                <div class="editor-toolbar"><button id="export">Export</button><button id="import">Import</button><button id="download">Download</button></div>
+              </details>
+            </section>
+          </aside>
+        </div>
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden><span id="notice-text"></span><button id="dismiss-notice" aria-label="Dismiss notification">×</button></div>
+      </main>
+      <footer><span>Two courses. One rule: keep your momentum.</span><span>BUILT TO PLAY. MADE TO TINKER. <b>v0.2</b></span></footer>
+    </div>
+    <noscript><p class="noscript">Boundstoy needs JavaScript and WebGL2 to play. No account or internet connection is needed after loading.</p></noscript>
+    <script type="module" src="/presentation/main.ts"></script>
+  </body>
+</html>

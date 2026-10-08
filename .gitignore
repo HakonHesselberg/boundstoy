@@ -1,0 +1,92 @@
+# Platform-specific ignores
+# Uncomment and add to these sections based on your platform
+
+# ===== Python =====
+# __pycache__/
+# *.py[cod]
+# *$py.class
+# .pytest_cache/
+# .mypy_cache/
+# venv/
+# env/
+# ENV/
+# *.egg-info/
+
+# ===== Node/JavaScript =====
+node_modules/
+artifacts/
+.worktrees/
+tasks/.INDEX-*.tmp
+# dist/
+# build/
+# .next/
+# .nuxt/
+# *.log
+# .env.local
+# .env.*.local
+
+# ===== C# / .NET =====
+# bin/
+# obj/
+# *.user
+# *.suo
+# *.cache
+# .vs/
+# *.dll
+# *.exe
+
+# ===== Rust =====
+# target/
+# Cargo.lock
+
+# ===== Unity =====
+# [Ll]ibrary/
+# [Tt]emp/
+# [Oo]bj/
+# [Bb]uild/
+# [Bb]uilds/
+# [Ll]ogs/
+# *.sln
+# *.csproj
+# *.pidb
+# *.unityproj
+# *.suo
+# *.tmp
+# *.user
+# *.userprefs
+# *.DS_Store
+
+# ===== Godot =====
+# .import/
+# export.cfg
+# export_presets.cfg
+# *.translation
+# .mono/
+
+# ===== General =====
+.DS_Store
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+*~
+.env
+.secrets
+*.log
+
+# ===== Build Artifacts =====
+dist/
+build/
+out/
+*.zip
+*.tar.gz
+
+# ===== Test Coverage =====
+coverage/
+htmlcov/
+.coverage
+*.cover
+
+# ===== Documentation Builds =====
+docs/_build/
+site/

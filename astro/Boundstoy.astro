@@ -1,0 +1,23 @@
+---
+interface Props {
+  src?: string;
+  title?: string;
+  height?: string;
+}
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const {
+  src = `${base}/games/boundstoy/index.html`,
+  title = 'Boundstoy - a playground for momentum',
+  height = '1100px',
+} = Astro.props;
+---
+
+<iframe
+  {src}
+  {title}
+  style={`width:100%;height:${height};border:0;border-radius:12px;display:block;`}
+  loading="lazy"
+  allow="fullscreen"
+  allowfullscreen
+></iframe>

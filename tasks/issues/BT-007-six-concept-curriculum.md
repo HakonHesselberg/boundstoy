@@ -3,13 +3,18 @@
   "id": "BT-007",
   "title": "Build six focused levels from the existing mechanics",
   "type": "feature",
-  "status": "ready",
+  "status": "in_progress",
   "priority": "P1",
   "depends_on": ["BT-006"],
   "parent": "BT-005",
   "scope": ["data/levels.ts", "data/replays.ts", "tests/courses.test.ts", "tests/guidance.test.ts", "tests/editor.test.ts", "scripts/inspect.ts"],
   "approval": "Approved by the user's 2026-10-08 maximum-ten-levels, one-concept-at-a-time request, recorded in BT-005; the orchestrator selected six levels.",
-  "assignment": null,
+  "assignment": {
+    "owner": "curriculum-worker",
+    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "branch": "task/bt-007",
+    "worktree": ".worktrees/BT-007"
+  },
   "blocked_reason": null
 }
 ---

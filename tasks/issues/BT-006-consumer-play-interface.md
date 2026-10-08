@@ -3,7 +3,7 @@
   "id": "BT-006",
   "title": "Replace the development dashboard with a consumer play interface",
   "type": "feature",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": "BT-005",
@@ -11,7 +11,7 @@
   "approval": "Approved by the user's 2026-10-08 consumer-facing UI and shippable-game request, recorded in BT-005.",
   "assignment": {
     "owner": "consumer-ui-worker",
-    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "run": "3118dfe8-24de-4333-8e20-da4f68deee6d",
     "branch": "task/bt-006",
     "worktree": ".worktrees/BT-006"
   },
@@ -42,13 +42,13 @@ No data, physics, dependency, tracker or documentation changes by this worker.
 
 ## Acceptance criteria
 
-- [ ] The normal play view is dominated by the game, with no persistent field-notes sidebar, terrain cards, developer speed meter or lab branding.
-- [ ] Start, pause/resume, restart, levels, sound, fullscreen, help and secondary editor entry remain accessible.
-- [ ] Level counts and progression use LEVELS.length and generic copy; no first/second/two-course assumptions remain.
-- [ ] Keyboard and touch input remain usable; menu/focus changes pause safely and do not leave held input behind.
-- [ ] Desktop and 390x844 / 844x390 layouts have no horizontal overflow, clipped required actions or unusable overlays.
-- [ ] Editor import/export/playtest still works and does not overwrite built-in records.
-- [ ] Type checking, repository tests/build and real-browser smoke checks pass with the current data.
+- [x] The normal play view is dominated by the game, with no persistent field-notes sidebar, terrain cards, developer speed meter or lab branding.
+- [x] Start, pause/resume, restart, levels, sound, fullscreen, help and secondary editor entry remain accessible.
+- [x] Level counts and progression use LEVELS.length and generic copy; no first/second/two-course assumptions remain.
+- [x] Keyboard and touch input remain usable; menu/focus changes pause safely and do not leave held input behind.
+- [x] Desktop and 390x844 / 844x390 layouts have no horizontal overflow, clipped required actions or unusable overlays.
+- [x] Editor import/export/playtest still works and does not overwrite built-in records.
+- [x] Type checking, repository tests/build and real-browser smoke checks pass with the current data.
 
 ## Implementation context
 
@@ -72,8 +72,16 @@ actual commands/scenarios and any remaining concerns; stop your preview server.
 
 ## Handoff
 
-Pending.
+- Summary: Worker delivered a minimal consumer play interface ready for review.
+- Changes: Only index.html, presentation/main.ts and presentation/style.css; large playfield, compact menu, contextual help, generic progression and responsive overlays.
+- Verification: Worker ran npm run evaluate (69 passing tests, tracker, typecheck, production build), UI assertions and git diff --check. Chromium desktop, portrait and landscape screenshots inspected; keyboard/pointer, menus/focus, ten-entry scrolling, levels, sound/fullscreen, editor painting/undo/JSON/playtest, persistence and offline-after-load checked. Current legal replays finished at 1480/1722 ticks with no retries and no application console errors.
+- Risks: Six-level integration remains BT-007/BT-008. Physical touchscreen hardware and OS save dialogs were not exercised; pointer controls and download Blob/filename were checked. Headless WebGL and existing bundle-size warnings remain.
+- Commit: 4d45f66dccc7bb1e2663f6f50ff8fcdafb495a34 on task/bt-006.
+- Resources: Worker stopped its preview on 4323 and closed both owned browser tabs. Logs remain in the ignored worker artifacts/bt006 directory.
+- Decisions: No core/data/contracts changed. Editor is secondary; navigation pauses safely.
 
 ## Result
 
-Pending.
+- Summary: Accepted the scoped UI delivery and unlocked the curriculum work.
+- Verification: Orchestrator confirmed the commit changes exactly the three allowed files, both trees are clean, whitespace checks pass, and npm run evaluate passes all 69 tests/type checking/build after integration. Broader six-level browser acceptance is explicitly reserved for BT-008.
+- Integration: Fast-forwarded master to 4d45f66dccc7bb1e2663f6f50ff8fcdafb495a34. No remote push.

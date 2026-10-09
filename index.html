@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0b101b" />
-    <meta name="description" content="A tiny playground for momentum. Walk, drift and slide through handcrafted levels, or make your own." />
+    <meta name="description" content="Small tracks. Big flow. Read the rhythm, steer through handcrafted escape courses and chase your cleanest run. Play free in your browser." />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-    <title>Boundstoy — a playground for momentum</title>
+    <title>Boundstoy — small tracks, big flow</title>
   </head>
   <body>
     <div id="boundstoy">
@@ -31,13 +31,15 @@
           <div id="viewport" class="viewport" tabindex="0" role="application" aria-label="Boundstoy level. Use WASD or arrow keys to move. R to restart, Space to pause." aria-describedby="controls-note">
             <div id="overlay" class="overlay">
               <section class="overlay-card" aria-labelledby="overlay-title" aria-describedby="overlay-copy">
-                <span class="eyebrow" id="overlay-kicker">A PLAYGROUND FOR MOMENTUM</span>
-                <h2 id="overlay-title">Ready to play?</h2>
-                <p id="overlay-copy">Start when you're ready. Help is in the menu.</p>
+                <span class="eyebrow" id="overlay-kicker">READ THE RHYTHM. MAKE YOUR MOVE.</span>
+                <h2 id="overlay-title">Small tracks. Big flow.</h2>
+                <p id="overlay-copy">Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Checkpoints catch your next attempt.</p>
                 <div id="finish-stats" class="finish-stats" hidden><div><small>Time</small><strong id="finish-time"></strong></div><div><small>Retries</small><strong id="finish-retries"></strong></div><div><small>Best</small><strong id="finish-best"></strong></div></div>
+                <p id="finish-comparison" class="finish-comparison" role="status" hidden></p>
                 <button id="primary-action" class="primary">Play →</button>
+                <button id="intro-audio" class="secondary-action" aria-label="Enable sound" aria-pressed="false">Sound off</button>
                 <button id="retry-course" class="secondary-action" hidden>Retry level ↻</button>
-                <span class="overlay-foot" id="overlay-foot">YOUR PACE. YOUR NEXT MOVE.</span>
+                <span class="overlay-foot" id="overlay-foot">NO LIVES. NO RUSH. ONE MORE TRY.</span>
               </section>
             </div>
             <div id="game-feedback" class="game-feedback" role="status" aria-live="polite" hidden></div>
@@ -54,7 +56,7 @@
         </section>
 
         <aside id="editor-panel" class="editor-panel" aria-label="Level editor" hidden>
-          <div class="panel-heading"><h2>Level editor</h2><button id="play-tab">Back to game</button></div>
+          <div class="panel-heading"><h2>Level editor</h2><button id="play-tab">Restart game level</button></div>
           <label class="field-label" for="level-name">Level name</label><input id="level-name" maxlength="60" value="My course" />
           <div class="editor-toolbar"><button id="undo">Undo</button><button id="new-course">New blank</button><button id="copy-course">Remix level</button></div>
           <span class="eyebrow palette-heading">GROUND &amp; OBSTACLES</span>
@@ -77,12 +79,14 @@
           <div class="panel-heading"><h3>Levels</h3><span id="completion-count" class="count-label"></span></div>
           <div class="course-list" id="course-list" aria-label="Choose a level"></div>
           <div class="menu-settings"><button id="audio" aria-label="Enable sound" aria-pressed="false">Sound off</button><button id="fullscreen" aria-label="Enter fullscreen">Fullscreen ⛶</button><button id="help">How to play</button></div>
+          <label class="field-label" id="sound-volume-label" for="sound-volume">Volume 50%</label>
+          <input id="sound-volume" type="range" min="0" max="100" step="1" value="50" />
           <button id="editor-tab" class="secondary-action">Level editor ↗</button>
           <p class="menu-note">No account. No network. Records stay on this device.</p>
         </div>
         <section id="help-panel" aria-label="How to play" hidden>
           <p>Reach the golden exit. Numbered checkpoints save your place if you fall or hit a hazard.</p>
-          <dl class="controls-help"><dt>Move</dt><dd><kbd>WASD</kbd> / <kbd>Arrows</kbd> / hold touch arrows</dd><dt>Pause / resume</dt><dd><kbd>Space</kbd></dd><dt>Restart</dt><dd><kbd>R</kbd></dd><dt>Menu</dt><dd><kbd>Esc</kbd></dd></dl>
+          <dl class="controls-help"><dt>Move</dt><dd><kbd>WASD</kbd> / <kbd>Arrows</kbd> / hold touch arrows</dd><dt>Pause / resume</dt><dd><kbd>Space</kbd></dd><dt>Restart whole level</dt><dd><kbd>R</kbd> (resets time and checkpoints)</dd><dt>Menu</dt><dd><kbd>Esc</kbd></dd></dl>
           <h3 id="help-level-title">This level</h3>
           <p id="help-description"></p>
           <ul id="help-terrain" class="help-terrain"></ul>

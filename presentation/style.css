@@ -10,6 +10,7 @@ button:disabled { opacity: .4; cursor: default; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
 input, textarea { width: 100%; min-width: 0; color: var(--text); background: #0b1420; border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
 textarea { font: 12px/1.5 ui-monospace, monospace; resize: vertical; }
+input[type="range"] { accent-color: var(--mint); min-height: 44px; padding: 0; cursor: pointer; }
 [hidden] { display: none !important; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
 h2, h3 { font-weight: 600; }
@@ -56,6 +57,7 @@ h1 { margin: 2px 0 0; font-size: 17px; line-height: 1.3; font-weight: 500; }
 .finish-stats { display: grid; grid-template-columns: 1fr .7fr 1fr; gap: 10px; padding: 12px 0; margin: 0 0 16px; border-top: 1px solid #365147; border-bottom: 1px solid #365147; }
 .finish-stats small { display: block; font-size: 10px; color: #a0b8be; margin-bottom: 6px; }
 .finish-stats strong { font: 14px ui-monospace, monospace; color: #cbfbe7; }
+.overlay-card .finish-comparison { color: var(--mint); font-size: 14px; font-weight: 550; }
 .game-feedback { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 4; width: max-content; max-width: calc(100% - 32px); padding: 9px 13px; border: 1px solid #80d7b966; border-radius: 8px; background: #13302df2; color: #cbffe8; font-size: 12px; text-align: center; pointer-events: none; }
 .game-feedback.hit { background: #3a202bf2; border-color: #eb7d9a88; color: #ffccdb; }
 .touch-controls { display: none; flex-shrink: 0; gap: 8px; }

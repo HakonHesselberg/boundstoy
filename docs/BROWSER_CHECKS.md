@@ -3,6 +3,9 @@
 ```sh
 npm ci
 npm run test:browser
+npm run test:journey
+# Combined release gate: portable checks + production browser + journey + readability
+npm run release:check
 ```
 
 Run from your checkout/worktree. This builds with the existing production build
@@ -57,9 +60,11 @@ Prefer the npm command for acceptance so stale assets cannot pass.
 ## What is checked
 
 - A single generic initial Play waits for intent and accepts Enter. Level
-  selection (including before initial Play), Next, Retry, Restart campaign and
-  Back to game start immediately with viewport focus and no tutorial overlay.
-  Sound stays muted until explicitly enabled; hints and optional Help remain.
+  selection (including before initial Play), Next, Retry and Restart game level
+  start immediately with viewport focus and no tutorial overlay. Completed
+  campaigns offer level selection; returning visitors continue at the first
+  uncleared course. Sound is opt-in, with remembered preferences activated only
+  by a play gesture; hints and optional Help remain.
 - Real CDP keyboard and pointer events: normal-ground movement/release,
   Space/button pause and resume, menu keys, focus leaving via Tab, cleared held
   input, and unchanged simulation state and frame counts while paused.
@@ -91,7 +96,7 @@ Prefer the npm command for acceptance so stale assets cannot pass.
   both live and saved draft, and a winning imported playtest using a built-in
   level ID that must not overwrite its betterable campaign record. Both completed
   and unfinished playtests return directly to the same editor draft.
-- Four full passes through all levels (36 rebuilds) compare per-scene
+- Four full passes through all levels compare per-scene
   geometry/texture counts, followed by four editor/playtest returns. Each
   rebuild is an individually bounded command, not one long blocking batch.
 - Saved progress survives a real reload and hydrates the level menu. A separate
@@ -102,6 +107,28 @@ Prefer the npm command for acceptance so stale assets cannot pass.
   fail the suite. HTTP failures, page WebSockets and browser console errors
   also fail. All input/editor/replay checks run **offline after initial load**,
   with no additional requests; ordinary non-debug offline play is checked too.
+
+## Player journey acceptance
+
+`npm run test:journey` reuses the same isolated production browser harness.
+It verifies visible first-run controls and goal, legacy record retention,
+Continue selection, out-of-order campaign completion, first-clear and
+faster/equal/slower personal-best feedback. Real pointer activation verifies
+sound opt-in, retained keyboard focus, remembered volume and restart-triggered
+audio initialization without autoplay on reload. Unit tests bound synthesized
+sound to eight simultaneous voices and verify mute/disposal cleanup.
+
+The journey captures every course at 1440x900 and entry overlays at 390x844,
+844x390 and 720x450 in `artifacts/release/`, after waiting for a rendered frame.
+The last viewport approximates the available layout space at 200% desktop zoom;
+it does not certify browser zoom or physical touch accuracy. Screenshots support
+visual review; capture success alone does not prove legibility or enjoyment.
+
+`npm run release:check` fails at the first unsuccessful portable, browser,
+journey or real-pixel readability check. The unchanged Astro integration has a
+separate `npm run test:astro` gate when distributing that wrapper. Hardware GPU
+performance, Firefox/WebKit, physical devices, listening comfort and independent
+human playtesting remain explicit release-assessment limitations.
 
 ## Failure evidence and cleanup
 

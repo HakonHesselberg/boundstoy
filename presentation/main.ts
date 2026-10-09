@@ -5,6 +5,8 @@ import { createState, step, hazardSample, ascii, DT, STILL } from '../core/simul
 import { importLevel, parseLevel, type Level, type Point } from '../core/level.ts';
 import { paint, placeSaw, blankLevel, type Brush } from '../core/editor.ts';
 import { readProgress, recordFinish, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
+import { nextCourse, finishResult } from '../application/campaign.ts';
+import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences } from '../application/preferences.ts';
 import { Audio } from './audio.ts';
 import { courseGuide, deathMessage } from '../application/guidance.ts';
 import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
@@ -55,6 +57,10 @@ function boot(scene: Scene) {
   let progress: Progress = {};
   let storageFailed = false;
   let feedbackUntil = 0;
+  let lastDeath = '';
+  let result: ReturnType<typeof finishResult> | null = null;
+  let progressSaved = true;
+  let preferences = DEFAULT_PREFERENCES, audioBusy = false, audioReady = false;
   const loop = createRenderLoop({
     request: callback => requestAnimationFrame(callback),
     cancel: id => cancelAnimationFrame(id),
@@ -64,6 +70,40 @@ function boot(scene: Scene) {
   scene.onInvalidate = loop.invalidate;
   try { progress = readProgress(localStorage.getItem(PROGRESS_KEY)); }
   catch (error) { report('Could not load local progress', error); }
+  try { preferences = readPreferences(localStorage.getItem(PREFERENCES_KEY)); }
+  catch (error) { report('Could not load sound preferences', error); }
+  audio.setVolume(preferences.volume);
+
+  function soundControls() {
+    for (const id of ['audio', 'intro-audio']) {
+      const button = element<HTMLButtonElement>(id);
+      text(id, preferences.sound ? 'Sound on' : 'Sound off');
+      button.setAttribute('aria-pressed', String(preferences.sound));
+      button.setAttribute('aria-label', preferences.sound ? 'Mute sound' : 'Enable sound');
+      button.setAttribute('aria-disabled', String(audioBusy));
+    }
+    element<HTMLInputElement>('sound-volume').value = String(preferences.volume * 100);
+    text('sound-volume-label', `Volume ${Math.round(preferences.volume * 100)}%`);
+  }
+  function savePreferences() {
+    try { localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences)); }
+    catch (error) { report('Could not save sound preferences', error); }
+  }
+  async function setSound(enabled: boolean) {
+    if (audioBusy) return;
+    audioBusy = true; soundControls();
+    try {
+      await audio.setEnabled(enabled); audioReady = enabled;
+      preferences = { ...preferences, sound: enabled };
+      savePreferences();
+      if (enabled) audio.play('checkpoint');
+    } catch (error) { report('Could not change sound', error); }
+    finally { audioBusy = false; soundControls(); }
+  }
+  function activateSound() {
+    if (preferences.sound && !audioReady) void setSound(true);
+  }
+  soundControls();
 
   function clearInput() {
     for (const pointer of touchPointers.keys()) {
@@ -119,39 +159,48 @@ function boot(scene: Scene) {
   function overlay() {
     element('overlay').hidden = menu.open || mode === 'edit' || started && !paused && !state.won;
     element('finish-stats').hidden = !state.won;
+    element('finish-comparison').hidden = !state.won || testing;
+    element('intro-audio').hidden = started || mode === 'edit';
     element('retry-course').hidden = !started || mode === 'edit';
     if (mode === 'edit') return;
     if (state.won) {
-      const lastCourse = selectedCourse === LEVELS.length - 1;
-      const complete = !testing && lastCourse && LEVELS.every(course => progress[course.id]);
+      const next = nextCourse(LEVELS, progress, selectedCourse);
+      const complete = !testing && next === null;
       text('overlay-kicker', testing ? 'PLAYTEST COMPLETE' : state.deaths === 0 ? 'CLEAN RUN · ZERO RETRIES' : 'NICE FINISH');
       text('overlay-title', complete ? 'Campaign complete.' : 'Level clear.');
       text('overlay-copy', testing ? 'Back to the editor, or give it another run.'
         : complete ? `All ${LEVELS.length} levels cleared. Go again and chase your best times.`
-        : lastCourse ? 'You reached the final exit. Pick a level from the menu, or start again.'
-        : `Up next: ${LEVELS[selectedCourse + 1].name}.`);
+        : next !== null ? `Up next: ${LEVELS[next].name}.` : 'Choose another route to master.');
       text('finish-time', timeLabel(state.tick));
       text('finish-retries', String(state.deaths));
       text('finish-best', testing ? 'PLAYTEST' : timeLabel(progress[level.id]?.ticks ?? state.tick));
-      text('primary-action', testing ? 'Back to editor ↗' : lastCourse ? 'Restart campaign →' : 'Next level →');
-      text('overlay-foot', testing ? 'PLAYTESTS DO NOT CHANGE LEVEL RECORDS' : 'BEST TIMES SAVED ON THIS DEVICE');
+      const delta = result ? (Math.abs(result.deltaTicks) * DT).toFixed(2) : '0.00';
+      text('finish-comparison', !result || result.kind === 'first' ? 'First clear. Your next run is a new challenge.'
+        : result.kind === 'best' ? result.deltaTicks < 0 ? `Personal best! ${delta}s faster.` : `Personal best! ${result.fewerRetries} fewer retries.`
+        : result.kind === 'equal' ? 'Matched your personal best.'
+        : result.deltaTicks > 0 ? `${delta}s from your best. Find your next clean line.` : 'Matched your best time. Try fewer retries.');
+      text('primary-action', testing ? 'Back to editor ↗' : complete ? 'Choose a level →' : 'Next level →');
+      text('overlay-foot', testing ? 'PLAYTESTS DO NOT CHANGE LEVEL RECORDS'
+        : progressSaved ? 'BEST TIMES SAVED ON THIS DEVICE' : 'NOT SAVED · RECORDS LAST ONLY THIS SESSION');
     } else if (started) {
       text('overlay-kicker', 'TAKE YOUR TIME');
       text('overlay-title', 'Paused.');
-      text('overlay-copy', 'Your next move can wait.');
+      text('overlay-copy', lastDeath ? `Last retry: ${lastDeath}` : 'Your next move can wait. R restarts the whole level.');
       text('primary-action', 'Resume →'); text('overlay-foot', 'SPACE TO RESUME');
     } else {
-      text('overlay-kicker', 'A PLAYGROUND FOR MOMENTUM');
-      text('overlay-title', 'Ready to play?');
-      text('overlay-copy', "Start when you're ready. Help is in the menu.");
-      text('primary-action', 'Play →'); text('overlay-foot', 'YOUR PACE. YOUR NEXT MOVE.');
+      const continuing = LEVELS.some(course => progress[course.id]);
+      text('overlay-kicker', 'READ THE RHYTHM. MAKE YOUR MOVE.');
+      text('overlay-title', continuing ? 'Find your next flow.' : 'Small tracks. Big flow.');
+      text('overlay-copy', 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Checkpoints catch your next attempt.');
+      text('primary-action', continuing ? 'Continue →' : 'Play →');
+      text('overlay-foot', 'NO LIVES. NO RUSH. ONE MORE TRY.');
     }
   }
   function hud() {
     text('timer', timeLabel(state.tick)); text('deaths', String(state.deaths).padStart(2, '0'));
     text('run-status', mode === 'edit' ? 'Click or drag to paint' : state.won ? 'Complete' : !started ? 'Ready' : paused ? 'Paused' : '');
     const guide = courseGuide(level, state);
-    text('route-hint', state.won ? 'Every finish is a new best to chase.' : guide.hint);
+    text('route-hint', state.won ? 'A clean line. A better time. Your next challenge is yours.' : guide.hint);
     const hint = element('route-hint'), feedback = element('game-feedback'), pause = element<HTMLButtonElement>('pause');
     if (hint.title !== guide.title) hint.title = guide.title;
     const hideFeedback = state.tick >= feedbackUntil || mode === 'edit' || state.won;
@@ -181,11 +230,13 @@ function boot(scene: Scene) {
   }
   function load(next: Level, entry: 'ready' | 'play' | 'paused' = 'ready') {
     level = next; state = createState(level); started = entry !== 'ready'; paused = entry !== 'play';
-    accumulator = 0; feedbackUntil = 0; clearInput(); scene.setLevel(level); scene.highlight(null);
+    accumulator = 0; feedbackUntil = 0; lastDeath = ''; result = null;
+    clearInput(); scene.setLevel(level); scene.highlight(null);
     // Transfer focus before hiding the action that started this run.
     if (!paused) viewport.focus({ preventScroll: true });
     updateLayout();
     syncRendering();
+    if (entry === 'play') activateSound();
   }
   function loadCourse(index: number, entry: 'play' | 'paused' = 'play') {
     if (!Number.isInteger(index) || !LEVELS[index]) throw new Error('Unknown course index.');
@@ -194,9 +245,12 @@ function boot(scene: Scene) {
   }
   function play() {
     if (menu.open || mode === 'edit') return;
+    activateSound();
     if (state.won) {
       if (testing) { enterEditor(); return; }
-      loadCourse(selectedCourse === LEVELS.length - 1 ? 0 : selectedCourse + 1);
+      const next = nextCourse(LEVELS, progress, selectedCourse);
+      if (next === null) openMenu();
+      else loadCourse(next);
       return;
     }
     clearInput(); started = true; paused = false; accumulator = 0;
@@ -251,7 +305,8 @@ function boot(scene: Scene) {
       && !hazardSample(hazard, previousTick).active && hazardSample(hazard, state.tick).active)) audio.play('blast');
     if (state.event !== 'none') audio.play(state.event);
     if (state.event === 'death' && state.deathCause) {
-      text('game-feedback', deathMessage(state.deathCause));
+      lastDeath = deathMessage(state.deathCause);
+      text('game-feedback', `Retry ${state.deaths}: ${lastDeath}`);
       element('game-feedback').classList.add('hit');
       feedbackUntil = state.tick + 240;
     }
@@ -263,9 +318,10 @@ function boot(scene: Scene) {
     if (state.event === 'win') {
       clearInput();
       if (!testing) {
+        result = finishResult(progress[level.id], { ticks: state.tick, deaths: state.deaths });
         progress = recordFinish(progress, level.id, state.tick, state.deaths);
-        try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ version: 1, runs: progress })); }
-        catch (error) { report('Could not save your best time', error); }
+        try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ version: 1, runs: progress })); progressSaved = true; }
+        catch (error) { progressSaved = false; report('Could not save your best time', error); }
         courseCards();
       }
       overlay();
@@ -416,7 +472,7 @@ function boot(scene: Scene) {
   menu.addEventListener('cancel', event => { event.preventDefault(); closeMenu(); }, options);
   menu.addEventListener('keydown', event => {
     if (event.code !== 'Tab') return;
-    const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')].filter(button => button.getClientRects().length);
+    const buttons = [...menu.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')].filter(button => button.getClientRects().length);
     const first = buttons[0], last = buttons.at(-1);
     if (event.shiftKey && (document.activeElement === first || document.activeElement === element('menu-title'))) {
       event.preventDefault(); last?.focus();
@@ -445,15 +501,12 @@ function boot(scene: Scene) {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-level]');
     if (button) { closeMenu(); loadCourse(Number(button.dataset.level)); }
   }, options);
-  element('audio').addEventListener('click', async () => {
-    try {
-      const enabled = await audio.toggle();
-      text('audio', enabled ? 'Sound on' : 'Sound off');
-      element('audio').setAttribute('aria-pressed', String(enabled));
-      element('audio').setAttribute('aria-label', enabled ? 'Mute sound' : 'Enable sound');
-      element('audio').title = enabled ? 'Sound is on' : 'Sound is off';
-    } catch (error) { report('Could not enable audio', error); }
+  for (const id of ['audio', 'intro-audio']) element(id).addEventListener('click', () => { void setSound(!preferences.sound); }, options);
+  element('sound-volume').addEventListener('input', () => {
+    const volume = Number(element<HTMLInputElement>('sound-volume').value) / 100;
+    audio.setVolume(volume); preferences = { ...preferences, volume }; soundControls();
   }, options);
+  element('sound-volume').addEventListener('change', savePreferences, options);
   element('fullscreen').addEventListener('click', async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -532,7 +585,8 @@ function boot(scene: Scene) {
     } else if (!menu.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
     hud(); scene.draw(state, visualTime, mode === 'edit');
   }
-  load(level); element('primary-action').focus({ preventScroll: true });
+  selectedCourse = nextCourse(LEVELS, progress) ?? 0;
+  load(LEVELS[selectedCourse]); element('primary-action').focus({ preventScroll: true });
   window.addEventListener('pagehide', event => {
     clearInput(); setPaused(true); loop.setVisible(false);
     if (event.persisted) return;

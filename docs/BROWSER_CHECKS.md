@@ -54,23 +54,40 @@ Prefer the npm command for acceptance so stale assets cannot pass.
 
 ## What is checked
 
+- A single generic initial Play waits for intent and accepts Enter. Level
+  selection (including before initial Play), Next, Retry, Restart campaign and
+  Back to game start immediately with viewport focus and no tutorial overlay.
+  Sound stays muted until explicitly enabled; hints and optional Help remain.
 - Real CDP keyboard and pointer events: normal-ground movement/release,
   Space/button pause and resume, menu keys, focus leaving via Tab, cleared held
-  input, and unchanged simulation state while paused. No dependence on a
-  continuously running paused render loop.
+  input, and unchanged simulation state and frame counts while paused.
+  Switching to another owned blank tab verifies hidden-page idleness and
+  explicit resume on return. No dependence on a continuously running paused
+  render loop; one-shot pause/resize invalidations drain before measurement.
+- **1280×800 desktop, 390×844 portrait and 844×390 landscape**: required
+  navigation controls fit on screen (scrolling menus/editor panels as needed),
+  have at least 44×44 CSS-pixel targets and are not obscured. Selection,
+  next/retry/final transitions, pause/resume, Help and editor playtest/return
+  run in each layout. Portrait/landscape use real CDP touch events, including
+  held movement and cancellation; desktop also checks Enter/Tab activation and
+  menu focus trapping. Covered movement controls must be disabled.
 - A large isolated soft-ice room is imported through the editor UI and
   playtested. Live state samples verify constant terrain-defined speed through
   a keyboard U-turn and after release. No player teleport/state mutation API.
 - **All** actual `LEVELS` and `REPLAYS` imported from this checkout: legal
   keyboard axes, exact command/final tick counts, no padded wins, zero deaths,
-  ordered checkpoints, next-level intro screens and campaign completion.
-  Deterministic replay uses the opt-in `?debug` API; course count/timestamps
-  are not duplicated in the harness.
+  ordered checkpoints and campaign completion. Each witness explicitly uses
+  `debug.load(index)` and verifies a paused tick-zero reset before advancing.
+  Normal Next/Retry transitions are separately verified to run live, including
+  on `?debug` pages; no replay ticks are padded to hide elapsed live time.
+  Course count/timestamps are not duplicated in the harness.
 - Editor export/import roundtrip, invalid JSON with a visible error preserving
   both live and saved draft, and a winning imported playtest using a built-in
-  level ID that must not overwrite its betterable campaign record.
+  level ID that must not overwrite its betterable campaign record. Both completed
+  and unfinished playtests return directly to the same editor draft.
 - Saved progress survives a real reload and hydrates the level menu. A separate
-  ordinary navigation verifies `window.__BOUNDSTOY__` is absent.
+  ordinary navigation verifies `window.__BOUNDSTOY__` is absent and level
+  selection/retry also start without a second Play in the non-debug game.
 - Initial production JS/CSS and real WebGL rendering. Page requests must stay
   on the owned origin; non-local HTTP requests are blocked before dispatch and
   fail the suite. HTTP failures, page WebSockets and browser console errors
@@ -143,9 +160,11 @@ This is a focused Chromium smoke check, not a general automation framework or
 cross-browser certification. The browser command requires POSIX process groups
 (verified on Linux) and fails explicitly on Windows rather than risking orphaned
 children. Windows explicitly skips only the POSIX-group portable unit test.
-Touch/pointer capture, mobile layouts, audio,
-fullscreen, download-dialog behavior, reduced motion, context loss and visual
-quality/readability remain manual checks. Software WebGL is not a hardware-GPU
+Physical-device touch behavior, layouts beyond the three sizes above, audible
+sound output, fullscreen, download-dialog behavior, reduced motion, context loss
+and visual quality/readability remain manual checks. Emulated touch verifies
+capture release and cancellation, not every physical input device.
+Software WebGL is not a hardware-GPU
 performance benchmark. Live keyboard tests sample rendered simulation states,
 not every physics substep (the portable physics tests cover those). Offline
 means **after loading**, not offline navigation/reload or a service-worker cache.

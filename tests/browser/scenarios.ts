@@ -33,27 +33,60 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   const until = <T>(label: string, probe: () => Promise<T | false | null>) => waitFor(label, probe, 5000, signal);
   const keyCodes: Record<string, [string, number]> = {
     ArrowRight: ['ArrowRight', 39], ArrowLeft: ['ArrowLeft', 37],
-    KeyD: ['d', 68], KeyA: ['a', 65], Space: [' ', 32], Escape: ['Escape', 27], Tab: ['Tab', 9],
+    KeyD: ['d', 68], KeyA: ['a', 65], KeyR: ['r', 82], Enter: ['Enter', 13],
+    Space: [' ', 32], Escape: ['Escape', 27], Tab: ['Tab', 9],
   };
   async function key(code: string, down: boolean, modifiers = 0) {
     const [key, virtualKey] = keyCodes[code];
     await page.call('Input.dispatchKeyEvent', {
       type: down ? 'keyDown' : 'keyUp', code, key, modifiers,
       windowsVirtualKeyCode: virtualKey, nativeVirtualKeyCode: virtualKey,
+      ...(down && code === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : {}),
     });
   }
   async function press(code: string, modifiers = 0) { await key(code, true, modifiers); await key(code, false, modifiers); }
-  async function click(selector: string) {
-    const point = await evaluate<{ x: number; y: number }>(`(() => {
+  async function controlPoint(selector: string, targetSize = 0) {
+    return evaluate<{ x: number; y: number }>(`(() => {
       const node = document.querySelector(${JSON.stringify(selector)});
       if (!node || node.disabled || !node.getClientRects().length) throw new Error('Unavailable control: ' + ${JSON.stringify(selector)});
       node.scrollIntoView({block: 'center'});
       const rect = node.getBoundingClientRect(), x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+      if (rect.left < 0 || rect.top < 0 || rect.right > innerWidth || rect.bottom > innerHeight)
+        throw new Error('Clipped control: ' + ${JSON.stringify(selector)});
+      if (rect.width < ${targetSize} || rect.height < ${targetSize})
+        throw new Error('Small touch target: ' + ${JSON.stringify(selector)});
       if (!node.contains(document.elementFromPoint(x, y))) throw new Error('Obscured control: ' + ${JSON.stringify(selector)});
       return {x, y};
     })()`);
+  }
+  async function click(selector: string, targetSize = 0) {
+    const point = await controlPoint(selector, targetSize);
     await page.call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
     await page.call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  }
+  async function tap(selector: string) {
+    const point = await controlPoint(selector, 44);
+    await page.call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id: 1 }] });
+    await page.call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+  const layouts = [
+    { name: 'desktop', width: 1280, height: 800, touch: false },
+    { name: 'portrait', width: 390, height: 844, touch: true },
+    { name: 'landscape', width: 844, height: 390, touch: true },
+  ];
+  async function viewportLayout(layout: typeof layouts[number]) {
+    await page.call('Emulation.setDeviceMetricsOverride', {
+      width: layout.width, height: layout.height, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.call('Emulation.setTouchEmulationEnabled', { enabled: layout.touch });
+    await until(`${layout.name}: viewport resized`, () => evaluate<boolean>(
+      `innerWidth === ${layout.width} && innerHeight === ${layout.height}`));
+    await pause(80);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, `${layout.name}: no horizontal clipping`);
+  }
+  async function movementDisabled(label: string) {
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-direction]')].every(button => button.disabled)"),
+      true, `${label}: no movement controls active behind the overlay/menu`);
   }
   async function inputJSON(source: string) {
     await click('#level-json');
@@ -69,9 +102,14 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     const before = await snapshot();
     assert.equal(before.paused, true, label);
     assert.deepEqual(before.input, { x: 0, y: 0 }, `${label}: cleared input`);
+    await movementDisabled(label);
+    // Drain the one-shot pause/ResizeObserver invalidation, independent of GPU speed.
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
+    const frames = await evaluate<number>(`${debug}.metrics().frames`);
     await pause(180);
     const after = await snapshot();
     assert.deepEqual(after.state, before.state, `${label}: paused simulation must not advance`);
+    assert.equal(await evaluate(`${debug}.metrics().frames`), frames, `${label}: unchanged paused scene renders no frames`);
   }
   async function resumedWithoutInput(label: string) {
     const before = await snapshot();
@@ -88,6 +126,20 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     offline: value, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
   });
   const assertNoNewRequests = (count: number) => assert.equal(requests.length, count, 'Loaded gameplay must request no extra assets, even offline');
+  async function playing(label: string) {
+    const current = await snapshot();
+    assert.equal(current.mode, 'play', label);
+    assert.equal(current.started, true, `${label}: no extra Play action`);
+    assert.equal(current.paused, false, `${label}: not left paused by a focus transition`);
+    assert.equal(current.state.won, false, label);
+    assert.equal(await evaluate("document.getElementById('overlay').hidden"), true, `${label}: no instructional overlay`);
+    assert.equal(await evaluate('document.activeElement.id'), 'viewport', `${label}: keyboard focus enters the game`);
+    assert.equal(await evaluate("document.getElementById('game-menu').open"), false, `${label}: menu closed`);
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-direction]')].every(button => !button.disabled)"),
+      true, `${label}: movement controls enabled`);
+    assert.deepEqual(current.input, { x: 0, y: 0 }, `${label}: no inherited input`);
+    await until(`${label}: live loop`, async () => (await snapshot()).state.tick >= current.state.tick + 8);
+  }
 
   const metrics = await evaluate<{ drawCalls: number; triangles: number }>(`${debug}.metrics()`);
   assert.ok(metrics.drawCalls > 0 && metrics.triangles > 0, 'Production WebGL scene actually rendered');
@@ -97,8 +149,24 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   await offline(true);
   const loadedRequests = requests.length;
   assert.equal(await saved(), null, 'Fresh profile must not inherit player records');
+  const initial = await snapshot();
+  assert.equal(initial.started, false, 'Initial entry waits for intent');
+  assert.equal(initial.state.tick, 0);
+  assert.notEqual(await text('overlay-title'), initial.level.name, 'Initial Play is generic, not a level tutorial');
+  assert.notEqual(await text('overlay-copy'), initial.level.description, 'Level instructions belong in non-blocking hints or optional Help');
+  assert.equal(await text('audio'), 'Sound off', 'Sound remains opt-in');
+  for (const layout of layouts) {
+    await viewportLayout(layout);
+    await controlPoint('#primary-action', 44); await controlPoint('#menu-toggle', 44);
+    await movementDisabled(`${layout.name} initial entry`);
+    assert.equal((await snapshot()).state.tick, 0, 'Resizing before initial Play cannot start the simulation');
+  }
+  await viewportLayout(layouts[0]);
+  assert.equal(await evaluate('document.activeElement.id'), 'primary-action', 'Initial Play has keyboard focus');
 
-  await click('#primary-action');
+  await press('Enter');
+  await playing('Initial Play');
+  log('PASS: generic intentional entry fits desktop/portrait/landscape; Enter starts with sound off.');
   const start = await snapshot();
   await key('ArrowRight', true);
   await moving();
@@ -134,6 +202,31 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   await stoppedWhilePaused('Pause button');
   log('PASS: real arrows/WASD, ground release, Space/button pause, menu keys, Tab focus and clean resume.');
 
+  await click('#primary-action'); await key('KeyD', true); await moving();
+  const { targetInfo } = await page.call<{ targetInfo: { targetId: string } }>('Target.getTargetInfo');
+  const other = await page.call<{ targetId: string }>('Target.createTarget', { url: 'about:blank', background: false });
+  try {
+    await until('Game hidden by another owned tab', () => evaluate<boolean>('document.hidden'));
+    const hidden = await snapshot(), frames = await evaluate<number>(`${debug}.metrics().frames`);
+    assert.equal(hidden.paused, true, 'Hidden game pauses');
+    assert.deepEqual(hidden.input, { x: 0, y: 0 }, 'Hiding clears held keys');
+    await movementDisabled('Hidden game');
+    await pause(250);
+    assert.deepEqual((await snapshot()).state, hidden.state, 'Hidden game does not simulate');
+    assert.equal(await evaluate(`${debug}.metrics().frames`), frames, 'Hidden game renders no frames');
+  } finally {
+    await page.call('Target.closeTarget', { targetId: other.targetId });
+    await page.call('Target.activateTarget', { targetId: targetInfo.targetId });
+  }
+  await until('Game visible again', () => evaluate<boolean>('!document.hidden'));
+  await key('KeyD', false); await stoppedWhilePaused('Visible return waits for resume');
+  await click('#primary-action'); await resumedWithoutInput('Visible return resume');
+  log('PASS: real tab hiding clears held input and stops simulation/rendering; return waits for explicit resume.');
+
+  await press('Escape'); await press('Tab'); await press('Tab'); await press('Enter');
+  assert.deepEqual((await snapshot()).level, LEVELS[1]);
+  await playing('Keyboard menu level selection');
+
   await click('#menu-toggle'); await click('#editor-tab');
   await click('.json-panel summary');
   const ice = room('~');
@@ -153,6 +246,7 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
 
   await click('#playtest');
   assert.equal((await snapshot()).testing, true);
+  await playing('Editor playtest');
   await key('KeyD', true); await moving(); await key('KeyD', false);
   const samples: State[] = [];
   const sample = async () => {
@@ -175,18 +269,19 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   assert.ok(afterGlide.state.position.x < beforeGlide.position.x, 'Released soft ice keeps gliding');
   log(`PASS: soft-ice reversal/release at constant ${TERRAIN['~'].speed} speed (${samples.length} live samples).`);
 
-  await evaluate(`${debug}.load(0)`);
   assert.ok(LEVELS.length > 0, 'Campaign must not be empty');
   assert.equal(REPLAYS.length, LEVELS.length, 'Every current level needs a reference replay');
   const expectedRuns: Record<string, { ticks: number; deaths: number }> = {};
-  for (const [index, level] of LEVELS.entries()) {
-    const intro = await snapshot(), commands = REPLAYS[index];
-    assert.deepEqual(intro.level, level, 'Browser bundle matches this worktree LEVELS');
-    assert.equal(intro.state.tick, 0);
-    assert.equal(intro.started, false, 'Next level must have an intro, not auto-run');
-    assert.equal(intro.paused, true);
-    assert.equal(await text('overlay-title'), level.name);
-    await stoppedWhilePaused(`${level.id} intro`);
+  async function witness(index: number) {
+    // Reset explicitly: normal Next/Retry actions run live even on a ?debug page.
+    await evaluate(`${debug}.load(${index})`);
+    const reset = await snapshot(), commands = REPLAYS[index], level = LEVELS[index];
+    assert.deepEqual(reset.level, level, 'Browser bundle matches this worktree LEVELS');
+    assert.equal(reset.state.tick, 0);
+    assert.equal(reset.started, true, 'Debug inspection uses pause, never a level tutorial');
+    assert.equal(reset.paused, true);
+    assert.equal(await text('overlay-title'), 'Paused.');
+    await stoppedWhilePaused(`${level.id} debug reset`);
     let elapsed = 0;
     const checkpoints = level.checkpoints.map(point => `${point.x},${point.y}`);
     for (const [commandIndex, command] of commands.entries()) {
@@ -209,9 +304,17 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     assert.equal(won.deaths, 0, level.id);
     assert.deepEqual(won.visited, checkpoints, `${level.id}: every checkpoint in order`);
     expectedRuns[level.id] = { ticks: expectedTicks, deaths: 0 };
+    await movementDisabled(`${level.id} results`);
+    return won;
+  }
+  for (const [index, level] of LEVELS.entries()) {
+    const won = await witness(index);
     assert.equal(await text('overlay-title'), index === LEVELS.length - 1 ? 'Campaign complete.' : 'Level clear.');
     log(`PASS: ${level.id}: ${won.tick} ticks, zero deaths, ${won.visited.length} ordered checkpoints.`);
-    if (index < LEVELS.length - 1) await click('#primary-action');
+    if (index === 0 || index === LEVELS.length - 1) await press('Enter');
+    else await click('#primary-action');
+    assert.deepEqual((await snapshot()).level, LEVELS[(index + 1) % LEVELS.length]);
+    await playing(index === LEVELS.length - 1 ? 'Restart campaign' : 'Next level');
   }
   const progress = await saved();
   assert.deepEqual(JSON.parse(progress!).runs, expectedRuns, 'All exact records saved');
@@ -226,7 +329,70 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   assert.equal(await text('finish-best'), 'PLAYTEST');
   assert.ok((await snapshot()).state.tick < expectedRuns[quick.id].ticks, 'Playtest fixture could overwrite the built-in best if isolation were broken');
   assert.equal(await saved(), progress, 'Winning playtests must not modify built-in records');
+  await click('#primary-action');
+  assert.equal((await snapshot()).mode, 'edit', 'Completed playtest returns directly to editor');
+  assert.deepEqual((await snapshot()).level, quick);
   log('PASS: winning imported playtest with a built-in ID leaves campaign records unchanged.');
+
+  for (const layout of layouts) {
+    await viewportLayout(layout);
+    const activate = layout.touch ? tap : (selector: string) => click(selector, 44);
+    await activate('#play-tab');
+    await playing(`${layout.name}: Back to game`);
+    await activate('#menu-toggle');
+    await stoppedWhilePaused(`${layout.name}: menu`);
+    await activate('#help');
+    assert.equal(await text('help-description'), (await snapshot()).level.description, 'Full instructions remain in optional Help');
+    await press('Tab', 8);
+    assert.equal(await evaluate(`document.activeElement === [...document.querySelectorAll('#game-menu button:not(:disabled)')]
+      .filter(button => button.getClientRects().length).at(-1)`), true, 'Help wraps reverse Tab to the last visible menu action');
+    await activate('#help-back');
+    await activate('[data-level="0"]');
+    await playing(`${layout.name}: level selection`);
+    await press('KeyR'); await playing(`${layout.name}: keyboard restart`);
+    if (layout.touch) {
+      const point = await controlPoint('[data-direction="right"]', 44);
+      await page.call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id: 1 }] });
+      await moving();
+      assert.equal(await evaluate("document.querySelector('[data-direction=\"right\"]').classList.contains('pressed')"), true);
+      await page.call('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+      await resumedWithoutInput(`${layout.name}: touch cancellation`);
+      assert.equal(await evaluate("document.querySelector('.touch-controls .pressed') === null"), true, 'Cancelled touch releases capture and styling');
+    }
+    await activate('#pause'); await stoppedWhilePaused(`${layout.name}: pause`);
+    await activate('#primary-action'); await playing(`${layout.name}: resume`);
+    await activate('#pause'); await activate('#retry-course');
+    await playing(`${layout.name}: paused retry`);
+    await activate('#restart'); await playing(`${layout.name}: restart button`);
+    await witness(0);
+    await controlPoint('#primary-action', 44); await controlPoint('#retry-course', 44);
+    if (layout.touch) await activate('#retry-course');
+    else {
+      await press('Tab');
+      assert.equal(await evaluate('document.activeElement.id'), 'retry-course', 'Results expose Retry in keyboard order');
+      await press('Enter');
+    }
+    await playing(`${layout.name}: result retry`);
+    assert.deepEqual((await snapshot()).level, LEVELS[0]);
+    await witness(0);
+    await activate('#primary-action'); await playing(`${layout.name}: next level`);
+    assert.deepEqual((await snapshot()).level, LEVELS[1]);
+    await witness(LEVELS.length - 1);
+    assert.equal(await text('overlay-title'), 'Campaign complete.');
+    await controlPoint('#retry-course', 44);
+    await activate('#primary-action'); await playing(`${layout.name}: campaign restart`);
+    assert.deepEqual((await snapshot()).level, LEVELS[0]);
+    await activate('#menu-toggle'); await activate('#editor-tab');
+    assert.deepEqual((await snapshot()).level, quick, 'Returning to editor retains the saved draft');
+    await activate('#playtest'); await playing(`${layout.name}: playtest`);
+    await activate('#editor-return');
+    assert.equal((await snapshot()).mode, 'edit', 'Playtest return needs no popup');
+    assert.deepEqual((await snapshot()).level, quick);
+    assert.equal(await saved(), progress, 'Navigation, retries and playtests preserve exact campaign records');
+    assert.equal(await text('audio'), 'Sound off', 'No navigation action opts into sound');
+    log(`PASS: ${layout.name} ${layout.width}x${layout.height}: Help, selection, restart/retry/next/final, pause, editor and ${layout.touch ? 'real touch/cancel' : 'mouse/keyboard'}; all actions fit with 44px targets.`);
+  }
+  await viewportLayout(layouts[0]);
   assertNoNewRequests(loadedRequests);
   log(`PASS: all ${LEVELS.length} courses and editor/input checks work offline with no additional asset requests.`);
 
@@ -234,10 +400,13 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   const beforeReload = loadEvents;
   await page.call('Page.reload', { ignoreCache: true });
   await until('Reload document load', async () => loadEvents > beforeReload);
-  await until('Debug reload restores the initial intro', async () => evaluate<boolean>(
+  await until('Reload restores generic initial entry', async () => evaluate<boolean>(
     `document.readyState === 'complete' && Boolean(${debug}) && ${debug}.snapshot().state.tick === 0 && !${debug}.snapshot().started`));
   assert.equal(await saved(), progress, 'Reload preserves local records');
   assert.equal(await text('completion-count'), `${LEVELS.length} / ${LEVELS.length} cleared`, 'Reload hydrates progress into menu');
+  await click('#menu-toggle'); await click('[data-level="2"]');
+  await playing('Selecting a level before initial Play');
+  assert.deepEqual((await snapshot()).level, LEVELS[2]);
   const beforeNavigation = loadEvents;
   await page.call('Page.navigate', { url: `${origin}/` });
   await until('Ordinary document load', async () => loadEvents > beforeNavigation);
@@ -253,6 +422,17 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   const pausedTimer = await text('timer');
   await pause(180);
   assert.equal(await text('timer'), pausedTimer);
+  await click('#menu-toggle'); await click('[data-level="1"]');
+  assert.equal(await text('course-title'), LEVELS[1].name);
+  assert.equal(await evaluate("document.getElementById('overlay').hidden"), true, 'Ordinary selection needs no second Play');
+  assert.equal(await evaluate('document.activeElement.id'), 'viewport');
+  const selectedTimer = await text('timer');
+  await until('Ordinary selection runs live', async () => await text('timer') !== selectedTimer);
+  await click('#pause'); await click('#retry-course');
+  assert.equal(await evaluate("document.getElementById('overlay').hidden"), true, 'Ordinary retry needs no second Play');
+  const retryTimer = await text('timer');
+  await until('Ordinary retry runs live', async () => await text('timer') !== retryTimer);
+  await click('#pause');
   assertNoNewRequests(ordinaryRequests);
   assert.equal(await evaluate(`typeof ${debug}`), 'undefined');
   log('PASS: save/reload hydrates progress; ordinary non-debug play stays private and works offline.');

@@ -19,8 +19,12 @@ npm run dev
 # http://127.0.0.1:4321
 ```
 
-Click **Play**, then use **WASD / arrow keys**. **Space** pauses, **R** restarts,
-and **Escape** opens the menu. Checkpoints save your position after a fall.
+Click the single initial **Play**, then use **WASD / arrow keys**. Selecting a
+level, **Next level**, **Retry level** and **Restart campaign** start playing
+directly—there are no per-level tutorial popups. Hints stay below the board;
+full level instructions are available in **Menu → How to play**.
+**Space** pauses, **R** restarts, and **Escape** opens the menu.
+Checkpoints save your position after a fall.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
 selection, sound, fullscreen, help and the editor. Sound starts muted.
 
@@ -130,9 +134,10 @@ ground. Start/exit/checkpoints require safe floor; painting unsafe terrain under
 one is rejected. Move the marker or erase the checkpoint first.
 
 **New blank** and **Remix level** can be undone. Up to 40 edits are kept in
-session memory. **Playtest level** starts from the draft's spawn; return with
-**Menu → Level editor**. **Back to game** leaves editing. Playtests never alter
-built-in records.
+session memory. **Playtest level** starts immediately from the draft's spawn;
+return with **Back to editor** or **Menu → Level editor**. **Back to game**
+leaves editing and starts the selected built-in level directly. Playtests never
+alter built-in records.
 
 Drafts and records stay in `localStorage`, scoped to the hosting origin. Storage
 failures are shown in the UI; export JSON if saving is unavailable. There is no
@@ -157,8 +162,9 @@ npm run test:browser
 ```
 
 This builds the game, starts an owned temporary loopback server/browser, drives
-real input and all current replays, checks editor/saves/offline behaviour, then
-cleans up. It uses Node's built-in APIs rather than an added npm dependency or
+real input and all current replays, checks direct level transitions, paused/hidden
+idleness, desktop/portrait/landscape actions and editor/saves/offline behaviour,
+then cleans up. It uses Node's built-in APIs rather than an added npm dependency or
 an AI/MCP session. Chromium's sandbox stays enabled and its profile is isolated.
 Missing prerequisites and failed checks exit nonzero, never silently skip.
 See [browser checks](docs/BROWSER_CHECKS.md) for executable overrides, evidence,
@@ -171,13 +177,17 @@ Open `http://127.0.0.1:4321/?debug` to opt into `window.__BOUNDSTOY__`:
 const game = window.__BOUNDSTOY__;
 game.snapshot();                 // cloned state, level, mode, pause and inputs
 game.ascii();                    // text view of the current board
-game.load(0);                    // reset a built-in course
+game.load(0);                    // reset a built-in course paused at tick zero
 game.advance(120, { x: 1, y: 0 }); // pause real time and step one simulated second
 game.project({ x: 3, y: 5 });     // cell center in browser client coordinates
 game.metrics();                  // cumulative frames, draw calls, geometry, textures
 game.export();                   // current level JSON
 ```
 
+`load` is an explicit paused inspection reset, not normal player navigation.
+It shows the pause overlay and cannot accumulate live ticks while a witness is
+prepared. Normal level selection, Next and Retry still start live play on a
+`?debug` page; call `load(index)` before each exact input-only witness.
 `advance` runs the same collision, hazards, checkpoint and win logic as keyboard
 play; it does not teleport or disable hazards. The reference inputs in
 `data/replays.ts` reach all six exits with no falls. This is evidence of
@@ -187,7 +197,7 @@ The debug API is absent without `?debug`.
 
 Paused gameplay and hidden documents stop scheduling unchanged render frames.
 Resize and explicit debug steps invalidate the scene for a fresh frame; resume
-does not catch up elapsed paused time. Visible intro/editor/victory animation
+does not catch up elapsed paused time. Visible initial-entry/editor/victory animation
 continues, while modal menus freeze the covered scene.
 
 See [mechanics](docs/GAME_SYSTEMS.md), [architecture](docs/ARCHITECTURE.md),

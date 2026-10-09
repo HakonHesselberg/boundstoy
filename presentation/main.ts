@@ -84,7 +84,7 @@ function boot(scene: Scene) {
     return { x, y };
   }
   function syncRendering() {
-    // A modal freezes all background visuals, including intro/editor/victory.
+    // A modal freezes all background visuals, including entry/editor/victory.
     loop.setActive(!menu.open && (!started || mode === 'edit' || state.won || !paused));
   }
   function saveDraft() {
@@ -141,10 +141,10 @@ function boot(scene: Scene) {
       text('overlay-copy', 'Your next move can wait.');
       text('primary-action', 'Resume →'); text('overlay-foot', 'SPACE TO RESUME');
     } else {
-      text('overlay-kicker', testing ? 'YOUR LEVEL' : `LEVEL ${selectedCourse + 1} / ${LEVELS.length}`);
-      text('overlay-title', level.name);
-      text('overlay-copy', level.description);
-      text('primary-action', 'Play →'); text('overlay-foot', 'WASD / ARROWS / TOUCH TO MOVE');
+      text('overlay-kicker', 'A PLAYGROUND FOR MOMENTUM');
+      text('overlay-title', 'Ready to play?');
+      text('overlay-copy', "Start when you're ready. Help is in the menu.");
+      text('primary-action', 'Play →'); text('overlay-foot', 'YOUR PACE. YOUR NEXT MOVE.');
     }
   }
   function hud() {
@@ -175,36 +175,39 @@ function boot(scene: Scene) {
     element('editor-return').hidden = !testing;
     element<HTMLButtonElement>('restart').disabled = mode === 'edit';
     text('controls-note', mode === 'edit' ? 'Choose a brush, then click or drag on the board. Control or Command Z undoes a change. Escape opens the menu.'
-      : 'WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons after pressing Play.');
+      : 'WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons to move.');
     viewport.setAttribute('aria-label', mode === 'edit' ? 'Level editor. Choose a brush, then click or drag on the board.' : 'Boundstoy course. WASD or arrows to move; R to restart; Space to pause.');
     courseCards(); overlay(); hud();
   }
-  function load(next: Level, autoStart = false) {
-    level = next; state = createState(level); started = autoStart; paused = !autoStart;
-    accumulator = 0; feedbackUntil = 0; clearInput(); scene.setLevel(level); scene.highlight(null); updateLayout();
+  function load(next: Level, entry: 'ready' | 'play' | 'paused' = 'ready') {
+    level = next; state = createState(level); started = entry !== 'ready'; paused = entry !== 'play';
+    accumulator = 0; feedbackUntil = 0; clearInput(); scene.setLevel(level); scene.highlight(null);
+    // Transfer focus before hiding the action that started this run.
+    if (!paused) viewport.focus({ preventScroll: true });
+    updateLayout();
     syncRendering();
   }
-  function loadCourse(index: number) {
+  function loadCourse(index: number, entry: 'play' | 'paused' = 'play') {
     if (!Number.isInteger(index) || !LEVELS[index]) throw new Error('Unknown course index.');
-    selectedCourse = index; mode = 'play'; testing = false; load(LEVELS[index]);
-    element('primary-action').focus({ preventScroll: true });
+    selectedCourse = index; mode = 'play'; testing = false; load(LEVELS[index], entry);
+    if (entry === 'paused') element('primary-action').focus({ preventScroll: true });
   }
   function play() {
     if (menu.open || mode === 'edit') return;
     if (state.won) {
       if (testing) { enterEditor(); return; }
       loadCourse(selectedCourse === LEVELS.length - 1 ? 0 : selectedCourse + 1);
-      element('primary-action').focus({ preventScroll: true });
       return;
     }
-    clearInput(); started = true; paused = false; accumulator = 0; overlay(); hud(); viewport.focus({ preventScroll: true });
+    clearInput(); started = true; paused = false; accumulator = 0;
+    viewport.focus({ preventScroll: true }); overlay(); hud();
     syncRendering();
   }
   function setPaused(value: boolean) {
     if (!started || state.won || mode === 'edit') return;
-    paused = value; clearInput(); accumulator = 0; overlay(); hud();
-    syncRendering();
+    paused = value; clearInput(); accumulator = 0;
     if (!value) viewport.focus({ preventScroll: true });
+    overlay(); hud(); syncRendering();
   }
   function showHelp(show: boolean) {
     element('menu-home').hidden = show; element('help-panel').hidden = !show;
@@ -347,7 +350,7 @@ function boot(scene: Scene) {
       event.preventDefault();
       if (!event.repeat) { if (!started) play(); else setPaused(!paused); }
     } else if (event.code === 'KeyR' && mode === 'play' && !event.repeat) {
-      event.preventDefault(); load(level, true); viewport.focus();
+      event.preventDefault(); load(level, 'play');
     } else if (event.code === 'Enter' && mode === 'play' && (!started || state.won || paused)) {
       event.preventDefault(); play();
     } else if ((event.ctrlKey || event.metaKey) && event.code === 'KeyZ' && mode === 'edit') {
@@ -398,13 +401,13 @@ function boot(scene: Scene) {
     return source;
   }
   element('primary-action').addEventListener('click', play, options);
-  element('retry-course').addEventListener('click', () => { load(level, true); viewport.focus(); }, options);
+  element('retry-course').addEventListener('click', () => load(level, 'play'), options);
   element('pause').addEventListener('click', () => {
     setPaused(true); element('primary-action').focus({ preventScroll: true });
   }, options);
   element('restart').addEventListener('click', () => {
     if (mode === 'edit') return;
-    load(level, true); viewport.focus();
+    load(level, 'play');
   }, options);
   element('play-tab').addEventListener('click', () => loadCourse(selectedCourse), options);
   element('editor-return').addEventListener('click', enterEditor, options);
@@ -475,7 +478,7 @@ function boot(scene: Scene) {
   element('playtest').addEventListener('click', () => {
     if (!rename()) return;
     draft = parseLevel(level); saveDraft(); mode = 'play'; testing = true;
-    load(draft, true); viewport.focus();
+    load(draft, 'play');
   }, options);
   element('export').addEventListener('click', () => {
     if (exportDraft()) { element<HTMLTextAreaElement>('level-json').select(); notify('Level JSON is ready. Copy it or download a file.'); }
@@ -502,7 +505,7 @@ function boot(scene: Scene) {
     ascii: () => ascii(level, state),
     load: (index: number) => {
       if (abort.signal.aborted) throw new Error('The game has been disposed.');
-      loadCourse(index); visualTime = 0; loop.drawNow();
+      loadCourse(index, 'paused'); visualTime = 0; loop.drawNow();
     },
     advance: (ticks: number, input: Point = STILL) => {
       if (abort.signal.aborted) throw new Error('The game has been disposed.');

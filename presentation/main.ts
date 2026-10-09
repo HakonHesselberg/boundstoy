@@ -294,7 +294,7 @@ function boot(scene: Scene) {
     { id: 'spawn', label: 'Start', color: '#3c887c', mark: 'S', help: 'Place the starting point. This also creates safe floor.' },
     { id: 'goal', label: 'Exit', color: '#9e7951', mark: 'G', help: 'Place the golden exit. This also creates safe floor.' },
     { id: 'checkpoint', label: 'Checkpoint', color: '#3c887c', mark: 'C', help: 'Place a saved respawn point. Erase removes it.' },
-    { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'A timed pad: 0.75 seconds active, then 2.25 seconds safe. JSON can change its timing.' },
+    { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'A timed pad: 0.375 seconds active, then 2.625 seconds safe. JSON can change its timing.' },
     { id: 'saw', label: 'Saw', color: '#943552', mark: 'X', help: 'Click the start, then the end of a patrol. Travels out and back every 3 seconds.' },
     { id: 'erase', label: 'Erase object', color: '#253549', mark: '×', help: 'Remove a checkpoint or hazard at its starting tile. Floor stays unchanged.' },
   ];

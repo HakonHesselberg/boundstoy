@@ -20,11 +20,12 @@ function run(level: Level, commands: readonly Command[], initial = createState(l
   return state;
 }
 
-test('OriginalSix_AllLevelLessonAndReplayData_RemainUnchanged', () => {
-  const originals = LEVELS.slice(0, 6);
-  const lessons = Object.fromEntries(originals.map(level => [level.id, COURSE_LESSONS[level.id]]));
-  const digest = createHash('sha256').update(JSON.stringify([originals, lessons, REPLAYS.slice(0, 6)])).digest('hex');
-  assert.equal(digest, '8fde6ad1b5d819afcbdecc478c10a0a0a42e645dc44dfc9d25754289b14b4531');
+test('Tuning_OnlyBuiltInBlastDurationsAreHalved_AllOtherCourseDataStaysUnchanged', () => {
+  const originals = LEVELS.map(level => ({ ...level, hazards: level.hazards.map(hazard =>
+    hazard.kind === 'pulse' ? { ...hazard, on: hazard.on * 2 } : hazard) }));
+  const digest = createHash('sha256').update(JSON.stringify([originals, COURSE_LESSONS, REPLAYS])).digest('hex');
+  assert.equal(digest, '66090a785fce5b909ca8735b666410df99b3a09a7e9eaaa911a6b0e802dca53c');
+  assert.equal(LEVELS.flatMap(level => level.hazards).filter(hazard => hazard.kind === 'pulse').length, 30);
 });
 
 test('Curriculum_SixLessonsAndThreeFocusedPractices_UseOnlyTheirNamedMechanics', () => {
@@ -90,7 +91,7 @@ test('PocketWave_ThreeTravelingWaves_DetonateEachPocketAfterTheLocalPathClears',
     assert.equal(local.kind, 'pulse');
     if (local.kind !== 'pulse' || pocket.kind !== 'pulse') continue;
     const localActivation = (local.period - local.phase) % local.period;
-    const detonation = localActivation + local.on + 28;
+    const detonation = localActivation + local.on + [78, 83, 73][section];
     assert.equal(hazardSample(local, detonation).active, false);
     assert.equal(hazardSample(pocket, detonation - 1).active, false);
     assert.equal(hazardSample(pocket, detonation).active, true);
@@ -246,14 +247,20 @@ test('PocketWave_EachCorridor_IsUnavoidableEvenWithItsSidePocket', () => {
   }
 });
 
-test('PocketWave_EveryStraightLaunchInAFullCycle_FailsWithoutHiding', () => {
+test('PocketWave_StraightRuns_HaveNarrowWindowsButMistimedLaunchesStillFail', () => {
   const level = LEVELS[8], replay = REPLAYS[8];
+  const windows = [[173, 193], [172, 187], [172, 197]];
   for (let section = 0; section < 3; section++) {
     const index = section * 5, start = run(level, replay.slice(0, index));
     for (let delay = 0; delay < 240; delay++) {
-      const state = run(level, [{ ticks: delay, x: 0, y: 0 }, { ...replay[index], ticks: 600 }], start);
-      assert.equal(state.deathCause, 'pulse', `section ${section}, departure ${delay}`);
-      assert.equal(state.visited.length, section, 'no next checkpoint without a pocket');
+      let state = run(level, [{ ticks: delay, x: 0, y: 0 }], start);
+      for (let tick = 0; tick < 600 && !state.deaths && state.visited.length === section; tick++) {
+        state = step(level, state, replay[index]);
+      }
+      const expected = delay >= windows[section][0] && delay <= windows[section][1];
+      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected,
+        `section ${section}, departure ${delay}`);
+      if (!expected) assert.equal(state.deathCause, 'pulse');
     }
   }
 });
@@ -272,24 +279,26 @@ test('PocketWave_StayingOnThePathOrCampingInThePocket_DiesAtTheExpectedBlast', (
   }
 });
 
-test('PocketWave_LocalLaunchAndPocketDwellWindows_AreFiniteNineteenTickIntervals', () => {
+test('PocketWave_LocalLaunchAndPocketDwellWindows_WidenWithShorterBlasts', () => {
   const level = LEVELS[8], replay = REPLAYS[8];
+  const launches = [[-59, 10], [-56, 8], [-54, 10]];
+  const dwells = [[43, 112], [42, 116], [43, 107]];
   for (let section = 0; section < 3; section++) {
     const index = section * 5, start = run(level, replay.slice(0, index));
     const commands = replay.slice(index, index + 5);
-    const low = section === 1 ? -10 : -9, high = section === 1 ? 8 : 9;
+    const [low, high] = launches[section];
     for (let delay = 0; delay < 240; delay++) {
       const offset = delay > 120 ? delay - 240 : delay;
       const state = run(level, [{ ticks: delay, x: 0, y: 0 }, ...commands], start);
       const expected = offset >= low && offset <= high;
       assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `launch ${section}: ${offset}`);
     }
-    for (let offset = -40; offset <= 40; offset++) {
+    for (let dwell = 0; dwell < 240; dwell++) {
       const state = run(level, commands.map((command, i) => ({
-        ...command, ticks: command.ticks + (i === 2 ? offset : 0),
+        ...command, ticks: i === 2 ? dwell : command.ticks,
       })), start);
-      const expected = offset >= low && offset <= high;
-      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `dwell ${section}: ${offset}`);
+      const expected = dwell >= dwells[section][0] && dwell <= dwells[section][1];
+      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `dwell ${section}: ${dwell}`);
       if (!expected) assert.equal(state.deathCause, 'pulse', 'too early meets the wave; too late meets the pocket blast');
     }
   }
@@ -470,9 +479,10 @@ test('Timing_GatesAndSawBridge_CannotBeWalkedAround', () => {
   }
 });
 
-for (const [index, cause] of [[3, 'pulse'], [4, 'saw'], [5, 'pulse']] as const) {
-  test(`Timing_${index}_SkippingTheWaitHitsTheHazard`, () => {
-    const state = run(LEVELS[index], REPLAYS[index].filter(command => command.x || command.y));
+for (const [index, cause, unsafeWait] of [[3, 'pulse', 360], [4, 'saw', 0], [5, 'pulse', 650]] as const) {
+  test(`Timing_${index}_AnUnsafeLaunchPhaseHitsTheHazard`, () => {
+    const state = run(LEVELS[index], REPLAYS[index].map(command =>
+      !command.x && !command.y ? { ...command, ticks: unsafeWait } : command));
     assert.equal(state.deathCause, cause);
   });
   test(`Timing_${index}_EveryLaunchOffsetWithinTwoHundredMillisecondsIsSafe`, () => {

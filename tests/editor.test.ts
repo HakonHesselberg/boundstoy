@@ -19,6 +19,12 @@ test('Paint_PulseTwice_ReplacesRatherThanDuplicates', () => {
   const first = paint(blankLevel(), point, 'pulse');
   assert.equal(paint(first, point, 'pulse').hazards.length, first.hazards.length);
 });
+test('Paint_Pulse_DefaultBlastIsHalvedButImportedDurationsStayLiteral', () => {
+  const first = paint(blankLevel(), { x: 5, y: 13 }, 'pulse');
+  assert.deepEqual(first.hazards, [{ kind: 'pulse', x: 5, y: 13, period: 360, on: 45, phase: 0 }]);
+  const custom = parseLevel({ ...first, hazards: first.hazards.map(hazard => ({ ...hazard, on: 77 })) });
+  assert.deepEqual(importLevel(JSON.stringify(custom)), custom, 'do not silently scale authored JSON');
+});
 test('Paint_MarkerOnVoid_CreatesSafeFloor', () => {
   const edited = paint(blankLevel(), { x: 1, y: 1 }, 'checkpoint');
   assert.equal(edited.tiles[1][1], '.');

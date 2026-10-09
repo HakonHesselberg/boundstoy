@@ -53,7 +53,7 @@ export const LEVELS = Object.freeze([
     fill(6, 2, 3, 1, '#');
     fill(6, 6, 3, 1, '#');
   }, { x: 2, y: 4 }, { x: 12, y: 4 }, [{ x: 5, y: 4 }],
-  Array.from({ length: 3 }, (_, i): Hazard => ({ kind: 'pulse', x: 7, y: 3 + i, period: 480, on: 240, phase: 0 }))),
+  Array.from({ length: 3 }, (_, i): Hazard => ({ kind: 'pulse', x: 7, y: 3 + i, period: 480, on: 120, phase: 0 }))),
 
   course('saw-crossing-v1', 'Saw crossing', 'Watch the saw travel past the narrow bridge. Let it move away before you cross.', [15, 11], fill => {
     fill(1, 3, 5, 5, '.');
@@ -73,7 +73,7 @@ export const LEVELS = Object.freeze([
     fill(2, 5, 1, 5, '#');
     fill(6, 5, 1, 5, '#');
   }, { x: 4, y: 2 }, { x: 4, y: 11 }, [{ x: 4, y: 4 }],
-  Array.from({ length: 3 }, (_, i): Hazard => ({ kind: 'pulse', x: 3 + i, y: 7, period: 840, on: 300, phase: 0 }))),
+  Array.from({ length: 3 }, (_, i): Hazard => ({ kind: 'pulse', x: 3 + i, y: 7, period: 840, on: 150, phase: 0 }))),
 
   course('soft-switchbacks-v1', 'Switchback sweep', 'Carry your glide around the lower bend, then weave back between the staggered spike tongues. Solid landings save each section.', [22, 19], fill => {
     fill(1, 13, 4, 5, '.');
@@ -125,13 +125,13 @@ export const LEVELS = Object.freeze([
     fill(7, 3, 1, 1, '.');
     fill(7, 4, 1, 1, '#');
   }, { x: 2, y: 13 }, { x: 2, y: 4 }, [{ x: 12, y: 13 }, { x: 12, y: 2 }, { x: 2, y: 2 }], [
-    // Each wave advances one tile per 12 ticks. Its pocket fires 28 ticks after the adjacent path clears.
-    ...Array.from({ length: 7 }, (_, i): Hazard => ({ kind: 'pulse', x: 4 + i, y: 13, period: 240, on: 100, phase: (71 - 12 * i + 240) % 240 })),
-    { kind: 'pulse', x: 7, y: 12, period: 240, on: 50, phase: 147 },
-    ...Array.from({ length: 7 }, (_, i): Hazard => ({ kind: 'pulse', x: 12, y: 10 - i, period: 240, on: 110, phase: (21 - 12 * i + 240) % 240 })),
-    { kind: 'pulse', x: 13, y: 7, period: 240, on: 50, phase: 87 },
-    ...Array.from({ length: 7 }, (_, i): Hazard => ({ kind: 'pulse', x: 10 - i, y: 2, period: 240, on: 90, phase: (223 - 12 * i + 240) % 240 })),
-    { kind: 'pulse', x: 7, y: 3, period: 240, on: 50, phase: 69 },
+    // Wave steps and pocket ignition phases stay fixed while blast lengths are tuned.
+    ...Array.from({ length: 7 }, (_, i): Hazard => ({ kind: 'pulse', x: 4 + i, y: 13, period: 240, on: 50, phase: (71 - 12 * i + 240) % 240 })),
+    { kind: 'pulse', x: 7, y: 12, period: 240, on: 25, phase: 147 },
+    ...Array.from({ length: 7 }, (_, i): Hazard => ({ kind: 'pulse', x: 12, y: 10 - i, period: 240, on: 55, phase: (21 - 12 * i + 240) % 240 })),
+    { kind: 'pulse', x: 13, y: 7, period: 240, on: 25, phase: 87 },
+    ...Array.from({ length: 7 }, (_, i): Hazard => ({ kind: 'pulse', x: 10 - i, y: 2, period: 240, on: 45, phase: (223 - 12 * i + 240) % 240 })),
+    { kind: 'pulse', x: 7, y: 3, period: 240, on: 25, phase: 69 },
   ]),
 ]);
 

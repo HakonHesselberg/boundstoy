@@ -20,7 +20,7 @@ export function paint(level: Level, point: Point, brush: Exclude<Brush, 'saw'>):
     checkpoints = checkpoints.filter(p => !sameTile(p, point));
   } else if (brush === 'pulse') {
     hazards = [...hazards.filter(h => !startsAt(h, point)),
-      { kind: 'pulse', ...point, period: 360, on: 90, phase: 0 }];
+      { kind: 'pulse', ...point, period: 360, on: 45, phase: 0 }];
   } else {
     if (brush === 'spawn') spawn = point;
     else if (brush === 'goal') goal = point;

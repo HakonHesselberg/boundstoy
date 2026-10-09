@@ -31,7 +31,7 @@ a wall (or starting on hard ice) can choose a new launch direction. Walls stop
 hard-ice motion completely. Soft ice reflects the blocked velocity components
 without losing speed; normal ground and mud slide along walls.
 
-The player's collision radius is 0.22 tiles. Movement is checked in small steps,
+The player's collision radius is 0.20 tiles. Movement is checked in small steps,
 so walls cannot be skipped at the supported speeds. A fall occurs when the
 player's center enters void/spikes. Hazard collisions use the full footprint.
 
@@ -42,6 +42,9 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   Dark vent = safe, contracting amber ring = warning, fireball and sparks = active.
   All blast animation uses simulation ticks, so pausing freezes it and replay
   screenshots are repeatable. Reduced motion keeps a static but bright blast.
+  Built-in active durations were halved in 0.4.2 without changing periods,
+  phases or warning lead. New editor pads use period 360 / on 45 / phase 0
+  (0.375 seconds active, 2.625 safe). Imported JSON keeps its literal `on` value.
 - Saw: a 0.31-tile radius moving linearly between two cell centers and back.
   `period` is the complete out-and-back cycle. Its whole path is drawn.
 - Checkpoint: touch within 0.42 tiles to activate. Each checkpoint activates once
@@ -81,7 +84,7 @@ The soft-ice lesson requires actual heading changes and has a broad landing.
 The hard-ice lesson requires choosing the lane before entering and stopping at
 a curb to turn. Each introductory timed crossing has a safe place to wait and a reference
 launch away from the edge of its safe window. The mud lesson's hazard exposure
-lasts 104 ticks versus 44 when walking over the same crossing, making the slower
+lasts 101 ticks versus 42 for the walking pulse witness, making the slower
 speed relevant rather than merely cosmetic.
 
 Switchback sweep routes a full-speed glide through two sections; its reference
@@ -92,15 +95,16 @@ Pocket wave deliberately demands more precise timing than the lessons. Three
 one-tile corridors run right, up and left, each with a one-tile side pocket and
 a safe checkpoint beyond it. Seven pulse pads per corridor activate in travel
 order, 12 ticks (0.1 seconds) apart, on a 240-tick cycle. Lane blasts last
-100, 110 and 90 ticks respectively. Each pocket ignites 28 ticks
-(0.2333 seconds) after its adjacent path pad clears and burns for 50 ticks.
+50, 55 and 45 ticks respectively. Each pocket ignites 78, 83 or 73 ticks
+(about 0.61-0.69 seconds) after its adjacent path pad clears and burns for 25 ticks.
 All of this uses the existing pulse period/on/phase fields, not new hazard logic.
 
-The reference route must hide and then leave each pocket. Its local launch and
-dwell windows contain 19 legal tick choices per section; exiting early meets
-the path wave and exiting late meets the pocket blast. These are measured
-reference-input margins, not an exhaustive bound on every possible trajectory.
-Checkpoints provide safe observation and recovery without weakening the timing.
+The reference route hides and then leaves each pocket. Shorter blasts widen
+its safe dwell windows to 70, 75 and 65 legal tick choices; exiting too early
+meets the path wave and too late meets the pocket blast. They also allow
+straight-through crossings in narrow 21-, 16- and 26-tick launch windows.
+These are measured input-specific margins, not an exhaustive bound on every
+trajectory. Checkpoints provide safe observation and recovery.
 
 Barriers are 0.24 tiles tall with a contrasting top edge; their collision is
 still a full solid cell. Each spike tile has five pointed metal teeth rather

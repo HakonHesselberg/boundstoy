@@ -13,7 +13,7 @@ export type Terrain = (typeof TERRAIN)[Tile];
 
 export const RULES = Object.freeze({
   tickRate: 120,
-  radius: 0.22,
+  radius: 0.20,
   respawnTicks: 54,
   pulseWarningTicks: 54,
   pulseRadius: 0.43,

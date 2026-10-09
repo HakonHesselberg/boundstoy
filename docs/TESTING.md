@@ -49,35 +49,39 @@ demonstrate that:
 - Hard ice requires a correct lane, stops at the curb and then relaunches.
   Alignment +/-6 ticks and curb arrival -24/0/+24 produce 39 safe trials.
 - Pulse/saw/mud witnesses survive every launch offset from -24 to +24 ticks.
-  Skipping the wait is lethal, and the crossings cannot be walked around.
+  Unsafe launch phases are lethal, and the crossings cannot be walked around.
 - Pulse witnesses cross within the middle half of the quiet window rather than
   scraping its first safe frame.
-- Mud exposure is longer than walking (104 versus 44 ticks); a late crossing
+- Mud exposure is longer than walking (101 versus 42 ticks); a late crossing
   that walking could clear is not safe in mud.
 
 Geometry/phase tests also check tall spike silhouettes, low curbs, visible
 charge/blast states, exact lethal-window visibility, and reduced-motion effects.
 
-Practice regressions preserve the original six level/lesson/replay fixtures
-with a hash and check safe checkpoint recovery. Switchback sweep's seven
+The tuning regression uses the pre-tuning nine-course hash, restoring only
+halved `on` values for comparison: geometry, phases, periods, lessons and
+replays must remain unchanged. Switchback sweep's seven
 reference arcs retain 4.4 tiles/second without bounces; omitting each arc fails,
 while individual input boundaries tolerate +/-10 ticks. Three curb route
 requires three outside lanes and curb relaunches; alignment +/-10 ticks and
 combined curb-arrival errors +/-18 ticks remain safe.
 
-Pocket wave tests use the actual hazard definitions to verify 12-tick wave
-steps and pocket ignition 28 ticks after the adjacent path clears. Every
-straight-launch phase in a complete 240-tick cycle fails in all three sections;
-camping dies on the expected pocket blast. For the reference section inputs:
+Pocket wave tests use actual hazard definitions to verify 12-tick wave steps
+and unchanged pocket ignition after the path clears. Camping still dies on the
+same pocket blast. For the reference section inputs after the 0.4.2 tuning:
 
 | Section | Safe launch offset | Safe pocket dwell |
 | --- | --- | --- |
-| Rightward lane / upper pocket | -9 through +9 ticks | 93-111 ticks |
-| Upward lane / right pocket | -10 through +8 ticks | 98-116 ticks |
-| Leftward lane / lower pocket | -9 through +9 ticks | 88-106 ticks |
+| Rightward lane / upper pocket | -59 through +10 ticks | 43-112 ticks |
+| Upward lane / right pocket | -56 through +8 ticks | 42-116 ticks |
+| Leftward lane / lower pocket | -54 through +10 ticks | 43-107 ticks |
 
-Each interval contains 19 legal integer-tick choices, deliberately tighter
-than the introductory timing checks. Full-route tests also cover individual
+Every launch phase and dwell duration in a 240-tick cycle is checked. Straight
+runs can now succeed with local departure delays 173-193, 172-187 and 172-197
+ticks, respectively, from the recorded reference section starts; all other
+straight departures hit a pulse. These newly possible routes are intentional
+consequences of halving blast durations, not silently counterbalanced with
+faster cycles. Full-route tests also cover individual
 input-boundary errors of +/-4 ticks and combined pocket-dwell errors. These
 checks establish feasible precise movement, not human input accuracy or fun.
 
@@ -111,6 +115,18 @@ for a board cell without modifying the game.
 9. Serve `dist/` under a nested path and inside a titled iframe. Verify local
    relative asset URLs and keyboard input. An actual Astro compilation is a
    separate check, not implied by a successful raw iframe test.
+
+## Playtest tuning (0.4.2)
+
+The user requested a slightly smaller hitbox and half-duration explosions.
+The radius is 0.20 rather than 0.22 tiles; exact wall, pulse and saw boundary
+regressions check the new clearance. All 30 built-in pulse `on` values are
+halved, with the editor default at 45 ticks. Custom JSON retains literal timing.
+The portable suite has 181 checks; all nine exact replay ticks remain unchanged.
+The wider windows above replace the previous mandatory-wait/hide assertions.
+Production acceptance also passes all 23 browser groups and 36 real-pixel
+cases. Evidence: `artifacts/bt020-*.log`, browser reports `run-nnuc15` and
+`run-kFjjTA`, and the BT-020 handoff.
 
 ## Pre-playtest hardening (0.4.1)
 

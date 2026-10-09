@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createState, step, terrainAt, hazardSample, DT, type State } from '../core/simulation.ts';
 import { parseLevel, type Level } from '../core/level.ts';
-import { TERRAIN } from '../data/terrain.ts';
+import { TERRAIN, RULES } from '../data/terrain.ts';
 
 function room(tile = '.', hazards: unknown[] = []): Level {
   return parseLevel({
@@ -16,6 +16,23 @@ function run(level: Level, state: State, input: { x: number; y: number }, ticks:
   for (let i = 0; i < ticks; i++) state = step(level, state, input);
   return state;
 }
+
+test('Step_PlayerHitbox_PointTwoRadiusAllowsCloserWallPulseAndSawClearance', () => {
+  assert.equal(RULES.radius, 0.20);
+  const level = room(), nearWall = { ...createState(level), position: { x: 14.76, y: 5.5 } };
+  const moved = step(level, nearWall, { x: 1, y: 0 });
+  assert.ok(Math.abs(moved.position.x - 14.79) < 1e-9);
+  assert.deepEqual(step(level, moved, { x: 1, y: 0 }).position, moved.position);
+  for (const [hazard, safeX, lethalX] of [
+    [{ kind: 'pulse', x: 5, y: 5, period: 240, on: 120, phase: 0 }, 6.135, 6.125],
+    [{ kind: 'saw', from: { x: 5, y: 5 }, to: { x: 5, y: 5 }, period: 240, phase: 0 }, 6.015, 6.005],
+  ] as const) {
+    const danger = room('.', [hazard]);
+    const at = (x: number) => step(danger, { ...createState(danger), position: { x, y: 5.5 } }, { x: 0, y: 0 });
+    assert.equal(at(safeX).deaths, 0, hazard.kind);
+    assert.equal(at(lethalX).deathCause, hazard.kind);
+  }
+});
 
 test('Step_NormalGround_StopsImmediatelyWithoutInput', () => {
   const level = room();
@@ -102,7 +119,7 @@ test('Step_HardIceWall_StopsAndAllowsRelaunch', () => {
 
 test('Step_HardIceDiagonalIntoWall_DoesNotSlideAlongWall', () => {
   const level = room('=');
-  const state = { ...createState(level), position: { x: 14.77, y: 5.5 } };
+  const state = { ...createState(level), position: { x: 15 - RULES.radius - 0.01, y: 5.5 } };
   const blocked = run(level, state, { x: 1, y: 1 }, 120);
   assert.deepEqual(blocked.position, state.position);
   assert.deepEqual(blocked.velocity, { x: 0, y: 0 });

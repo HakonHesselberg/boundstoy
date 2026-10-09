@@ -75,11 +75,17 @@ practice one established mechanic through several decisions, with safe checkpoin
 between sections. There is no mixed-mechanics final gauntlet. All nine are
 available from the menu; the curriculum stays below the ten-level cap.
 
-**Pocket wave is deliberately hard.** Explosions travel through three narrow
+**Pocket wave tests precise timing.** Explosions travel through three narrow
 corridors, advancing one tile every 0.1 seconds. Hide in each side pocket, then
-leave as the path clears: the pocket detonates about 0.23 seconds later. Neither
-running straight through nor camping works. The three orientations reuse the
-same read, hide and escape idea rather than introducing another hazard type.
+leave as the path clears: the pocket detonates about 0.61-0.69 seconds later.
+Shorter blasts also permit narrow, precisely timed straight-through runs;
+camping still fails. The three orientations reuse the same read, hide and
+escape idea rather than introducing another hazard type.
+
+Playtest tuning uses a 0.20-tile collision radius (the robot art is unchanged).
+Built-in blasts and newly painted editor blasts last half as long as in 0.4.1;
+their activation times, periods and warning lead are unchanged. Existing custom
+JSON/draft durations remain literal authored tick values.
 
 New level IDs keep earlier prototype scores separate. Existing drafts and
 older records are preserved; choose **Remix level** in the editor to copy a

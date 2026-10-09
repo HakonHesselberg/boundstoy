@@ -3,13 +3,18 @@
   "id": "BT-013",
   "title": "Remove per-level tutorial popups",
   "type": "feature",
-  "status": "backlog",
+  "status": "in_progress",
   "priority": "P1",
   "depends_on": [],
   "parent": null,
   "scope": ["index.html", "presentation/main.ts", "presentation/style.css", "tests/browser/scenarios.ts", "tests/browser-check.test.ts", "docs/BROWSER_CHECKS.md", "README.md"],
-  "approval": null,
-  "assignment": null,
+  "approval": "User explicitly requested starting both BT-013 and BT-014 on 2026-10-09. Approval covers removal of per-level tutorial popups while preserving pause/results/help and existing gameplay.",
+  "assignment": {
+    "owner": "tutorial-flow-worker",
+    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "branch": "task/bt-013",
+    "worktree": ".worktrees/BT-013"
+  },
   "blocked_reason": null
 }
 ---
@@ -21,7 +26,7 @@ The user wants the tutorial popup removed from each level. Requiring another
 instruction dismissal interrupts the flow between short levels and adds
 unnecessary UI to the consumer-facing game.
 
-This issue records the request; implementation has not started.
+Implementation was explicitly approved on 2026-10-09.
 
 ## Scope
 

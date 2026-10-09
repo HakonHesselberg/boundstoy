@@ -3,13 +3,18 @@
   "id": "BT-014",
   "title": "Research what makes bounds and escape maps fun",
   "type": "chore",
-  "status": "backlog",
+  "status": "in_progress",
   "priority": "P2",
   "depends_on": [],
   "parent": null,
   "scope": ["docs/research/bounds-escape-design.md"],
-  "approval": null,
-  "assignment": null,
+  "approval": "User explicitly requested starting both BT-013 and BT-014 on 2026-10-09. Approval covers research and recommendations, not applying unapproved tuning ideas or copying proprietary assets.",
+  "assignment": {
+    "owner": "escape-design-researcher",
+    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "branch": "task/bt-014",
+    "worktree": ".worktrees/BT-014"
+  },
   "blocked_reason": null
 }
 ---
@@ -22,7 +27,8 @@ mechanically solvable courses. The user requested investigation of StarCraft
 bounds, Warcraft III escape/sliding maps and similar games to identify what
 makes them good and fun.
 
-This is a research issue; neither research nor implementation has started.
+Research was explicitly approved on 2026-10-09. Applying recommendations is
+outside this issue's scope and requires a separate decision.
 
 ## Scope
 

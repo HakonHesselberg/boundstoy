@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRenderLoop } from '../application/render-loop.ts';
+import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
 import { createState, DT, step, STILL } from '../core/simulation.ts';
 import { LEVELS } from '../data/levels.ts';
 
@@ -63,11 +63,9 @@ test('RenderLoop_Resume_DropsIdleTimeWithoutDuplicateChains', () => {
 test('RenderLoop_FixedStepSimulation_Preserves120HzAcrossPauseAndResize', () => {
   let state = createState(LEVELS[0]), accumulator = 0;
   const h = harness(elapsed => {
-    accumulator += elapsed;
-    while (accumulator >= DT) {
-      state = step(LEVELS[0], state, STILL);
-      accumulator -= DT;
-    }
+    const pending = fixedSteps(accumulator, elapsed);
+    accumulator = pending.remainder;
+    for (let tick = 0; tick < pending.count; tick++) state = step(LEVELS[0], state, STILL);
   });
   h.loop.setActive(true); h.fire(0);
   for (let i = 1; i <= 40; i++) h.fire(i * 25);
@@ -81,6 +79,63 @@ test('RenderLoop_FixedStepSimulation_Preserves120HzAcrossPauseAndResize', () => 
   assert.equal(state.tick, 120, 'resume must not catch up');
   h.fire(90_025);
   assert.equal(state.tick, 123);
+});
+
+for (const hz of [15, 30, 60, 120, 144]) {
+  test(`RenderLoop_${hz}HzFrames_ProduceExactlyTheSameTenSecondsOfMovement`, () => {
+    const level = LEVELS[8], input = { x: 1, y: 0 };
+    let state = createState(level), expected = state, accumulator = 0;
+    for (let tick = 0; tick < 1200; tick++) expected = step(level, expected, input);
+    const h = harness(elapsed => {
+      const pending = fixedSteps(accumulator, elapsed);
+      accumulator = pending.remainder;
+      for (let tick = 0; tick < pending.count; tick++) state = step(level, state, input);
+    });
+    h.loop.setActive(true); h.fire(0);
+    for (let frame = 1; frame <= hz * 10; frame++) h.fire(frame * 1000 / hz);
+    assert.deepEqual(state, expected, `${hz} Hz: same movement, deaths and hazard phase`);
+    h.loop.dispose();
+    assert.equal(h.pending.size, 0);
+  });
+}
+
+test('FixedSteps_RoundingTolerance_DoesNotConsumeRealPartialTicksOrLoseRemainders', () => {
+  assert.deepEqual(fixedSteps(0, 0), { count: 0, remainder: 0 });
+  assert.equal(fixedSteps(0, DT - 1e-8).count, 0);
+  const first = fixedSteps(0, DT * 1.25);
+  assert.equal(first.count, 1);
+  assert.ok(Math.abs(first.remainder - DT * 0.25) < 1e-15);
+  assert.deepEqual(fixedSteps(first.remainder, DT * 0.75), { count: 1, remainder: 0 });
+  assert.deepEqual(fixedSteps(0, DT - Number.EPSILON), { count: 1, remainder: 0 });
+  for (const value of [-1, NaN, Infinity]) {
+    assert.throws(() => fixedSteps(value, 0), /finite and non-negative/);
+    assert.throws(() => fixedSteps(0, value), /finite and non-negative/);
+  }
+  assert.throws(() => fixedSteps(0, Number.MAX_VALUE), /safe integer/);
+});
+
+test('RenderLoop_IrregularFramesAndLongStall_KeepBoundedWorkWithoutFutureCatchUp', () => {
+  let accumulator = 0, ticks = 0, lastCount = 0;
+  const h = harness(elapsed => {
+    const pending = fixedSteps(accumulator, elapsed);
+    accumulator = pending.remainder; lastCount = pending.count; ticks += pending.count;
+  });
+  h.loop.setActive(true); h.fire(0);
+  const intervals = [4, 55, 16, 8, 31, 11];
+  let now = 0;
+  for (let frame = 0; now < 10_000; frame++) {
+    now = Math.min(10_000, now + intervals[frame % intervals.length]); h.fire(now);
+  }
+  assert.equal(ticks, 1200);
+  h.fire(15_000);
+  assert.equal(lastCount, 12, 'a five-second stall consumes at most the capped 100 ms');
+  assert.equal(ticks, 1212);
+  h.fire(15_025);
+  assert.equal(lastCount, 3, 'discarded wall time is not carried into later frames');
+  h.loop.setActive(false); accumulator = 0; h.fire(20_000);
+  h.loop.setActive(true); h.fire(100_000);
+  assert.equal(ticks, 1215, 'resume consumes none of the pause');
+  h.loop.dispose();
 });
 
 test('RenderLoop_IntroToPlay_ResetsTimeEvenWhenBothAnimate', () => {

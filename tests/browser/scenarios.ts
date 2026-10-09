@@ -36,10 +36,10 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     KeyD: ['d', 68], KeyA: ['a', 65], KeyR: ['r', 82], Enter: ['Enter', 13],
     Space: [' ', 32], Escape: ['Escape', 27], Tab: ['Tab', 9],
   };
-  async function key(code: string, down: boolean, modifiers = 0) {
+  async function key(code: string, down: boolean, modifiers = 0, autoRepeat = false) {
     const [key, virtualKey] = keyCodes[code];
     await page.call('Input.dispatchKeyEvent', {
-      type: down ? 'keyDown' : 'keyUp', code, key, modifiers,
+      type: down ? 'keyDown' : 'keyUp', code, key, modifiers, autoRepeat,
       windowsVirtualKeyCode: virtualKey, nativeVirtualKeyCode: virtualKey,
       ...(down && code === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : {}),
     });
@@ -203,6 +203,36 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   log('PASS: real arrows/WASD, ground release, Space/button pause, menu keys, Tab focus and clean resume.');
 
   await click('#primary-action'); await key('KeyD', true); await moving();
+  await press('KeyR'); await playing('Restart with a direction still held');
+  await key('KeyD', true, 0, true);
+  await resumedWithoutInput('Auto-repeat cannot re-arm a cleared restart key');
+  await key('KeyD', false);
+  await key('KeyD', true); await moving();
+  await click('#menu-toggle'); await click('[data-level="1"]');
+  await playing('Select another level while a direction is held');
+  await key('KeyD', true, 0, true);
+  await resumedWithoutInput('Auto-repeat cannot inherit a key into another level');
+  await key('KeyD', false); await click('#pause');
+  log('PASS: held-key restart/selection clear movement and ignore auto-repeat until a fresh press.');
+
+  await page.call('Emulation.setCPUThrottlingRate', { rate: 4 });
+  try {
+    await click('#primary-action'); await resumedWithoutInput('CPU-throttled resume');
+    const stall = await evaluate<{ before: number; after: number }>(`(() => {
+      const before = ${debug}.snapshot().state.tick, start = performance.now();
+      while (performance.now() - start < 200) {}
+      return new Promise(resolve => requestAnimationFrame(() =>
+        resolve({before, after: ${debug}.snapshot().state.tick})));
+    })()`);
+    assert.ok(stall.after > stall.before && stall.after - stall.before <= 13,
+      `First post-stall frame must have bounded catch-up: ${JSON.stringify(stall)}`);
+    await click('#pause'); await stoppedWhilePaused('CPU-throttled pause');
+    log(`PASS: 4x CPU throttle and a 200 ms main-thread stall recover with ${stall.after - stall.before} ticks, then pause cleanly.`);
+  } finally {
+    await page.call('Emulation.setCPUThrottlingRate', { rate: 1 });
+  }
+
+  await click('#primary-action'); await key('KeyD', true); await moving();
   const { targetInfo } = await page.call<{ targetInfo: { targetId: string } }>('Target.getTargetInfo');
   const other = await page.call<{ targetId: string }>('Target.createTarget', { url: 'about:blank', background: false });
   try {
@@ -358,6 +388,13 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
       await page.call('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
       await resumedWithoutInput(`${layout.name}: touch cancellation`);
       assert.equal(await evaluate("document.querySelector('.touch-controls .pressed') === null"), true, 'Cancelled touch releases capture and styling');
+      await page.call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id: 2 }] });
+      await moving();
+      await press('KeyR'); await playing(`${layout.name}: restart while touch remains down`);
+      await page.call('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...point, id: 2 }] });
+      await resumedWithoutInput(`${layout.name}: continued contact cannot re-arm cleared touch`);
+      assert.equal(await evaluate("document.querySelector('.touch-controls .pressed') === null"), true);
+      await page.call('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
     }
     await activate('#pause'); await stoppedWhilePaused(`${layout.name}: pause`);
     await activate('#primary-action'); await playing(`${layout.name}: resume`);
@@ -393,6 +430,36 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     log(`PASS: ${layout.name} ${layout.width}x${layout.height}: Help, selection, restart/retry/next/final, pause, editor and ${layout.touch ? 'real touch/cancel' : 'mouse/keyboard'}; all actions fit with 44px targets.`);
   }
   await viewportLayout(layouts[0]);
+  const rebuilds: { geometries: number; textures: number }[][] = [];
+  for (let round = 0; round < 4; round++) {
+    const counts: { geometries: number; textures: number }[] = [];
+    for (let index = 0; index < LEVELS.length; index++) {
+      counts.push(await evaluate<{ geometries: number; textures: number }>(`(() => {
+        ${debug}.load(${index});
+        const {geometries,textures} = ${debug}.metrics();
+        return {geometries,textures};
+      })()`));
+    }
+    rebuilds.push(counts);
+  }
+  for (const [round, counts] of rebuilds.entries()) {
+    assert.deepEqual(counts, rebuilds[0], `Rebuild round ${round}: stable geometry/texture counts per level`);
+    for (const count of counts) assert.ok(count.geometries > 0 && count.textures > 0, 'resources are actually rendered');
+  }
+  const editorCounts: { geometries: number; textures: number }[] = [];
+  for (let round = 0; round < 4; round++) {
+    await click('#menu-toggle'); await click('#editor-tab');
+    await click('#playtest'); await playing(`Scene stress ${round}: playtest`);
+    await click('#editor-return');
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
+    const count = await evaluate<{ geometries: number; textures: number }>(
+      `(() => { const {geometries,textures} = ${debug}.metrics(); return {geometries,textures}; })()`);
+    editorCounts.push(count);
+    assert.deepEqual(count, editorCounts[0], `Editor return ${round}: stable geometry/texture counts`);
+    assert.deepEqual((await snapshot()).input, { x: 0, y: 0 });
+  }
+  assert.equal(await saved(), progress, 'Stress transitions must not alter completed records');
+  log(`PASS: ${4 * LEVELS.length} level rebuilds and 4 editor/playtest returns keep stable resources; per-level ${JSON.stringify(rebuilds[0])}, editor ${JSON.stringify(editorCounts[0])}.`);
   assertNoNewRequests(loadedRequests);
   log(`PASS: all ${LEVELS.length} courses and editor/input checks work offline with no additional asset requests.`);
 

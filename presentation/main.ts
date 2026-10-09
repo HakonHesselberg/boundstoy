@@ -7,7 +7,7 @@ import { paint, placeSaw, blankLevel, type Brush } from '../core/editor.ts';
 import { readProgress, recordFinish, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
 import { Audio } from './audio.ts';
 import { courseGuide, deathMessage } from '../application/guidance.ts';
-import { createRenderLoop } from '../application/render-loop.ts';
+import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
 import { Scene } from './scene.ts';
 
 function element<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -345,7 +345,7 @@ function boot(scene: Scene) {
     if (event.target !== viewport) return;
     if (event.code in keyDirections && mode === 'play') {
       event.preventDefault();
-      if (started && !paused && !state.won && !menu.open) keys.add(event.code);
+      if (!event.repeat && started && !paused && !state.won && !menu.open) keys.add(event.code);
     } else if (event.code === 'Space' && mode === 'play') {
       event.preventDefault();
       if (!event.repeat) { if (!started) play(); else setPaused(!paused); }
@@ -524,9 +524,11 @@ function boot(scene: Scene) {
 
   function frame(elapsed: number) {
     if (!menu.open && !paused && mode === 'play' && !state.won) {
-      visualTime += elapsed; accumulator += elapsed;
+      visualTime += elapsed;
+      const pending = fixedSteps(accumulator, elapsed);
+      accumulator = pending.remainder;
       const input = movement();
-      while (accumulator >= DT && !state.won) { tick(input); accumulator -= DT; }
+      for (let i = 0; i < pending.count && !state.won; i++) tick(input);
     } else if (!menu.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
     hud(); scene.draw(state, visualTime, mode === 'edit');
   }

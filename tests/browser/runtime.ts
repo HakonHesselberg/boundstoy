@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 export type Options = { browser: string; timeout: number };
 
 export function parseOptions(args: string[]): Options {
-  const options = { browser: '/usr/bin/chromium', timeout: 90_000 };
+  const options = { browser: '/usr/bin/chromium', timeout: 180_000 };
   const seen = new Set<string>();
   for (let i = 0; i < args.length; i += 2) {
     const flag = args[i], value = args[i + 1];

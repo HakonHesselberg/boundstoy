@@ -30,7 +30,7 @@ test('BrowserCli_WithoutImportMetaMain_StillExecutesInsteadOfSilentlyPassing', a
 });
 
 test('BrowserOptions_InvalidOrUnsafeArguments_RejectRatherThanSkip', () => {
-  assert.deepEqual(parseOptions([]), { browser: '/usr/bin/chromium', timeout: 90_000 });
+  assert.deepEqual(parseOptions([]), { browser: '/usr/bin/chromium', timeout: 180_000 });
   assert.deepEqual(parseOptions(['--browser', '/a path/chrome', '--timeout', '30000']),
     { browser: '/a path/chrome', timeout: 30_000 });
   for (const args of [

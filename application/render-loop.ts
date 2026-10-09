@@ -1,7 +1,20 @@
+import { DT } from '../core/simulation.ts';
+
 interface FrameHost {
   request(callback: (now: number) => void): number;
   cancel(id: number): void;
   render(elapsed: number): void;
+}
+
+export function fixedSteps(accumulator: number, elapsed: number) {
+  const total = accumulator + elapsed;
+  if (!Number.isFinite(total) || accumulator < 0 || elapsed < 0) {
+    throw new Error('Fixed-step elapsed time and remainder must be finite and non-negative.');
+  }
+  // Absorb floating-point error at tick boundaries, not real partial ticks.
+  const count = Math.floor(total / DT + 1e-9);
+  if (!Number.isSafeInteger(count)) throw new Error('Fixed-step count exceeds the safe integer range.');
+  return { count, remainder: Math.max(0, total - count * DT) };
 }
 
 /** Owns one RAF chain; static scenes wake only when invalidated. */

@@ -4,6 +4,7 @@ import { RULES } from '../data/terrain.ts';
 import { center, type Level, type Point } from '../core/level.ts';
 import { hazardSample, type State } from '../core/simulation.ts';
 import { createSpikes, createPulse, updatePulse, WALL_HEIGHT, type PulseView } from './hazard-visuals.ts';
+import { createPlayerLocator, placePlayerLocator, fitRouteSigns, type RouteSign } from './readability.ts';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -16,6 +17,8 @@ export class Scene {
   private board = new THREE.Group();
   private decorations = new THREE.Group();
   private player = new THREE.Group();
+  private playerLocator = createPlayerLocator();
+  private routeSigns: RouteSign[] = [];
   private headingArrow = new THREE.Group();
   private deathRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   private trail: THREE.Mesh[] = [];
@@ -38,8 +41,10 @@ export class Scene {
   private boardMaterials = new Set<THREE.Material>();
   private boardTextures = new Set<THREE.Texture>();
   private lines = new Map<string, { points: number[]; color: number; opacity: number }>();
+  private container: HTMLElement;
 
-  constructor(private container: HTMLElement) {
+  constructor(container: HTMLElement) {
+    this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setClearColor(0x000000, 0);
@@ -69,7 +74,12 @@ export class Scene {
     this.environment = generator.fromScene(studio, 0.04);
     this.scene.environment = this.environment.texture;
     generator.dispose(); lightGeometry.dispose(); lightMaterial.dispose();
-    this.scene.add(this.board, this.decorations, this.player);
+    this.scene.add(this.board, this.decorations, this.player, this.playerLocator);
+    this.playerLocator.traverse(object => {
+      if (object instanceof THREE.Mesh) {
+        this.geometries.add(object.geometry); this.materials.add(object.material);
+      }
+    });
 
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
     const context = canvas.getContext('2d');
@@ -194,6 +204,7 @@ export class Scene {
       this.boardMaterials.add(material);
       const sign = new THREE.Sprite(material); sign.position.y = 1.05;
       sign.scale.set(label.length > 2 ? 1.7 : 0.95, 0.45, 1); group.add(sign);
+      this.routeSigns.push({ sprite: sign, label });
     }
     return group;
   }
@@ -204,7 +215,7 @@ export class Scene {
     for (const texture of this.boardTextures) texture.dispose();
     this.boardGeometries.clear(); this.boardMaterials.clear(); this.boardTextures.clear();
     this.pulses.clear();
-    this.level = level; this.hazards = []; this.checkpoints = []; this.trailPoints = []; this.lines.clear();
+    this.level = level; this.hazards = []; this.checkpoints = []; this.routeSigns = []; this.trailPoints = []; this.lines.clear();
     const matrix = new THREE.Object3D();
     for (const [char, terrain] of Object.entries(TERRAIN)) {
       if (char === ' ') continue;
@@ -324,6 +335,8 @@ export class Scene {
     const x = this.level.tiles[0].length / 2, z = this.level.tiles.length / 2;
     this.camera.position.set(x, 25, z + 17);
     this.camera.lookAt(x, 0, z); this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld();
+    this.scene.updateMatrixWorld(true);
+    fitRouteSigns(this.routeSigns, this.camera, height);
     this.onInvalidate?.();
   }
 
@@ -354,6 +367,8 @@ export class Scene {
     this.player.position.set(state.position.x, dead && state.deathCause === 'void' ? -0.7 * deathProgress : Math.sin(time * 3) * 0.025, state.position.y);
     this.player.scale.setScalar(dead && state.deathCause !== 'void' ? Math.max(0, 1 - deathProgress * 2) : 1);
     this.player.visible = !editing && (!dead || state.respawnTicks > 12);
+    placePlayerLocator(this.playerLocator, this.camera, this.container.clientHeight, this.level, state.position);
+    this.playerLocator.visible &&= !editing && !dead && !state.won;
     this.deathRing.visible = dead && !editing;
     this.deathRing.position.set(state.position.x, 0.06, state.position.y);
     this.deathRing.scale.setScalar(this.reducedMotion ? 1 : 1 + deathProgress * 2);

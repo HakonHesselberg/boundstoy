@@ -3,13 +3,18 @@
   "id": "BT-018",
   "title": "Stress frame pacing input transitions and scene rebuilding",
   "type": "chore",
-  "status": "ready",
+  "status": "in_progress",
   "priority": "P1",
   "depends_on": [],
   "parent": null,
   "scope": ["application/render-loop.ts", "presentation/main.ts", "tests/render-loop.test.ts", "tests/browser/scenarios.ts"],
   "approval": "User directed autonomous implementation of the proposed pre-playtest performance/input stress batch on 2026-10-09. Preserve gameplay timings and normal UI.",
-  "assignment": null,
+  "assignment": {
+    "owner": "stress-orchestrator",
+    "run": "ae1df791-ee88-45da-87ca-bc2da2630c7d",
+    "branch": "master",
+    "worktree": "."
+  },
   "blocked_reason": null
 }
 ---

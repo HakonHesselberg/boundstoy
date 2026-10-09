@@ -11,7 +11,7 @@
   "approval": "User directed autonomous implementation of the proposed pre-playtest reliability, readability, Astro and performance batch on 2026-10-09. An isolated pinned Astro test consumer is approved; no game runtime dependency.",
   "assignment": {
     "owner": "astro-consumer-worker",
-    "run": "dispatching",
+    "run": "8bd867d2-7bdf-4be9-9899-d142a1b20ef3",
     "branch": "task/bt-004",
     "worktree": ".worktrees/BT-004"
   },

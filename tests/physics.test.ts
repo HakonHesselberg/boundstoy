@@ -108,6 +108,22 @@ test('Step_HardIceDiagonalIntoWall_DoesNotSlideAlongWall', () => {
   assert.deepEqual(blocked.velocity, { x: 0, y: 0 });
 });
 
+for (const tile of ['.', '~', '=']) {
+  test(`Step_${tile}_DiagonalInputCannotPassBetweenTouchingWallCorners`, () => {
+    const base = room(tile), rows = [...base.tiles];
+    for (let y = 1; y <= 5; y++) rows[y] = `${rows[y].slice(0, 4)}#${rows[y].slice(5)}`;
+    rows[6] = `####${rows[6].slice(4)}`;
+    const level = parseLevel({ ...base, tiles: rows });
+    let state = createState(level);
+    for (let tick = 0; tick < 600; tick++) {
+      state = step(level, state, { x: 1, y: 1 });
+      assert.ok(state.position.x < 4 && state.position.y < 6, 'the corner seam is not a shortcut');
+      assert.equal(state.deaths, 0);
+      assert.equal(state.won, false);
+    }
+  });
+}
+
 test('Step_Mud_IsSlowerThanWalking', () => {
   const normal = room(), mud = room(':');
   const walk = run(normal, createState(normal), { x: 1, y: 0 }, 120);

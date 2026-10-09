@@ -11,7 +11,7 @@
   "approval": "User directed autonomous implementation of the proposed pre-playtest reliability, readability, Astro and performance batch on 2026-10-09. Preserve physics, level geometry and difficulty.",
   "assignment": {
     "owner": "mobile-readability-worker",
-    "run": "dispatching",
+    "run": "119ed90c-af2d-4c2c-b383-c9803068510d",
     "branch": "task/bt-003",
     "worktree": ".worktrees/BT-003"
   },

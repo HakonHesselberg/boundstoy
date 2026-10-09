@@ -8,10 +8,10 @@
   "depends_on": [],
   "parent": null,
   "scope": ["data/levels.ts", "data/replays.ts", "tests/courses.test.ts", "tests/guidance.test.ts"],
-  "approval": "User requested more interesting levels for proper playtesting on 2026-10-09. The orchestrator selected three focused practice levels after the six existing lessons, staying below the prior ten-level cap and using existing mechanics only.",
+  "approval": "User requested more interesting practice levels on 2026-10-09, then explicitly requested a hard precise bounds-style path wave followed by delayed pocket explosions. Keep six lessons plus three focused practice levels, below ten total, using existing mechanics only.",
   "assignment": {
     "owner": "practice-course-worker",
-    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "run": "75768603-f360-4cf6-a1d9-dba0063209f2",
     "branch": "task/bt-015",
     "worktree": ".worktrees/BT-015"
   },
@@ -35,8 +35,10 @@ Append three compact but substantial practice levels, for nine levels total:
    decisions, generous curves and safe checkpoint landings.
 2. Hard ice: a routing/alignment course with several curb stops and deliberate
    relaunch directions, rather than one straight slide.
-3. Pulse timing: staggered gates/crossings, readable safe staging areas and
-   multiple timing decisions rather than one long gate or padded wait.
+3. Pulse timing: a hard bounds-style tight path with side pockets. An explosion
+   wave travels along the path, then the pockets detonate after a short delay.
+   Players must enter pockets to avoid the wave and leave before the pocket
+   blasts. Multiple enter/leave decisions, not a single gate or padded wait.
 
 Each new level focuses on its named mechanic. Normal ground and established
 static boundaries/spikes/void are allowed; no mixed soft/hard/saw/mud gauntlet.
@@ -52,10 +54,11 @@ handles documentation/version/acceptance separately.
 - [ ] Exactly nine levels are available: the original six unchanged, plus three distinct named practice courses.
 - [ ] Soft-ice practice requires at least three meaningful direction changes while gliding at full speed; a simple held direction cannot bypass it.
 - [ ] Hard-ice practice requires at least three deliberate curb stops/relaunch decisions, with visible alignment choices.
-- [ ] Pulse practice contains at least three unavoidable crossings with differing phases or spatial approaches; one initial wait followed by a straight walk is insufficient.
+- [ ] Pulse practice has a visibly ordered path wave and delayed pocket explosions, requiring at least three precise hide/leave decisions.
+- [ ] Behavioural tests demonstrate that staying on the path fails, camping in a pocket fails after its delay, and correctly timed pocket entry/exit survives.
 - [ ] New courses have safe checkpoints between substantial sections, clear route continuity and distinct geometry instead of repetitive hazard density.
 - [ ] Every new course has a legal keyboard-only, exact-final-tick, zero-death witness visiting checkpoints in order.
-- [ ] Relevant turn/alignment and timing tolerance checks show the courses are not frame-perfect; incorrect strategies test the actual lesson rather than only counting tiles.
+- [ ] Turn/alignment margins remain practical in the ice courses. The advanced pulse course intentionally has tighter movement/timing windows; tests establish a finite feasible window and report its exact margins instead of enforcing the beginner-level generosity.
 - [ ] Native course/guidance tests, inspection for all levels, type checking/build and full production-browser acceptance pass.
 
 ## Implementation context
@@ -74,6 +77,14 @@ radians/second at 4.4 tiles/second (minimum radius about 1.38 tiles), never
 brakes, and reflects from walls. Hard ice locks its line and stops at curbs.
 No per-level tutorial popup is available; checkpoint hints must be short and
 route markers/layout should do most of the teaching.
+
+The user's follow-up explicitly requests hard, precisely timed explosions in
+the StarCraft bounds style. This supersedes the earlier generic forgiving-gates
+direction for the pulse practice course only. Implement the travelling wave and
+delayed pocket blasts using existing pulse period/on/phase offsets, not a new
+hazard type. Preserve clear warning/footprints and safe checkpoint staging;
+precision should arise from timing and movement, not invisible collisions.
+The active worker received this amendment through its recorded agent ID.
 
 ## Verification
 

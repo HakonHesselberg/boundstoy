@@ -35,6 +35,7 @@ non-blocking hints and direct level-to-level flow.
 ## Acceptance criteria
 
 - [ ] Original six maps/replays are unchanged and the new courses have demonstrably more route/timing decisions.
+- [ ] Advanced pulse practice visibly sends a wave down the path and then detonates the pockets, with verified hide/leave windows and failure for never hiding or camping.
 - [ ] All nine courses finish through the production browser with exact witness results and valid progression.
 - [ ] New layouts, hazard phases, safe checkpoints and nine-entry menus are inspected at desktop and mobile sizes.
 - [ ] Documents/version and local issue evidence accurately describe the expansion without claiming unperformed human playtests.
@@ -45,6 +46,9 @@ non-blocking hints and direct level-to-level flow.
 No requirement to fill the ten-level cap. Nine is enough for this batch; future
 content or tuning should be informed by playing these courses. References and
 experiments from BT-014 remain recommendations unless included explicitly here.
+The user's precise wave-and-pocket request is explicitly included: keep the
+early lessons forgiving, but do not dilute the new advanced pulse challenge
+into another broad single-gate timing lesson.
 
 ## Verification
 

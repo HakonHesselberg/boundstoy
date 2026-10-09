@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { Mesh, ConeGeometry } from 'three';
 import { createSpikes, createPulse, updatePulse, WALL_HEIGHT } from '../presentation/hazard-visuals.ts';
 import { RULES } from '../data/terrain.ts';
+import { LEVELS } from '../data/levels.ts';
+import { hazardSample } from '../core/simulation.ts';
 
 const pulse = { kind: 'pulse' as const, x: 3, y: 3, period: 360, on: 90, phase: 0 };
 
@@ -49,4 +51,26 @@ test('Pulse_PausedOrReducedMotion_KeepsDeterministicLegibleDanger', () => {
   assert.equal(view.burst.visible, true);
   assert.equal(view.sparks.visible, false);
   assert.ok(view.core.visible);
+});
+
+test('RelayPulses_AllAuthoredGatesAndWaveVents_MatchExactWarningAndLethalBoundaries', () => {
+  const pulses = LEVELS.flatMap(level => level.hazards.filter(hazard => hazard.kind === 'pulse'));
+  assert.equal(pulses.length, 32);
+  for (const hazard of pulses) {
+    const ignition = 2 * hazard.period + (hazard.period - hazard.phase) % hazard.period;
+    const view = createPulse();
+    for (const reducedMotion of [false, true]) for (const [offset, warning, active] of [
+      [-RULES.pulseWarningTicks - 1, false, false], [-RULES.pulseWarningTicks, true, false],
+      [-1, true, false], [0, false, true], [hazard.on - 1, false, true], [hazard.on, false, false],
+    ] as const) {
+      const tick = ignition + offset, sample = hazardSample(hazard, tick);
+      assert.equal(sample.warning, warning, 'test actual boundaries, not just agreement between two wrong phases');
+      assert.equal(sample.active, active);
+      updatePulse(view, hazard, tick, reducedMotion);
+      assert.equal(view.warning.visible, warning, `${hazard.x},${hazard.y}@${tick}`);
+      assert.equal(view.burst.visible, active, `${hazard.x},${hazard.y}@${tick}`);
+      assert.equal(view.plate.geometry.parameters.width, 2 * RULES.pulseRadius);
+      assert.equal(view.plate.geometry.parameters.depth, 2 * RULES.pulseRadius);
+    }
+  }
 });

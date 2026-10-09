@@ -42,8 +42,7 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   Dark vent = safe, contracting amber ring = warning, fireball and sparks = active.
   All blast animation uses simulation ticks, so pausing freezes it and replay
   screenshots are repeatable. Reduced motion keeps a static but bright blast.
-  Built-in active durations were halved in 0.4.2 without changing periods,
-  phases or warning lead. New editor pads use period 360 / on 45 / phase 0
+  Current campaign durations are authored per route. New editor pads use period 360 / on 45 / phase 0
   (0.375 seconds active, 2.625 safe). Imported JSON keeps its literal `on` value.
 - Saw: a 0.31-tile radius moving linearly between two cell centers and back.
   `period` is the complete out-and-back cycle. Its whole path is drawn.
@@ -56,55 +55,53 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
 - Exit: touch within 0.42 tiles to finish; hazards take precedence if both collide
   on the same tick. The finish tick is frozen.
 
-All nine levels are always available. Best runs compare time first, then retries to
+All eight levels are always available. Best runs compare time first, then retries to
 break equal-time ties. Restart clears checkpoints, falls and time.
 
 ## Course design
 
-The release uses six short lessons followed by three single-mechanic practices:
+The eight-course Relay campaign replaces every prototype layout, ID and witness.
+It teaches before combining, then uses existing movement and hazards in longer
+phrases. No physics, storage migration, imported-level format or new system is
+needed to express these routes.
 
-| Level | Special mechanic | Existing ideas reused |
+| Level | Route composition | Observation / commitment |
 | --- | --- | --- |
-| First steps | Normal walking and release-to-stop | Static curbs, spikes, void, checkpoints |
-| Gentle curve | Constant-speed soft-ice turning | Normal staging/landing pads and static obstacles |
-| Curb turn | Locked hard-ice movement and curb relaunch | Normal ground and static alignment obstacles |
-| Pulse crossing | Periodic explosion timing | Normal ground, checkpoints, safe waiting pads |
-| Saw crossing | Moving-patrol timing | Normal ground and a crossing that cannot be walked around |
-| Take your time | Mud slowdown | The already-taught pulse; no other special terrain/hazard |
-| Switchback sweep | Repeated soft-ice steering | Staggered spikes, normal checkpoint landings |
-| Three curb route | Three hard-ice curb relaunches | Lane alignment, static obstacles, normal staging pads |
-| Pocket wave | Precise travelling explosion waves | Normal movement, existing pulse phases, temporary side pockets |
+| Relay courtyard | Open balcony around an empty center | Stop at the east corner, descend, turn west |
+| Reservoir hairpin | Continuous U-shaped soft-ice reservoir | Read both broad arcs before launching; dry far-bank recovery |
+| Spillway locks | Offset descending blue-ice staircase | Align above the clear lane; south/west/south curb launches |
+| Signal stairs | Two gates on north/east/north stairs | A dry elbow separates the two timing decisions |
+| Patrol looms | Two perpendicular saw threads | Cross east, observe again, cross north and leave east |
+| Silt terraces | East and south mud channels | Fresh quiet windows; dry land restores speed before the return |
+| High interchange | Green hook, dry transfer, blue curb, high signal bridge | Switch movement rules only on safe ground |
+| Last light relay | Two pulse elbows, mud riser, saw finish | Continuous chase phrases alternate with stationary observation |
 
-No level introduces an additional mechanic that belongs to a later lesson.
-The original six layouts, IDs, lessons and reference inputs are unchanged.
-Nine courses stay below the ten-level cap; mixed-mechanic challenges are not
-part of this release.
+The hairpin witness turns through exactly 180 degrees, carrying 4.4 tiles/s
+without wall reflections for 615 ticks. Omitting either arc leaves the route.
+Spillway requires two full stops; continued input into either curb cannot
+complete the route. Its inside lane hits spikes even when steering is attempted.
 
-The soft-ice lesson requires actual heading changes and has a broad landing.
-The hard-ice lesson requires choosing the lane before entering and stopping at
-a curb to turn. Each introductory timed crossing has a safe place to wait and a reference
-launch away from the edge of its safe window. The mud lesson's hazard exposure
-lasts 101 ticks versus 42 for the walking pulse witness, making the slower
-speed relevant rather than merely cosmetic.
+Signal stairs and Silt terraces cross both pulse footprints in the middle half
+of each quiet window. Each walking exposure is 42 ticks; mud exposures last
+100 and 101 ticks. Both timed launches in the pulse, saw and mud introductions
+tolerate every offset from -24 to +24 ticks, while deliberately unsafe launch
+phases fail. These are input-specific measured tolerances, not promises that
+any trajectory or launch is safe.
 
-Switchback sweep routes a full-speed glide through two sections; its reference
-path uses seven separate steering arcs without wall bounces. Three curb route
-requires three outside lanes, curb stops and north/west/south relaunches.
+The finale's nine-vent east/north phrase and ten-vent east/south answer advance
+one tile every 33 ticks (0.275 seconds), close to walking cadence. Their shared
+720-tick period and 100-tick blasts make a returning chase: the reference player
+passes vent centers 65–85 ticks before they ignite. Camping on any vent dies
+at its next ignition. The slow riser uses a 120-tick blast on the same cycle;
+the final saw also shares that period. No hiding pockets or inherited
+prototype wave geometry remain.
 
-Pocket wave deliberately demands more precise timing than the lessons. Three
-one-tile corridors run right, up and left, each with a one-tile side pocket and
-a safe checkpoint beyond it. Seven pulse pads per corridor activate in travel
-order, 12 ticks (0.1 seconds) apart, on a 240-tick cycle. Lane blasts last
-50, 55 and 45 ticks respectively. Each pocket ignites 78, 83 or 73 ticks
-(about 0.61-0.69 seconds) after its adjacent path pad clears and burns for 25 ticks.
-All of this uses the existing pulse period/on/phase fields, not new hazard logic.
-
-The reference route hides and then leaves each pocket. Shorter blasts widen
-its safe dwell windows to 70, 75 and 65 legal tick choices; exiting too early
-meets the path wave and too late meets the pocket blast. They also allow
-straight-through crossings in narrow 21-, 16- and 26-tick launch windows.
-These are measured input-specific margins, not an exhaustive bound on every
-trajectory. Checkpoints provide safe observation and recovery.
+All spawns and checkpoints are on normal ground, safe to observe for two
+complete cycles. Actual death/respawn recovery is verified at every cycle phase.
+Every reference checkpoint segment is shorter than ten seconds, including
+planned observation. Later courses require at least three direction decisions;
+blocking any authored bottleneck disconnects even a permissive diagonal walk
+graph. Exact replays and margins are listed in [TESTING.md](TESTING.md).
 
 Barriers are 0.24 tiles tall with a contrasting top edge; their collision is
 still a full solid cell. Each spike tile has five pointed metal teeth rather

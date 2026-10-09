@@ -152,6 +152,8 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   const initial = await snapshot();
   assert.equal(initial.started, false, 'Initial entry waits for intent');
   assert.equal(initial.state.tick, 0);
+  assert.equal(await text('overlay-title'), 'Small tracks. Big flow.');
+  assert.match(await text('overlay-copy'), /WASD.*arrow keys.*touch arrows/i);
   assert.notEqual(await text('overlay-title'), initial.level.name, 'Initial Play is generic, not a level tutorial');
   assert.notEqual(await text('overlay-copy'), initial.level.description, 'Level instructions belong in non-blocking hints or optional Help');
   assert.equal(await text('audio'), 'Sound off', 'Sound remains opt-in');
@@ -337,14 +339,29 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     await movementDisabled(`${level.id} results`);
     return won;
   }
-  for (const [index, level] of LEVELS.entries()) {
+  // Finish the last missing course at index 1, not at the end of the array.
+  // Next must skip already-cleared routes, wrap, and celebrate actual completion.
+  const completionOrder = [0, ...LEVELS.map((_, index) => index).slice(2), 1];
+  for (const [ordinal, index] of completionOrder.entries()) {
+    const level = LEVELS[index];
     const won = await witness(index);
-    assert.equal(await text('overlay-title'), index === LEVELS.length - 1 ? 'Campaign complete.' : 'Level clear.');
+    const complete = ordinal === LEVELS.length - 1;
+    assert.equal(await text('overlay-title'), complete ? 'Campaign complete.' : 'Level clear.');
+    assert.match(await text('finish-comparison'), /First clear/);
     log(`PASS: ${level.id}: ${won.tick} ticks, zero deaths, ${won.visited.length} ordered checkpoints.`);
-    if (index === 0 || index === LEVELS.length - 1) await press('Enter');
+    if (index === 0 || complete) await press('Enter');
     else await click('#primary-action');
-    assert.deepEqual((await snapshot()).level, LEVELS[(index + 1) % LEVELS.length]);
-    await playing(index === LEVELS.length - 1 ? 'Restart campaign' : 'Next level');
+    if (complete) {
+      assert.equal(await evaluate("document.getElementById('game-menu').open"), true, 'Completed campaign offers level choice, not a destructive restart');
+      await click('[data-level="0"]');
+      await playing('Choose a cleared course');
+    } else {
+      const next = Array.from({ length: LEVELS.length }, (_, offset) => (index + 1 + offset) % LEVELS.length)
+        .find(candidate => !expectedRuns[LEVELS[candidate].id]);
+      assert.notEqual(next, undefined);
+      assert.deepEqual((await snapshot()).level, LEVELS[next!]);
+      await playing('Next uncleared level');
+    }
   }
   const progress = await saved();
   assert.deepEqual(JSON.parse(progress!).runs, expectedRuns, 'All exact records saved');
@@ -367,14 +384,15 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   for (const layout of layouts) {
     await viewportLayout(layout);
     const activate = layout.touch ? tap : (selector: string) => click(selector, 44);
+    assert.equal(await text('play-tab'), 'Restart game level');
     await activate('#play-tab');
-    await playing(`${layout.name}: Back to game`);
+    await playing(`${layout.name}: deliberate editor-to-game restart`);
     await activate('#menu-toggle');
     await stoppedWhilePaused(`${layout.name}: menu`);
     await activate('#help');
     assert.equal(await text('help-description'), (await snapshot()).level.description, 'Full instructions remain in optional Help');
     await press('Tab', 8);
-    assert.equal(await evaluate(`document.activeElement === [...document.querySelectorAll('#game-menu button:not(:disabled)')]
+    assert.equal(await evaluate(`document.activeElement === [...document.querySelectorAll('#game-menu button:not(:disabled), #game-menu input:not(:disabled)')]
       .filter(button => button.getClientRects().length).at(-1)`), true, 'Help wraps reverse Tab to the last visible menu action');
     await activate('#help-back');
     await activate('[data-level="0"]');
@@ -412,12 +430,18 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     await playing(`${layout.name}: result retry`);
     assert.deepEqual((await snapshot()).level, LEVELS[0]);
     await witness(0);
-    await activate('#primary-action'); await playing(`${layout.name}: next level`);
+    assert.match(await text('finish-comparison'), /Matched your personal best/);
+    assert.equal(await text('primary-action'), 'Choose a level →');
+    await activate('#primary-action');
+    assert.equal(await evaluate("document.getElementById('game-menu').open"), true);
+    await activate('[data-level="1"]'); await playing(`${layout.name}: choose another cleared level`);
     assert.deepEqual((await snapshot()).level, LEVELS[1]);
     await witness(LEVELS.length - 1);
     assert.equal(await text('overlay-title'), 'Campaign complete.');
     await controlPoint('#retry-course', 44);
-    await activate('#primary-action'); await playing(`${layout.name}: campaign restart`);
+    await activate('#primary-action');
+    assert.equal(await evaluate("document.getElementById('game-menu').open"), true);
+    await activate('[data-level="0"]'); await playing(`${layout.name}: completed campaign level choice`);
     assert.deepEqual((await snapshot()).level, LEVELS[0]);
     await activate('#menu-toggle'); await activate('#editor-tab');
     assert.deepEqual((await snapshot()).level, quick, 'Returning to editor retains the saved draft');
@@ -427,7 +451,7 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
     assert.deepEqual((await snapshot()).level, quick);
     assert.equal(await saved(), progress, 'Navigation, retries and playtests preserve exact campaign records');
     assert.equal(await text('audio'), 'Sound off', 'No navigation action opts into sound');
-    log(`PASS: ${layout.name} ${layout.width}x${layout.height}: Help, selection, restart/retry/next/final, pause, editor and ${layout.touch ? 'real touch/cancel' : 'mouse/keyboard'}; all actions fit with 44px targets.`);
+    log(`PASS: ${layout.name} ${layout.width}x${layout.height}: Help, selection, restart/retry/completed choice, pause, editor and ${layout.touch ? 'real touch/cancel' : 'mouse/keyboard'}; all actions fit with 44px targets.`);
   }
   await viewportLayout(layouts[0]);
   const rebuilds: { geometries: number; textures: number }[][] = [];
@@ -470,6 +494,8 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   await until('Reload restores generic initial entry', async () => evaluate<boolean>(
     `document.readyState === 'complete' && Boolean(${debug}) && ${debug}.snapshot().state.tick === 0 && !${debug}.snapshot().started`));
   assert.equal(await saved(), progress, 'Reload preserves local records');
+  assert.equal(await text('overlay-title'), 'Find your next flow.');
+  assert.equal(await text('primary-action'), 'Continue →');
   assert.equal(await text('completion-count'), `${LEVELS.length} / ${LEVELS.length} cleared`, 'Reload hydrates progress into menu');
   await click('#menu-toggle'); await click('[data-level="2"]');
   await playing('Selecting a level before initial Play');

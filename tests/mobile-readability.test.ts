@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { LEVELS } from '../data/levels.ts';
+import { REPLAYS } from '../data/replays.ts';
+import { createState, step } from '../core/simulation.ts';
 import { Scene } from '../presentation/scene.ts';
 import { createPulse } from '../presentation/hazard-visuals.ts';
 import { createPlayerLocator, placePlayerLocator, fitRouteSigns, type RouteSign } from '../presentation/readability.ts';
@@ -40,10 +42,6 @@ test('PlayerLocator_ActualOpaqueGeometry_IsAtLeastTwelveCssPixelsWithoutScalingT
   for (const layout of layouts.slice(0, 2)) for (const [index, level] of LEVELS.entries()) {
     const camera = cameraFor(index, layout), locator = createPlayerLocator();
     placePlayerLocator(locator, camera, layout.height, level, { x: level.spawn.x + 0.5, y: level.spawn.y + 0.5 });
-    if (index === 5 && layout.name === 'portrait') {
-      assert.equal(locator.visible, false, 'the compact course already has a readable robot');
-      continue;
-    }
     const bounds = projectedGeometry(locator, camera, layout);
     assert.ok(bounds.width >= 12 - 1e-6 && bounds.height >= 12 - 1e-6,
       `${layout.name}/${level.id}: actual colored mesh ${bounds.width}x${bounds.height}, not a halo or nominal radius`);
@@ -51,21 +49,31 @@ test('PlayerLocator_ActualOpaqueGeometry_IsAtLeastTwelveCssPixelsWithoutScalingT
   }
 });
 
-test('PlayerLocator_PocketOrientations_PointsAwayFromTheLethalLane', () => {
-  const level = LEVELS[8];
-  for (const layout of layouts.slice(0, 2)) for (const [x, y, dx, dy] of [
-    [7.5, 12.5, 0, -1], [13.5, 7.5, 1, 0], [7.5, 3.5, 0, 1],
-    [7.5, 13.5, 0, 1], [12.5, 7.5, -1, 0], [7.5, 2.5, 0, -1],
-  ]) {
-    const camera = cameraFor(8, layout), locator = createPlayerLocator();
+test('PlayerLocator_ChaseElbowsAndRiser_LeaveEveryLethalFootprintExposed', () => {
+  const index = LEVELS.findIndex(level => level.id === 'relay-crescendo-v1'), level = LEVELS[index];
+  assert.ok(level);
+  let state = createState(level);
+  const states = [state];
+  for (const command of REPLAYS[index]) for (let t = 0; t < command.ticks; t++) {
+    state = step(level, state, command); states.push(state);
+  }
+  assert.equal(state.won, true);
+  assert.equal(state.deaths, 0);
+  const pulses = level.hazards.filter(hazard => hazard.kind === 'pulse');
+  assert.equal(pulses.length, 20, 'both complete travelling phrases and the slow riser');
+  const crossings = pulses.map(hazard => states.reduce((closest, next) =>
+    Math.hypot(next.position.x - hazard.x - 0.5, next.position.y - hazard.y - 0.5)
+      < Math.hypot(closest.position.x - hazard.x - 0.5, closest.position.y - hazard.y - 0.5) ? next : closest));
+  const observations = [states[0], ...level.checkpoints.map(point => ({
+    position: { x: point.x + 0.5, y: point.y + 0.5 },
+  }))];
+  const approaches = crossings.flatMap(crossing => [-24, -12, 0, 12, 24].map(offset =>
+    states[Math.max(0, Math.min(states.length - 1, crossing.tick + offset))]));
+  for (const layout of layouts.slice(0, 2)) for (const { position: { x, y } } of [...observations, ...approaches]) {
+    const camera = cameraFor(index, layout), locator = createPlayerLocator();
     placePlayerLocator(locator, camera, layout.height, level, { x, y });
     const { box } = projectedGeometry(locator, camera, layout);
-    const anchor = new THREE.Vector3(x, 0, y).project(camera);
-    const screen = new THREE.Vector3((anchor.x + 1) * layout.width / 2, (1 - anchor.y) * layout.height / 2);
-    if (dx > 0) assert.ok(box.min.x > screen.x, 'right pocket locator stays right of the lane');
-    if (dx < 0) assert.ok(box.max.x < screen.x, 'escaping the right pocket keeps the vertical wave exposed');
-    if (dy < 0) assert.ok(box.max.y < screen.y, 'upper pocket locator stays above the lane');
-    if (dy > 0) assert.ok(box.min.y > screen.y, 'lower pocket locator must not cover the reverse wave');
+    assert.equal(locator.visible, true);
     for (const hazard of level.hazards) {
       if (hazard.kind !== 'pulse') continue;
       const { plate } = createPulse();
@@ -132,14 +140,15 @@ test('Desktop_CompleteCourseCameraAndOriginalMarkerScale_AreUnchanged', () => {
 if (process.argv.includes('--readability-browser')) {
   const { main } = await import('../scripts/browser-check.ts');
   const { waitFor } = await import('./browser/runtime.ts');
-  const { REPLAYS } = await import('../data/replays.ts');
-  const scenarios = [6, 7, 8].map(index => ({ index, name: 'spawn', commands: [] as { ticks: number; x: number; y: number }[] }));
-  for (const section of [0, 1, 2]) {
-    const approach = REPLAYS[8].slice(0, section * 5 + 2);
-    scenarios.push({ index: 8, name: `pocket ${section + 1}`, commands: [...approach, { ticks: 30, x: 0, y: 0 }] });
-    const escape = REPLAYS[8].slice(0, section * 5 + 4).map(command => ({ ...command }));
-    escape[escape.length - 1].ticks -= escape.reduce((ticks, command) => ticks + command.ticks, 0) - [333, 873, 1371][section];
-    scenarios.push({ index: 8, name: `escape ${section + 1} at ignition`, commands: escape });
+  const scenarios = LEVELS.map((_, index) => ({ index, name: 'spawn', commands: [] as { ticks: number; x: number; y: number }[] }));
+  const finale = LEVELS.findIndex(level => level.id === 'relay-crescendo-v1');
+  for (const tick of [157, 290, 423, 680, 847, 980, 1951]) {
+    let remaining = tick;
+    const commands = REPLAYS[finale].flatMap(command => {
+      const ticks = Math.min(remaining, command.ticks); remaining -= ticks;
+      return ticks ? [{ ...command, ticks }] : [];
+    });
+    scenarios.push({ index: finale, name: `chase or riser at ${tick}`, commands });
   }
   await main(process.argv.slice(2).filter(arg => arg !== '--readability-browser'), async ({ page, log, signal }) => {
     let loads = 0;
@@ -188,7 +197,7 @@ if (process.argv.includes('--readability-browser')) {
         log(`${width}x${height}@${dpr}/index ${index}/${name}: actual opaque locator pixels ${JSON.stringify(measurement)}`);
         assert.equal(measurement.overflow, false);
         assert.equal(measurement.routeVisible, true);
-        assert.equal(measurement.deaths, 0, 'Pocket screenshots use legal movement, including the exact ignition tick.');
+        assert.equal(measurement.deaths, 0, 'Chase/riser samples use the exact legal replay, never teleports.');
         if (width < 1440) assert.ok(measurement.width >= 12 && measurement.height >= 12,
           'Measure opaque rendered pixels, not a halo, sprite box, collider diameter, or projected proxy.');
         else assert.deepEqual([measurement.width, measurement.height], [0, 0], 'No redundant desktop locator.');

@@ -1,7 +1,7 @@
 # Boundstoy
 
-A small, static browser game about movement and timing, with six focused
-lessons, three substantial practice courses and a minimal player-facing interface.
+A small, static browser game about movement and timing, with an original
+eight-course Relay campaign and a minimal player-facing interface.
 Walk, steer a constant-speed glide across soft ice, commit to a hard-ice slide, and learn
 when to cross moving hazards. A secondary level editor lets you build more.
 
@@ -19,8 +19,9 @@ npm run dev
 # http://127.0.0.1:4321
 ```
 
-Click the single initial **Play**, then use **WASD / arrow keys**. Selecting a
-level, **Next level**, **Retry level** and **Restart campaign** start playing
+Click the single initial **Play**, then use **WASD / arrow keys**. Returning
+players get **Continue**, starting at the first uncleared current campaign course.
+Selecting a level, **Next level** and **Retry level** start playing
 directly—there are no per-level tutorial popups. Hints stay below the board;
 full level instructions are available in **Menu → How to play**.
 **Space** pauses, **R** restarts, and **Escape** opens the menu.
@@ -28,7 +29,13 @@ Checkpoints save your position after a fall.
 Pause, restart and level changes clear held controls; release and press again
 to move after those transitions.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
-selection, sound, fullscreen, help and the editor. Sound starts muted.
+selection, sound, fullscreen, help and the editor. Sound starts muted on the
+first visit; the optional intro sound toggle and menu volume preference are
+remembered thereafter. Restored sound waits for an explicit play/level-choice gesture.
+Results distinguish a first clear, personal best, matched best and time/retry
+comparison. **Next level** chooses the next uncleared course cyclically.
+Clearing the final missing course celebrates completion regardless of play order;
+**Choose a level** opens the menu rather than restarting the campaign.
 
 **Soft ice has no brakes.** You glide at 4.4 tiles/second even when you release
 the controls or hold reverse. Input changes your heading through a bounded turn;
@@ -41,7 +48,7 @@ not part of the normal play screen.
 
 - Normal ground, steerable soft ice, direction-locked hard ice, and mud.
 - Void, low striped barriers, metal spike clusters, telegraphed explosions, and moving saws.
-- Nine focused levels, unlimited retries, checkpoints, local best times.
+- Eight original levels, unlimited retries, checkpoints, local best times.
 - Adaptive route signs and a hollow small-screen player locator, checkpoint-aware lessons, cause-specific retry
   feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
@@ -56,40 +63,41 @@ After the initial page
 and assets load, play and editing need no network. Offline **reload** is not
 guaranteed: there is intentionally no service worker.
 
-## The nine courses
+## The Relay campaign
 
 | Level | Focus |
 | --- | --- |
-| First steps | Walking, stopping, navigation and static obstacles |
-| Gentle curve | Turning on soft ice without braking |
-| Curb turn | Hard-ice alignment, stopping at a curb and relaunching |
-| Pulse crossing | Waiting for a safe explosion window |
-| Saw crossing | Reading a moving patrol and choosing a crossing |
-| Take your time | Slower mud movement, reusing the already-taught pulse |
-| Switchback sweep | Repeated soft-ice steering around staggered obstacles |
-| Three curb route | Three hard-ice alignment, stop and relaunch decisions |
-| Pocket wave | Precise explosion-wave timing with temporary hiding pockets |
+| Relay courtyard | Two balcony corners teach walking, stopping and reading the floor |
+| Reservoir hairpin | One continuous soft-ice U around a reservoir, with two broad steering arcs |
+| Spillway locks | Align, descend, stop, launch left, then descend from a second curb |
+| Signal stairs | Two independently observed pulse gates on a rising dogleg |
+| Patrol looms | Cross two perpendicular saw patrols from safe platforms |
+| Silt terraces | Two slow mud crossings; fresh pulse windows matter |
+| High interchange | A soft-ice hook, dry transfer, locked curb launch and high pulse bridge |
+| Last light relay | Two travelling-pulse elbows, a slow riser and a final saw crossing |
 
-The first six are short lessons with forgiving timing margins. The last three
-practice one established mechanic through several decisions, with safe checkpoints
-between sections. There is no mixed-mechanics final gauntlet. All nine are
-available from the menu; the curriculum stays below the ten-level cap.
+This is a wholly new campaign, not renamed or retuned prototype maps. The arc
+borrows design principles—not layouts—from bounds and escape games: observe
+from safe ground, commit to a readable movement phrase, then recover at a
+checkpoint. Introductory timed crossings tolerate 200 ms launch errors.
+Later routes combine taught ideas and reward continuous movement; no new
+systems or assets are introduced. All eight courses remain freely selectable.
 
-**Pocket wave tests precise timing.** Explosions travel through three narrow
-corridors, advancing one tile every 0.1 seconds. Hide in each side pocket, then
-leave as the path clears: the pocket detonates about 0.61-0.69 seconds later.
-Shorter blasts also permit narrow, precisely timed straight-through runs;
-camping still fails. The three orientations reuse the same read, hide and
-escape idea rather than introducing another hazard type.
+**Last light relay is a chase, not a hiding-pocket puzzle.** Pulses travel at
+33 ticks per tile, close to walking cadence, along two differently oriented
+elbows. Keep ahead of the returning blasts and rest on the dry platforms.
+Camping on any of the nineteen wave vents fails. Mud then changes the pace
+before one last saw-timed crossing. Every reference checkpoint segment takes
+less than ten seconds; these are clean execution times, not beginner targets.
 
-Playtest tuning uses a 0.20-tile collision radius (the robot art is unchanged).
-Built-in blasts and newly painted editor blasts last half as long as in 0.4.1;
-their activation times, periods and warning lead are unchanged. Existing custom
-JSON/draft durations remain literal authored tick values.
+The collision radius remains 0.20 tiles; all four movement rules and hazard
+collision rules are unchanged. Campaign pulse durations are freshly authored.
+New editor pads still use 45 active ticks; imported JSON/draft durations remain
+literal authored values.
 
-New level IDs keep earlier prototype scores separate. Existing drafts and
-older records are preserved; choose **Remix level** in the editor to copy a
-current layout.
+New `relay-*-v1` IDs keep earlier prototype scores separate. Existing drafts and
+older records are preserved, but old clears do not complete new courses or
+affect Continue. Choose **Remix level** in the editor to copy a current layout.
 
 Explosion pads are dark when safe, charge in amber, then erupt into bright
 fireballs, shock rings and sparks. The outlined square is the danger footprint.
@@ -158,8 +166,8 @@ one is rejected. Move the marker or erase the checkpoint first.
 
 **New blank** and **Remix level** can be undone. Up to 40 edits are kept in
 session memory. **Playtest level** starts immediately from the draft's spawn;
-return with **Back to editor** or **Menu → Level editor**. **Back to game**
-leaves editing and starts the selected built-in level directly. Playtests never
+return with **Back to editor** or **Menu → Level editor**. **Restart game level**
+deliberately leaves editing and restarts the selected built-in level. Playtests never
 alter built-in records.
 
 Drafts and records stay in `localStorage`, scoped to the hosting origin. Storage
@@ -175,14 +183,16 @@ npm run typecheck
 npm run evaluate                 # tracker + tests + production build
 npm run inspect -- 0             # ASCII course and state
 npm run inspect -- 1 --replay    # deathless reference playthrough
-npm run inspect -- 8 --replay    # Pocket wave; valid indices are 0-8
+npm run inspect -- 7 --replay    # Last light relay; valid indices are 0-7
 ```
 
 For repeatable production-browser acceptance, with an installed Chromium:
 
 ```sh
 npm run test:browser
+npm run test:journey             # Continue, out-of-order completion, PB/audio, responsive screenshots
 npm run test:readability         # actual opaque locator pixels, DPR 1/2, route visibility
+npm run release:check            # evaluate + browser + journey + readability, one build
 npm run test:astro               # real static Astro builds; isolated tooling install
 ```
 
@@ -219,7 +229,7 @@ prepared. Normal level selection, Next and Retry still start live play on a
 `?debug` page; call `load(index)` before each exact input-only witness.
 `advance` runs the same collision, hazards, checkpoint and win logic as keyboard
 play; it does not teleport or disable hazards. The reference inputs in
-`data/replays.ts` reach all nine exits with no falls. This is evidence of
+`data/replays.ts` reach all eight exits with no falls. This is evidence of
 solvability, **not** an exhaustive BFS proof, and it cannot decide whether the
 game feels fun. Use real browser screenshots and human play alongside the tests.
 The debug API is absent without `?debug`.

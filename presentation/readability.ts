@@ -6,6 +6,7 @@ const MIN_BODY_PIXELS = 12;
 const SIGN_HEIGHT_PIXELS = 18;
 const LOCATOR_GAP_PIXELS = 4;
 const NARROW_LANE_CLEARANCE = 0.65;
+const SIGNAL_OBSERVATION_DISTANCE = 3;
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const right = new THREE.Vector3(), up = new THREE.Vector3();
 
@@ -32,6 +33,7 @@ export function placePlayerLocator(locator: THREE.Group, camera: THREE.Orthograp
   if (!locator.visible) return;
   const x = Math.floor(position.x), y = Math.floor(position.y);
   const wall = (dx: number, dy: number) => level.tiles[y + dy]?.[x + dx] === '#';
+  const besideWall = wall(0, -1) || wall(1, 0) || wall(0, 1) || wall(-1, 0);
   let dx = 0, dy = 1;
   // Point away from a narrow lane: upper, right and lower pockets keep their mouths exposed.
   if (wall(0, -1) && !wall(0, 1)) dy = 1;
@@ -42,10 +44,20 @@ export function placePlayerLocator(locator: THREE.Group, camera: THREE.Orthograp
   else {
     const nearby = (point: Point) => Math.hypot(position.x - point.x - 0.5, position.y - point.y - 0.5) < 0.9;
     if (nearby(level.spawn) || nearby(level.goal) || level.checkpoints.some(nearby)) { dx = 1; dy = 0; }
+    // On open staging pads, point away from the signal the player needs to read.
+    let distance = SIGNAL_OBSERVATION_DISTANCE;
+    for (const hazard of besideWall ? [] : level.hazards) {
+      if (hazard.kind !== 'pulse') continue;
+      const offsetX = position.x - hazard.x - 0.5, offsetY = position.y - hazard.y - 0.5;
+      const candidate = Math.hypot(offsetX, offsetY);
+      if (candidate === 0 || candidate >= distance) continue;
+      distance = candidate;
+      if (Math.abs(offsetX) > Math.abs(offsetY)) { dx = Math.sign(offsetX); dy = 0; }
+      else { dx = 0; dy = -Math.sign(offsetY); }
+    }
   }
   right.set(1, 0, 0).applyQuaternion(camera.quaternion);
   up.set(0, 1, 0).applyQuaternion(camera.quaternion);
-  const besideWall = wall(0, -1) || wall(1, 0) || wall(0, 1) || wall(-1, 0);
   const gap = (besideWall ? NARROW_LANE_CLEARANCE : BODY_WIDTH / 2) + LOCATOR_GAP_PIXELS / ppu;
   locator.position.set(position.x, 0.37, position.y)
     .addScaledVector(right, dx * gap).addScaledVector(up, dy * gap);

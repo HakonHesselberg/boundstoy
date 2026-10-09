@@ -11,7 +11,7 @@ automation package is required. The default `evaluate` suite remains independent
 of Chromium. See [BROWSER_CHECKS.md](BROWSER_CHECKS.md) for prerequisites, failure
 fixtures, evidence and cleanup checks.
 
-## Simulation and curriculum
+## Current Relay campaign: simulation and curriculum
 
 The suite covers walking/release, constant-speed soft-ice steering and U-turns,
 no-input gliding, speed-preserving wall bounces, hard-ice locks, mud speed,
@@ -24,66 +24,100 @@ checkpoint in order, has zero retries, and wins on the final recorded tick:
 
 | Index | Level / focus | Checkpoints | Reference finish |
 | --- | --- | --- | --- |
-| 0 | First steps / walking | 2 | 484 ticks / 4.0333 simulated seconds |
-| 1 | Gentle curve / soft ice | 1 | 435 ticks / 3.625 seconds |
-| 2 | Curb turn / hard ice | 2 | 575 ticks / 4.7917 seconds |
-| 3 | Pulse crossing / pulse timing | 1 | 520 ticks / 4.3333 seconds |
-| 4 | Saw crossing / saw timing | 1 | 440 ticks / 3.6667 seconds |
-| 5 | Take your time / mud | 1 | 806 ticks / 6.7167 seconds |
-| 6 | Switchback sweep / soft-ice practice | 2 | 1277 ticks / 10.6417 seconds |
-| 7 | Three curb route / hard-ice practice | 3 | 1580 ticks / 13.1667 seconds |
-| 8 | Pocket wave / precise pulse practice | 3 | 1593 ticks / 13.275 seconds |
+| 0 | Relay courtyard / balcony navigation | 2 | 652 ticks / 5.4333 simulated seconds |
+| 1 | Reservoir hairpin / continuous soft-ice U | 1 | 836 ticks / 6.9667 seconds |
+| 2 | Spillway locks / two-curb descent | 2 | 806 ticks / 6.7167 seconds |
+| 3 | Signal stairs / two pulse gates | 2 | 734 ticks / 6.1167 seconds |
+| 4 | Patrol looms / perpendicular saw crossings | 2 | 800 ticks / 6.6667 seconds |
+| 5 | Silt terraces / two slow pulse crossings | 2 | 1615 ticks / 13.4583 seconds |
+| 6 | High interchange / soft, hard and timing transfer | 3 | 1604 ticks / 13.3667 seconds |
+| 7 | Last light relay / chase, slow riser and saw | 3 | 2641 ticks / 22.0083 seconds |
 
 These are witness solutions, not target times for a new player or an exhaustive
-solver. Run `npm run inspect -- N --replay` for any index 0-8 to print the ASCII
+solver. Run `npm run inspect -- N --replay` for any index 0-7 to print the ASCII
 board and final state. Inspecting an invalid index reports the actual valid range.
 
-Concept checks prohibit not-yet-taught special mechanics. Behaviour checks
-demonstrate that:
+The eight new IDs are disjoint from all nine prototype IDs. Canonical terrain
+fingerprints reject reuse even after translation, rotation or reflection;
+this guards exact reuse, not the subjective originality of a minor alteration.
+Route compositions and the actual diff still require design review.
+Concept checks teach each mechanic before combining it. Behaviour checks show:
 
 - Walking stops on release; holding into a safe wall for 600 ticks does not win
   or kill the player.
-- Soft ice needs actual heading changes and retains 4.4 tiles/second throughout.
-  Both turn durations tolerate every offset from -6 to +6 ticks (169 landing
-  trials), without relying on braking.
-- Hard ice requires a correct lane, stops at the curb and then relaunches.
-  Alignment +/-6 ticks and curb arrival -24/0/+24 produce 39 safe trials.
-- Pulse/saw/mud witnesses survive every launch offset from -24 to +24 ticks.
-  Unsafe launch phases are lethal, and the crossings cannot be walked around.
-- Pulse witnesses cross within the middle half of the quiet window rather than
-  scraping its first safe frame.
-- Mud exposure is longer than walking (101 versus 42 ticks); a late crossing
-  that walking could clear is not safe in mud.
+- Soft ice needs actual heading changes and retains 4.4 tiles/second throughout:
+  615 ice ticks and exactly 180 degrees of steering in the hairpin; 316 ticks
+  and 90 degrees in the interchange. No reflections or braking. Omitting
+  individual arcs leaves the route. All 169 paired hairpin steering offsets
+  from -6 to +6 ticks finish through its checkpoint.
+- Spillway alignment +/-6 ticks and both curb arrivals independently
+  -24/0/+24 produce 117 safe trials. Incorrect alignment cannot be repaired
+  by steering after entry.
+- Both launches in each pulse/saw/mud introduction survive every offset from
+  -24 to +24 ticks (294 trials). Deliberately unsafe phases hit the named hazard.
+- All actual pulse exposure in both introductory timed routes lies in the
+  middle half of the quiet window. Walking exposures are 42 ticks each; mud
+  exposures are 100 and 101 ticks. A late window that permits walking fails
+  at mud speed. Mud still allows immediate release-to-stop.
+- Every route needs direction decisions, and the later courses need at least
+  three. Bottleneck removal disconnects even an over-permissive walk graph
+  with diagonal corner cutting. This is a geometry necessity check, not a
+  comprehensive continuous-space solver.
+- Every reference checkpoint phrase lasts less than 15 seconds (the current
+  maximum is 1147 ticks / 9.5583 seconds), so retries do not repeat long solved
+  stretches. Routes have at least 15 tiles of actual travel, or 30 in later maps.
 
 Geometry/phase tests also check tall spike silhouettes, low curbs, visible
 charge/blast states, exact lethal-window visibility, and reduced-motion effects.
 
-The tuning regression uses the pre-tuning nine-course hash, restoring only
-halved `on` values for comparison: geometry, phases, periods, lessons and
-replays must remain unchanged. Switchback sweep's seven
-reference arcs retain 4.4 tiles/second without bounces; omitting each arc fails,
-while individual input boundaries tolerate +/-10 ticks. Three curb route
-requires three outside lanes and curb relaunches; alignment +/-10 ticks and
-combined curb-arrival errors +/-18 ticks remain safe.
+The finale's nineteen wave vents advance every 33 ticks. The legal witness
+passes each vent center 65–85 ticks before its returning blast. Camping on
+each one dies exactly at its next ignition. The interchange and finale pass
+every individual movement-boundary offset from -4 to +4 ticks; their observation
+delays tolerate -12 through +12 ticks with no deaths or missing checkpoints.
+These margins allow a little input error; they do not establish touchscreen
+precision or human enjoyment.
 
-Pocket wave tests use actual hazard definitions to verify 12-tick wave steps
-and unchanged pocket ignition after the path clears. Camping still dies on the
-same pocket blast. For the reference section inputs after the 0.4.2 tuning:
+Every spawn and reached checkpoint can remain stationary for two whole cycles.
+Recovery tests retain actual deaths, 54-tick respawns, all nine held-input
+combinations and cardinal-only rejoining. All **11,048** phase-specific recovery
+runs finish without another death: 8 untimed sites, 600 phases on each of
+Signal stairs/Patrol looms/High interchange, and 720 on Silt terraces/Last light
+relay. Each timed map deliberately uses one shared hazard period. Seeded reset,
+immutability and directional-run regressions are retained.
 
-| Section | Safe launch offset | Safe pocket dwell |
-| --- | --- | --- |
-| Rightward lane / upper pocket | -59 through +10 ticks | 43-112 ticks |
-| Upward lane / right pocket | -56 through +8 ticks | 42-116 ticks |
-| Leftward lane / lower pocket | -54 through +10 ticks | 43-107 ticks |
+Small-screen locator checks cover every new spawn and actual legal positions
+over all twenty finale pulse footprints, including both elbows and the mud
+riser. Non-occlusion also checks the finale's observation pads and positions
+12/24 ticks before and after each closest crossing. This caught a locator
+covering a signal at spawn and on departure; open-pad placement now points
+away from nearby signals without changing narrow-lane placement.
+The real-pixel check samples all eight spawns plus seven chase/riser
+positions at four viewport/DPR combinations (60 cases). Route signs remain
+18 CSS pixels or larger, on screen and non-overlapping; desktop camera and
+body/collider sizes are unchanged.
 
-Every launch phase and dwell duration in a 240-tick cycle is checked. Straight
-runs can now succeed with local departure delays 173-193, 172-187 and 172-197
-ticks, respectively, from the recorded reference section starts; all other
-straight departures hit a pulse. These newly possible routes are intentional
-consequences of halving blast durations, not silently counterbalanced with
-faster cycles. Full-route tests also cover individual
-input-boundary errors of +/-4 ticks and combined pocket-dwell errors. These
-checks establish feasible precise movement, not human input accuracy or fun.
+## Relay release-candidate acceptance
+
+The integrated `npm run release:check` passes 187 portable tests, production
+browser gameplay/offline checks, saved-progress and sound journey checks, and
+60 real-pixel readability cases. Reports: `artifacts/browser-check/run-TTZaRp`,
+`run-ScC8VT` and `run-Nv0Cm6`; combined log:
+`artifacts/release-integrated-check.log`. All eight exact witnesses also pass
+inside the unchanged Astro wrapper at root and nested bases, including real
+keyboard isolation, fullscreen and offline records. Evidence:
+`tests/astro-consumer/artifacts/run-f744701b-71af-4b5c-ad20-ef25af82d1a4/`.
+
+A separate 180-frame headed-browser sample of Last light relay at 1440x900
+on Intel/Mesa hardware measured 16.7 ms median and 16.8 ms p95 RAF intervals,
+with a 133.4 ms maximum hitch. This is one local observation, not a hardware
+compatibility matrix or input-latency certification. The deterministic loop
+already bounds simulation catch-up after hitches.
+
+These checks establish technical candidate readiness, not review sentiment.
+Independent newcomer playtesting, physical touchscreen precision, Firefox/WebKit,
+audio comfort and broader hardware performance remain unverified. The new
+campaign's fun, difficulty curve and repeat-play value require real players.
 
 ## Browser acceptance
 
@@ -96,8 +130,10 @@ for a board cell without modifying the game.
 1. Start using the actual UI, hold a movement key and release on normal ground.
 2. Exercise constant-speed soft-ice steering, pause/resume, restart and focus
    leaving the game; no held keyboard/pointer input may remain stuck.
-3. Check the generic initial Play gate, then direct level selection, next-level
-   progression, retry and campaign restart without repeated tutorial popups.
+3. Check the generic initial Play gate, then Continue to the first uncleared
+   current course, next-uncleared progression and retry without repeated tutorials.
+   Clear courses out of order; the final missing clear celebrates completion
+   and Choose a level opens the menu. Results distinguish first/PB/comparison.
    Verify exact input witnesses using explicit paused debug resets, separately
    from live navigation timing, without padding ticks or weakening checkpoint checks.
 4. Open Menu, select every level, exercise sound/fullscreen/help, and reload to
@@ -116,19 +152,37 @@ for a board cell without modifying the game.
    relative asset URLs and keyboard input. An actual Astro compilation is a
    separate check, not implied by a successful raw iframe test.
 
-## Playtest tuning (0.4.2)
+`npm run test:journey` exercises the production Continue/out-of-order/PB/audio
+journey and captures responsive screenshots. `npm run release:check` runs
+evaluate, browser scenarios, journey and real-pixel readability with one build.
+Sound is muted on first visit; preferences are remembered and restored audio
+waits for a play gesture. Use explicit `#intro-audio` / `#audio` selectors.
+The editor's **Restart game level** action deliberately restarts.
+
+The BT-022 isolated content baseline predates those concurrent journey runtime
+changes. Its migrated browser journey assertions must be run again on the
+integrated tree; content/replay and readability checks are independently runnable.
+
+## Historical evidence: retired prototype
+
+The following 0.4.x results describe earlier releases, not current campaign
+acceptance or preservation requirements. Their old layouts and timing tables
+must not constrain the Relay campaign. Consult the named task evidence for the
+old witness inputs; current witnesses and margins are above.
+
+### Playtest tuning (0.4.2)
 
 The user requested a slightly smaller hitbox and half-duration explosions.
 The radius is 0.20 rather than 0.22 tiles; exact wall, pulse and saw boundary
 regressions check the new clearance. All 30 built-in pulse `on` values are
 halved, with the editor default at 45 ticks. Custom JSON retains literal timing.
-The portable suite has 181 checks; all nine exact replay ticks remain unchanged.
-The wider windows above replace the previous mandatory-wait/hide assertions.
+The portable suite had 181 checks; all nine prototype replay ticks remained unchanged.
+The then-wider windows replaced previous mandatory-wait/hide assertions.
 Production acceptance also passes all 23 browser groups and 36 real-pixel
 cases. Evidence: `artifacts/bt020-*.log`, browser reports `run-nnuc15` and
 `run-kFjjTA`, and the BT-020 handoff.
 
-## Pre-playtest hardening (0.4.1)
+### Pre-playtest hardening (0.4.1)
 
 The integrated portable suite has 179 checks, including actual recovery from
 all nine spawns and 16 checkpoints. Every site is reached by real input, followed
@@ -180,7 +234,7 @@ The locator adds one retained geometry: repeated Pocket wave builds stay at
 profiles and ports were independently checked after completion. Combined
 implementation/acceptance records are BT-003, BT-004 and BT-017 through BT-019.
 
-## Nine-course baseline evidence (0.4.0)
+### Nine-course baseline evidence (0.4.0)
 
 The nine-course 0.4.0 tree passed 136 Node tests, TypeScript and the static build.
 The integrated production-browser run passed 20 scenario groups, including all
@@ -202,14 +256,14 @@ route interpretation, touchscreen precision, enjoyment and difficulty tuning
 remain unverified; these synthetic checks do not certify them. No original
 lesson tuning or BT-014 research experiment was silently applied.
 
-## Six-lesson baseline evidence
+### Six-lesson baseline evidence
 
 The earlier integrated tree passed 116 Node tests: 68 original game/visual/tooling
 checks, 15 renderer-scheduling checks, 13 browser-runner infrastructure checks,
 and 20 tracker checks, plus TypeScript and the static build.
 
 The orchestrator replayed all six levels in Chromium and verified next-level
-navigation and the final campaign screen: exact ticks above, zero retries, all
+navigation and the final campaign screen: exact historical witness ticks, zero retries, all
 checkpoints, and six saved records. Real keyboard walking/release, pause, menu
 freeze, native pointer editor painting/undo, JSON round-trip/rejection,
 playtest record isolation, portrait finish bounds, landscape level selection,

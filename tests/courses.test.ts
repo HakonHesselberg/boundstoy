@@ -5,323 +5,105 @@ import { createHash } from 'node:crypto';
 import { LEVELS, COURSE_LESSONS } from '../data/levels.ts';
 import { REPLAYS } from '../data/replays.ts';
 import { RULES } from '../data/terrain.ts';
-import { parseLevel, type Level, type Hazard } from '../core/level.ts';
+import { readProgress, recordFinish } from '../application/storage.ts';
+import { parseLevel, type Level } from '../core/level.ts';
 import { createState, step, ascii, terrainAt, hazardSample, type State } from '../core/simulation.ts';
 
 type Command = Readonly<{ ticks: number; x: number; y: number }>;
 function run(level: Level, commands: readonly Command[], initial = createState(level)) {
   let state = initial;
-  for (const command of commands) {
-    for (let tick = 0; tick < command.ticks; tick++) {
-      state = step(level, state, command);
-      if (state.deaths || state.won) return state;
-    }
+  for (const command of commands) for (let tick = 0; tick < command.ticks; tick++) {
+    state = step(level, state, command);
+    if (state.deaths || state.won) return state;
   }
   return state;
 }
-
-test('Tuning_OnlyBuiltInBlastDurationsAreHalved_AllOtherCourseDataStaysUnchanged', () => {
-  const originals = LEVELS.map(level => ({ ...level, hazards: level.hazards.map(hazard =>
-    hazard.kind === 'pulse' ? { ...hazard, on: hazard.on * 2 } : hazard) }));
-  const digest = createHash('sha256').update(JSON.stringify([originals, COURSE_LESSONS, REPLAYS])).digest('hex');
-  assert.equal(digest, '66090a785fce5b909ca8735b666410df99b3a09a7e9eaaa911a6b0e802dca53c');
-  assert.equal(LEVELS.flatMap(level => level.hazards).filter(hazard => hazard.kind === 'pulse').length, 30);
-});
-
-test('Curriculum_SixLessonsAndThreeFocusedPractices_UseOnlyTheirNamedMechanics', () => {
-  const expected = [
-    ['first-steps-v1', '.', []],
-    ['gentle-curve-v1', '.~', []],
-    ['curb-turn-v1', '.=', []],
-    ['pulse-crossing-v1', '.', ['pulse']],
-    ['saw-crossing-v1', '.', ['saw']],
-    ['mud-crossing-v1', '.:', ['pulse']],
-    ['soft-switchbacks-v1', '.~', []],
-    ['hard-routing-v1', '.=', []],
-    ['pocket-wave-v1', '.', ['pulse']],
-  ] as const;
-  assert.equal(LEVELS.length, 9);
-  assert.ok(LEVELS.length <= 10);
-  assert.equal(REPLAYS.length, LEVELS.length);
-  assert.deepEqual(Object.keys(COURSE_LESSONS), LEVELS.map(level => level.id));
-  for (const [index, [id, surfaces, hazards]] of expected.entries()) {
-    const level = LEVELS[index];
-    assert.equal(level.id, id);
-    const terrain = [...new Set(level.tiles.join(''))].filter(tile => '.~=:'.includes(tile)).sort();
-    assert.deepEqual(terrain, [...surfaces].sort(), id);
-    assert.deepEqual([...new Set(level.hazards.map(hazard => hazard.kind))].sort(), [...hazards], id);
-    assert.equal(COURSE_LESSONS[id].length, level.checkpoints.length + 1);
-    assert.ok(Object.isFrozen(level) && Object.isFrozen(level.hazards));
-    assert.ok(Object.isFrozen(COURSE_LESSONS[id]));
-    for (const lesson of COURSE_LESSONS[id]) {
-      assert.ok(Object.isFrozen(lesson));
-      assert.ok(lesson.title.length > 0 && lesson.hint.length > 0 && lesson.hint.length <= 200);
-    }
-  }
-});
-
-test('Practice_CompactRoutes_ProvideSafeRecoveryBetweenSections', () => {
-  assert.equal(LEVELS.slice(6).length, 3);
-  for (const level of LEVELS.slice(6)) {
-    assert.ok(level.tiles[0].length <= 24 && level.tiles.length <= 24, level.id);
-    assert.ok(level.checkpoints.length >= 2, 'checkpoint solved sections');
-    for (const point of [level.spawn, ...level.checkpoints, level.goal]) {
-      assert.equal(terrainAt(level, point).id, 'normal', `${level.id}: stoppable planning ground`);
-    }
-  }
-});
-
-test('PocketWave_ThreeTravelingWaves_DetonateEachPocketAfterTheLocalPathClears', () => {
-  const level = LEVELS.find(level => level.id === 'pocket-wave-v1');
-  assert.ok(level);
-  assert.equal(level.hazards.length, 24);
-  for (let section = 0; section < 3; section++) {
-    const wave: readonly Hazard[] = level.hazards.slice(section * 8, section * 8 + 7);
-    const pocket: Hazard = level.hazards[section * 8 + 7];
-    assert.equal(pocket.kind, 'pulse');
-    for (const [index, pulse] of wave.entries()) {
-      assert.equal(pulse.kind, 'pulse');
-      assert.equal(pulse.period, 240);
-      const activation = (pulse.period - pulse.phase) % pulse.period;
-      assert.equal(hazardSample(pulse, activation - 1).active, false);
-      assert.equal(hazardSample(pulse, activation).active, true);
-      if (index) assert.equal((wave[index - 1].phase - pulse.phase + pulse.period) % pulse.period, 12);
-    }
-    const local: Hazard = wave[3];
-    assert.equal(local.kind, 'pulse');
-    if (local.kind !== 'pulse' || pocket.kind !== 'pulse') continue;
-    const localActivation = (local.period - local.phase) % local.period;
-    const detonation = localActivation + local.on + [78, 83, 73][section];
-    assert.equal(hazardSample(local, detonation).active, false);
-    assert.equal(hazardSample(pocket, detonation - 1).active, false);
-    assert.equal(hazardSample(pocket, detonation).active, true);
-    assert.equal(hazardSample(pocket, detonation - RULES.pulseWarningTicks).warning, true);
-  }
-});
-
 function statesFor(index: number) {
-  const level = LEVELS[index], states: State[] = [createState(level)];
-  for (const command of REPLAYS[index]) for (let tick = 0; tick < command.ticks; tick++) {
-    states.push(step(level, states.at(-1)!, command));
-  }
+  const states: State[] = [createState(LEVELS[index])];
+  for (const command of REPLAYS[index]) for (let tick = 0; tick < command.ticks; tick++)
+    states.push(step(LEVELS[index], states.at(-1)!, command));
   return states;
 }
 
-function canWalkToGoal(level: Level, blocked: ReadonlySet<string>) {
-  const seen = new Set<string>(), pending = [level.spawn];
-  while (pending.length) {
-    const point = pending.pop()!, key = `${point.x},${point.y}`;
-    const ground = terrainAt(level, point);
-    if (seen.has(key) || ground.solid || ground.lethal || blocked.has(key)) continue;
-    if (point.x === level.goal.x && point.y === level.goal.y) return true;
-    seen.add(key);
-    for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) pending.push({ x: point.x + x, y: point.y + y });
+// Captured from e9a1eaa. Translation, rotation and reflection cannot disguise reuse.
+const prototypeIds = ['first-steps-v1', 'gentle-curve-v1', 'curb-turn-v1', 'pulse-crossing-v1',
+  'saw-crossing-v1', 'mud-crossing-v1', 'soft-switchbacks-v1', 'hard-routing-v1', 'pocket-wave-v1'];
+const prototypeShapes = [
+  '451492545e1dba941ef1954d7db1652fc7f16913bf3cda2ef117c03feaaef361',
+  '540fdb306b88fcabdd5157f5cc25c02b3a09ac0456591f0c0f76b3646aaa802e',
+  'c21ed8362087cf00c18cc77b3d89a96511d6e2e89ddb66004fe83d5249b7e4de',
+  '0279e591a5d055a3df4e25aa9a683dd2dc1a2d5eea1824a465ba29debe22faff',
+  '4278d1b1706db2df17c053f4a14fd8406a63d2ae7724db09f22b47056741b00f',
+  'ef749a29f7638aa0d14ff71a5f036cf25cb6fcaed21353a75b11a19bdb05e4f9',
+  'a1a3ec1f537335d0caf69125d8ead2aec7f65ee4c6a11503bd26de37295a63c5',
+  'd5932b39b6ee3550760a5f6b8e226abea2a47a274741f52e7ee91517a1456a86',
+  '60e91a46177db88f45286317453aaac7f396b7c69a4a941e20656395c33d85a2',
+];
+function shape(rows: readonly string[]) {
+  const shapes: string[] = [];
+  for (let rotation = 0; rotation < 4; rotation++) {
+    for (const flip of [false, true]) {
+      let a = rows.map(s => flip ? [...s].reverse().join('') : s);
+      while (!a[0].trim()) a.shift();
+      while (!a.at(-1)!.trim()) a.pop();
+      while (a.every(s => s[0] === ' ')) a = a.map(s => s.slice(1));
+      while (a.every(s => s.at(-1) === ' ')) a = a.map(s => s.slice(0, -1));
+      shapes.push(a.join('\n'));
+    }
+    rows = Array.from({ length: rows[0].length }, (_, x) => rows.map(s => s[x]).reverse().join(''));
   }
-  return false;
+  return createHash('sha256').update(shapes.sort()[0]).digest('hex');
 }
 
-test('Practice_EachReachedCheckpoint_CanStopAndObserveForTwoWaveCycles', () => {
-  for (const index of [6, 7, 8]) {
-    const level = LEVELS[index];
-    const checkpoints = statesFor(index).filter(state => state.event === 'checkpoint');
-    assert.equal(checkpoints.length, level.checkpoints.length);
-    for (const checkpoint of checkpoints) {
-      const stopped = run(level, [{ ticks: 480, x: 0, y: 0 }], checkpoint);
-      assert.equal(stopped.deaths, 0);
-      assert.deepEqual(stopped.position, checkpoint.position);
-      assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
-    }
-  }
-});
-
-test('SoftPractice_SevenSeparateSteeringArcs_NeverBrakeOrBounce', () => {
-  const level = LEVELS[6], states = statesFor(6);
-  let arcs = 0, turning = false, iceTicks = 0, turn = 0;
-  for (let tick = 1; tick < states.length; tick++) {
-    const before = states[tick - 1], after = states[tick];
-    const onIce = terrainAt(level, before.position).id === 'soft';
-    if (onIce) {
-      iceTicks++;
-      assert.ok(Math.abs(Math.hypot(after.velocity.x, after.velocity.y) - 4.4) < 1e-9);
-      const delta = Math.atan2(
-        before.velocity.x * after.velocity.y - before.velocity.y * after.velocity.x,
-        before.velocity.x * after.velocity.x + before.velocity.y * after.velocity.y,
-      );
-      assert.ok(Math.abs(delta) <= 3.2 / RULES.tickRate + 1e-9, 'steering, not a wall reflection');
-      turn += Math.abs(delta);
-      const changed = Math.abs(delta) > 1e-9;
-      if (changed && !turning) arcs++;
-      turning = changed;
-    } else turning = false;
-  }
-  assert.equal(arcs, 7);
-  assert.ok(turn > Math.PI * 1.9, 'two substantially different routed sections, not a diagonal coast');
-  assert.ok(iceTicks >= 800);
-});
-
-test('SoftPractice_OmittingAnyOfTheSevenArcs_HitsSpikesOrLeavesTheRoute', () => {
-  for (const index of [1, 2, 3, 6, 7, 8, 9]) {
-    const commands = REPLAYS[6].map((command, i) => i === index
-      ? { ...REPLAYS[6][i - 1], ticks: command.ticks } : command);
-    const state = run(LEVELS[6], commands);
-    assert.ok(state.deathCause === 'spikes' || state.deathCause === 'void', `omitted arc ${index}`);
-  }
-  for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) {
-    const state = run(LEVELS[6], [{ ticks: 1800, x, y }]);
-    assert.equal(state.won, false, `held direction ${x},${y}`);
-  }
-});
-
-test('SoftPractice_EveryTurnBoundaryHasAnEightyMillisecondMargin', () => {
-  const level = LEVELS[6], replay = REPLAYS[6];
-  for (let index = 0; index < replay.length - 1; index++) for (let offset = -10; offset <= 10; offset++) {
-    const commands = replay.map((command, i) => ({
-      ...command, ticks: i === index ? command.ticks + offset : i === replay.length - 1 ? 180 : command.ticks,
-    }));
-    const state = run(level, commands);
-    assert.equal(state.deaths, 0, `boundary ${index}, offset ${offset}`);
-    assert.equal(state.won, true, `boundary ${index}, offset ${offset}`);
-    assert.equal(state.visited.length, level.checkpoints.length);
-  }
-});
-
-test('HardPractice_ThreeCurbs_StopBeforeNorthWestAndSouthRelaunches', () => {
-  const level = LEVELS[7], replay = REPLAYS[7];
-  for (const [index, x, y] of [[1, 0, -1], [3, -1, 0], [6, 0, 1]]) {
-    const stopped = run(level, replay.slice(0, index + 1));
-    assert.equal(terrainAt(level, stopped.position).id, 'hard');
-    assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
-    const next = step(level, stopped, { x, y });
-    assert.deepEqual(next.velocity, { x: 4.8 * x, y: 4.8 * y });
-    const stuck = run(level, [{ ...replay[index], ticks: 240 }], stopped);
-    assert.deepEqual(stuck.position, stopped.position, 'continuing straight cannot negotiate this curb');
-    assert.equal(stuck.won, false);
-  }
-});
-
-test('HardPractice_PoorAlignmentInEachStagingArea_FailsTheNextSection', () => {
-  const level = LEVELS[7], replay = REPLAYS[7];
-  const lowerLane = run(level, [{ ticks: 240, x: 1, y: 0 }]);
-  assert.equal(lowerLane.deathCause, 'spikes');
-  const innerLane = run(level, [
-    ...replay.slice(0, 3), { ticks: 67, x: -1, y: 0 }, { ticks: 200, x: 0, y: -1 },
+test('Campaign_EightOriginalRelayCourses_NeverInheritPrototypeIdsOrLayouts', () => {
+  assert.deepEqual(LEVELS.map(level => level.id), [
+    'relay-courtyard-v1', 'relay-hairpin-v1', 'relay-spillway-v1', 'relay-signal-v1',
+    'relay-looms-v1', 'relay-terraces-v1', 'relay-interchange-v1', 'relay-crescendo-v1',
   ]);
-  assert.equal(innerLane.deathCause, 'spikes');
-  const unaligned = run(level, [...replay.slice(0, 5), { ticks: 200, x: -1, y: 0 }]);
-  assert.equal(unaligned.deathCause, 'void', 'the third departure must use the lower opening');
-});
-
-test('HardPractice_EachOutsideLane_IsRequiredWithoutAdjacentLandingShortcuts', () => {
-  const level = LEVELS[7];
-  assert.equal(canWalkToGoal(level, new Set()), true);
-  for (const lane of [['15,11', '16,11'], ['15,6', '16,6'], ['1,8', '2,8']]) {
-    assert.equal(canWalkToGoal(level, new Set(lane)), false, `must pass the outside lane ${lane}`);
+  assert.ok(LEVELS.length >= 8 && LEVELS.length <= 10);
+  assert.equal(new Set(LEVELS.map(level => level.name)).size, LEVELS.length);
+  assert.equal(new Set(LEVELS.map(level => shape(level.tiles))).size, LEVELS.length);
+  for (const level of LEVELS) {
+    assert.ok(!prototypeIds.includes(level.id), 'old saves remain separate');
+    assert.ok(!prototypeShapes.includes(shape(level.tiles)), `${level.id}: not a transformed prototype`);
   }
 });
 
-test('HardPractice_AlignmentAndAllThreeCurbArrivals_HaveIndependentMargins', () => {
-  const level = LEVELS[7], replay = REPLAYS[7];
-  for (let alignment = -10; alignment <= 10; alignment++) {
-    for (const first of [-18, 18]) for (const second of [-18, 18]) for (const third of [-18, 18]) {
-      const commands = replay.map((command, index) => ({
-        ...command,
-        ticks: index === 1 ? command.ticks + first : index === 3 ? command.ticks + second
-          : index === 6 ? command.ticks + third : [0, 5].includes(index) ? command.ticks + alignment
-            : index === replay.length - 1 ? 180 : command.ticks,
-      }));
-      const state = run(level, commands);
-      assert.equal(state.deaths, 0, `alignment ${alignment}; curbs ${first},${second},${third}`);
-      assert.equal(state.won, true);
-      assert.equal(state.visited.length, level.checkpoints.length);
-    }
-  }
+test('Campaign_NewIds_PreserveButNeverInheritRetiredRecords', () => {
+  const oldRuns = Object.fromEntries(prototypeIds.map(id => [id, { ticks: 1, deaths: 0 }]));
+  const saved = readProgress(JSON.stringify({ version: 1, runs: oldRuns }));
+  assert.deepEqual(saved, oldRuns);
+  assert.ok(LEVELS.every(level => saved[level.id] === undefined), 'no prototype clear counts toward this campaign');
+  let progress = saved;
+  for (const [index, level] of LEVELS.entries())
+    progress = recordFinish(progress, level.id, REPLAYS[index].reduce((sum, c) => sum + c.ticks, 0), 0);
+  const restored = readProgress(JSON.stringify({ version: 1, runs: progress }));
+  assert.equal(Object.keys(restored).length, prototypeIds.length + LEVELS.length);
+  for (const id of prototypeIds) assert.deepEqual(restored[id], oldRuns[id], 'retired records survive current wins');
+  assert.deepEqual(saved, oldRuns, 'the original save is not mutated');
 });
 
-test('PocketWave_EachCorridor_IsUnavoidableEvenWithItsSidePocket', () => {
-  const level = LEVELS[8];
-  assert.equal(canWalkToGoal(level, new Set()), true);
-  for (let section = 0; section < 3; section++) {
-    const wave = level.hazards.slice(section * 8, section * 8 + 7);
-    const blocked = new Set(wave.map(hazard => hazard.kind === 'pulse' ? `${hazard.x},${hazard.y}` : ''));
-    assert.equal(canWalkToGoal(level, blocked), false, `wave ${section} cannot be walked around`);
-  }
-});
-
-test('PocketWave_StraightRuns_HaveNarrowWindowsButMistimedLaunchesStillFail', () => {
-  const level = LEVELS[8], replay = REPLAYS[8];
-  const windows = [[173, 193], [172, 187], [172, 197]];
-  for (let section = 0; section < 3; section++) {
-    const index = section * 5, start = run(level, replay.slice(0, index));
-    for (let delay = 0; delay < 240; delay++) {
-      let state = run(level, [{ ticks: delay, x: 0, y: 0 }], start);
-      for (let tick = 0; tick < 600 && !state.deaths && state.visited.length === section; tick++) {
-        state = step(level, state, replay[index]);
-      }
-      const expected = delay >= windows[section][0] && delay <= windows[section][1];
-      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected,
-        `section ${section}, departure ${delay}`);
-      if (!expected) assert.equal(state.deathCause, 'pulse');
-    }
-  }
-});
-
-test('PocketWave_StayingOnThePathOrCampingInThePocket_DiesAtTheExpectedBlast', () => {
-  const level = LEVELS[8], replay = REPLAYS[8];
-  for (const [section, pathBlast, pocketBlast] of [[0, 205, 333], [1, 735, 873], [2, 1253, 1371]]) {
-    const index = section * 5;
-    const exposed = run(level, [...replay.slice(0, index + 1), { ticks: 240, x: 0, y: 0 }]);
-    assert.equal(exposed.deathCause, 'pulse');
-    assert.equal(exposed.tick, pathBlast);
-    const camped = run(level, [...replay.slice(0, index + 2), { ticks: 240, x: 0, y: 0 }]);
-    assert.equal(camped.deathCause, 'pulse');
-    assert.equal(camped.tick, pocketBlast);
-    assert.equal(camped.visited.length, section);
-  }
-});
-
-test('PocketWave_LocalLaunchAndPocketDwellWindows_WidenWithShorterBlasts', () => {
-  const level = LEVELS[8], replay = REPLAYS[8];
-  const launches = [[-59, 10], [-56, 8], [-54, 10]];
-  const dwells = [[43, 112], [42, 116], [43, 107]];
-  for (let section = 0; section < 3; section++) {
-    const index = section * 5, start = run(level, replay.slice(0, index));
-    const commands = replay.slice(index, index + 5);
-    const [low, high] = launches[section];
-    for (let delay = 0; delay < 240; delay++) {
-      const offset = delay > 120 ? delay - 240 : delay;
-      const state = run(level, [{ ticks: delay, x: 0, y: 0 }, ...commands], start);
-      const expected = offset >= low && offset <= high;
-      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `launch ${section}: ${offset}`);
-    }
-    for (let dwell = 0; dwell < 240; dwell++) {
-      const state = run(level, commands.map((command, i) => ({
-        ...command, ticks: i === 2 ? dwell : command.ticks,
-      })), start);
-      const expected = dwell >= dwells[section][0] && dwell <= dwells[section][1];
-      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `dwell ${section}: ${dwell}`);
-      if (!expected) assert.equal(state.deathCause, 'pulse', 'too early meets the wave; too late meets the pocket blast');
-    }
-  }
-});
-
-test('PocketWave_FourTickInputErrorsAndCombinedDwellErrors_StillCompleteTheRoute', () => {
-  const level = LEVELS[8], replay = REPLAYS[8];
-  for (let index = 0; index < replay.length - 1; index++) for (let offset = -4; offset <= 4; offset++) {
-    const commands = replay.map((command, i) => ({
-      ...command, ticks: i === index ? command.ticks + offset : i === replay.length - 1 ? 100 : command.ticks,
-    }));
-    const state = run(level, commands);
-    assert.equal(state.won, true, `boundary ${index}, offset ${offset}`);
-    assert.equal(state.deaths, 0);
-    assert.equal(state.visited.length, 3);
-  }
-  for (const first of [-2, 2]) for (const second of [-2, 2]) for (const third of [-2, 2]) {
-    const state = run(level, replay.map((command, index) => ({
-      ...command, ticks: command.ticks + (index === 2 ? first : index === 7 ? second : index === 12 ? third : 0),
-    })));
-    assert.equal(state.won, true);
-    assert.equal(state.deaths, 0);
-    assert.equal(state.visited.length, 3);
+test('Campaign_ProgressionAndHints_TeachBeforeMixingOnCompactSafeLandings', () => {
+  const expected = [
+    ['.', []], ['.~', []], ['.=', []], ['.', ['pulse']],
+    ['.', ['saw']], ['.:', ['pulse']], ['.~=', ['pulse']], ['.:', ['pulse', 'saw']],
+  ] as const;
+  assert.equal(REPLAYS.length, LEVELS.length);
+  assert.deepEqual(Object.keys(COURSE_LESSONS), LEVELS.map(level => level.id));
+  for (const [index, level] of LEVELS.entries()) {
+    assert.deepEqual([...new Set(level.tiles.join(''))].filter(t => '.~=:'.includes(t)).sort(),
+      [...expected[index][0]].sort(), level.id);
+    assert.deepEqual([...new Set(level.hazards.map(h => h.kind))].sort(), [...expected[index][1]], level.id);
+    assert.ok(level.tiles.length <= 24 && level.tiles[0].length <= 24);
+    assert.ok(level.checkpoints.length >= (index >= 6 ? 3 : 1));
+    for (const point of [level.spawn, ...level.checkpoints, level.goal])
+      assert.equal(terrainAt(level, point).id, 'normal', 'stoppable observation and recovery');
+    assert.ok(Object.isFrozen(level) && Object.isFrozen(level.hazards));
+    const lessons = COURSE_LESSONS[level.id];
+    assert.ok(Object.isFrozen(lessons));
+    assert.equal(lessons.length, level.checkpoints.length + 1);
+    for (const lesson of lessons)
+      assert.ok(Object.isFrozen(lesson) && lesson.title.length > 0 && lesson.hint.length > 0 && lesson.hint.length <= 200);
   }
 });
 
@@ -332,7 +114,7 @@ for (const [index, level] of LEVELS.entries()) {
     for (const command of REPLAYS[index]) {
       assert.ok(Object.isFrozen(command));
       assert.ok(Number.isInteger(command.ticks) && command.ticks > 0);
-      assert.ok([-1, 0, 1].includes(command.x) && [-1, 0, 1].includes(command.y), 'keyboard-only input');
+      assert.ok([-1, 0, 1].includes(command.x) && [-1, 0, 1].includes(command.y));
       for (let tick = 0; tick < command.ticks; tick++) {
         assert.equal(state.won, false, 'no padding after the win tick');
         state = step(level, state, command);
@@ -342,6 +124,30 @@ for (const [index, level] of LEVELS.entries()) {
     assert.equal(state.deaths, 0);
     assert.deepEqual(state.visited, level.checkpoints.map(point => `${point.x},${point.y}`));
     assert.equal(state.tick, REPLAYS[index].reduce((ticks, command) => ticks + command.ticks, 0));
+  });
+  test(`Observation_${level.id}_EveryReachedCheckpointIsSafeForTwoFullCycles`, () => {
+    const period = Math.max(120, ...level.hazards.map(h => h.period));
+    const sites = statesFor(index).filter(state => state.event === 'checkpoint' || state.tick === 0);
+    assert.equal(sites.length, level.checkpoints.length + 1);
+    for (const site of sites) {
+      const stopped = run(level, [{ ticks: 2 * period, x: 0, y: 0 }], site);
+      assert.equal(stopped.deaths, 0);
+      assert.deepEqual(stopped.position, site.position);
+      assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
+    }
+  });
+  test(`Decisions_${level.id}_CannotWinWithOneHeldDirectionOrOmittedTurns`, () => {
+    for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1])
+      assert.equal(run(level, [{ ticks: 2400, x, y }]).won, false);
+    let necessary = 0;
+    const commands = REPLAYS[index];
+    for (let i = 1; i < commands.length; i++) {
+      if ((!commands[i].x && !commands[i].y) || (!commands[i - 1].x && !commands[i - 1].y)) continue;
+      if (commands[i].x === commands[i - 1].x && commands[i].y === commands[i - 1].y) continue;
+      const altered = commands.map((c, j) => j === i ? { ...commands[i - 1], ticks: c.ticks } : c);
+      if (!run(level, altered).won) necessary++;
+    }
+    assert.ok(necessary >= (index >= 6 ? 3 : 1), `${level.id}: ${necessary} necessary direction decisions`);
   });
 }
 
@@ -358,13 +164,58 @@ test('Step_HardIceToGround_RegainsFullControl', () => {
   state = step(level, state, { x: 0, y: 1 });
   assert.equal(state.position.y, 2.5);
   const next = step(level, state, { x: 0, y: 1 });
-  assert.equal(next.velocity.x, 0);
-  assert.equal(next.velocity.y, 3.6);
+  assert.deepEqual(next.velocity, { x: 0, y: 3.6 });
 });
 
-test('Walking_ReleaseAndStraightIntoBoundary_StopsSafelyWithoutWinning', () => {
-  const level = LEVELS[0];
-  const walked = run(level, [{ ticks: 60, x: 1, y: 0 }]);
+test('Campaign_CheckpointPhrases_AreSubstantialButLessThanFifteenSeconds', () => {
+  for (const [index, level] of LEVELS.entries()) {
+    const states = statesFor(index);
+    let distance = 0, previousMarker = 0;
+    for (let i = 1; i < states.length; i++) {
+      distance += Math.hypot(states[i].position.x - states[i - 1].position.x,
+        states[i].position.y - states[i - 1].position.y);
+      if (states[i].event === 'checkpoint' || states[i].won) {
+        assert.ok(i - previousMarker < 15 * RULES.tickRate, `${level.id}: checkpoint retry cost`);
+        previousMarker = i;
+      }
+    }
+    assert.ok(distance >= (index >= 6 ? 30 : 15), `${level.id}: ${distance} tiles of actual route`);
+  }
+});
+
+function reachable(level: Level, blocked: readonly string[]) {
+  const seen = new Set(blocked), pending = [level.spawn];
+  while (pending.length) {
+    const point = pending.pop()!, key = `${point.x},${point.y}`, ground = terrainAt(level, point);
+    if (seen.has(key) || ground.solid || ground.lethal) continue;
+    if (point.x === level.goal.x && point.y === level.goal.y) return true;
+    seen.add(key);
+    // Deliberately over-approximate movement, including diagonal corner cutting.
+    // Even this more permissive graph must not find a bypass.
+    for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1])
+      if (x || y) pending.push({ x: point.x + x, y: point.y + y });
+  }
+  return false;
+}
+test('Routes_EveryAuthoredBottleneck_IsNecessaryEvenInAnOverPermissiveWalkGraph', () => {
+  const cuts = [
+    [['10,7', '11,7']],
+    [['8,11', '8,12', '8,13', '8,14'], ['11,7', '12,7', '13,7', '14,7']],
+    [['11,6', '12,6', '13,6'], ['5,11', '6,11']],
+    [['2,8', '3,8', '4,8'], ['8,4', '8,5', '8,6']],
+    [['6,13'], ['8,9']],
+    [['9,3', '9,4'], ['13,9', '14,9']],
+    [['9,13', '10,13', '11,13', '12,13'], ['4,6', '5,6'], ['11,2'], ['14,2']],
+    [['7,18'], ['9,16'], ['14,12'], ['17,15'], ['21,10'], ['16,5']],
+  ];
+  for (const [index, level] of LEVELS.entries()) {
+    assert.equal(reachable(level, []), true, level.id);
+    for (const cut of cuts[index]) assert.equal(reachable(level, cut), false, `${level.id}: required ${cut}`);
+  }
+});
+
+test('Walking_ReleaseAndSafeCurb_StopImmediatelyWithoutWinning', () => {
+  const level = LEVELS[0], walked = run(level, [{ ticks: 60, x: 1, y: 0 }]);
   const stopped = step(level, walked, { x: 0, y: 0 });
   assert.deepEqual(stopped.position, walked.position);
   assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
@@ -374,182 +225,169 @@ test('Walking_ReleaseAndStraightIntoBoundary_StopsSafelyWithoutWinning', () => {
   assert.deepEqual(blocked.velocity, { x: 0, y: 0 });
 });
 
-test('SoftIce_StraightAcrossObstacle_FailsInsteadOfBypassingTurn', () => {
-  const state = run(LEVELS[1], [{ ticks: 600, x: 1, y: 0 }]);
-  assert.equal(state.deathCause, 'spikes');
-});
-
-test('SoftIce_Witness_SteersAtConstantSpeedThenStopsOnLanding', () => {
-  const level = LEVELS[1];
-  let state = createState(level), turningTicks = 0, landingStops = 0;
-  for (const command of REPLAYS[1]) for (let tick = 0; tick < command.ticks; tick++) {
-    const ground = terrainAt(level, state.position);
-    if (ground.id === 'soft' && Math.abs(state.velocity.x * command.y - state.velocity.y * command.x) > 0.5) turningTicks++;
-    if (ground.id === 'normal' && state.position.x >= 13) {
-      const stopped = step(level, state, { x: 0, y: 0 });
-      assert.deepEqual(stopped.position, state.position);
-      assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
-      landingStops++;
+test('SoftIce_HairpinAndInterchange_UseRealConstantSpeedArcsWithoutReflections', () => {
+  for (const [index, minimumTicks, expectedTurn] of [[1, 600, Math.PI], [6, 300, Math.PI / 2]]) {
+    const level = LEVELS[index], states = statesFor(index);
+    let iceTicks = 0, totalTurn = 0;
+    for (let i = 1; i < states.length; i++) {
+      const before = states[i - 1], after = states[i];
+      if (terrainAt(level, before.position).id !== 'soft') continue;
+      iceTicks++;
+      assert.ok(Math.abs(Math.hypot(after.velocity.x, after.velocity.y) - 4.4) < 1e-9);
+      const turn = Math.abs(Math.atan2(before.velocity.x * after.velocity.y - before.velocity.y * after.velocity.x,
+        before.velocity.x * after.velocity.x + before.velocity.y * after.velocity.y));
+      assert.ok(turn <= 3.2 / RULES.tickRate + 1e-9, 'no wall-bounce shortcut');
+      totalTurn += turn;
     }
-    state = step(level, state, command);
-    if (ground.id === 'soft' && !state.won && !state.respawnTicks) {
-      assert.ok(Math.abs(Math.hypot(state.velocity.x, state.velocity.y) - 4.4) < 1e-9);
+    assert.ok(iceTicks >= minimumTicks);
+    assert.ok(Math.abs(totalTurn - expectedTurn) < 1e-9);
+    for (const commandIndex of index === 1 ? [1, 2] : [1]) {
+      const altered = REPLAYS[index].map((c, i) =>
+        i === commandIndex ? { ...REPLAYS[index][i - 1], ticks: c.ticks } : c);
+      assert.ok(run(level, altered).deaths > 0, 'omitting an arc leaves the route, not merely a late finish');
     }
   }
-  assert.ok(turningTicks >= 40, 'the curve must require steering, not just a diagonal coast');
-  assert.ok(landingStops > 0, 'the landing must restore release-to-stop control');
-  assert.equal(terrainAt(level, state.position).id, 'normal');
 });
 
-test('SoftIce_FiftyMillisecondErrorsInBothTurnPoints_StillReachLanding', () => {
-  const level = LEVELS[1];
-  for (let entry = -6; entry <= 6; entry++) for (let curve = -6; curve <= 6; curve++) {
-    const commands = REPLAYS[1].map((command, index) => ({
-      ...command, ticks: command.ticks + (index === 0 ? entry : index === 1 ? curve : 0),
+test('SoftIce_IntroductoryHairpin_AllPairsOfFiftyMillisecondSteeringErrorsRecover', () => {
+  for (let entry = -6; entry <= 6; entry++) for (let turn = -6; turn <= 6; turn++) {
+    const commands = REPLAYS[1].map((c, i) => ({
+      ...c, ticks: i === 0 ? c.ticks + entry : i === 1 ? c.ticks + turn : i === 3 ? 140 : c.ticks,
     }));
-    const state = run(level, commands);
-    assert.equal(state.deaths, 0, `entry ${entry}, curve ${curve}`);
-    assert.equal(terrainAt(level, state.position).id, 'normal');
-    assert.ok(state.position.x >= 13, 'reach the far landing, not just the entry pad');
-    assert.equal(state.visited.length, level.checkpoints.length);
+    const state = run(LEVELS[1], commands);
+    assert.equal(state.deaths, 0, `${entry},${turn}`);
+    assert.equal(state.won, true, `${entry},${turn}`);
+    assert.equal(state.visited.length, 1);
   }
 });
 
-test('HardIce_WrongAlignment_CannotSteerOutOfSpikeLane', () => {
+test('HardIce_Spillway_TwoCurbStopsRequireNewLaunchesAndRejectTheInsideLane', () => {
   const level = LEVELS[2];
-  let state = run(level, [{ ticks: 95, x: 1, y: 0 }]);
-  assert.equal(terrainAt(level, state.position).id, 'hard');
-  const lane = state.position.y;
-  for (let tick = 0; tick < 100 && !state.deaths; tick++) state = step(level, state, { x: 0, y: -1 });
-  assert.equal(state.deathCause, 'spikes');
-  assert.equal(state.position.y, lane);
+  for (const [boundary, x, y] of [[1, -1, 0], [2, 0, 1]]) {
+    const stopped = run(level, REPLAYS[2].slice(0, boundary + 1));
+    assert.equal(terrainAt(level, stopped.position).id, 'hard');
+    assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
+    assert.deepEqual(step(level, stopped, { x, y }).velocity, { x: 4.8 * x, y: 4.8 * y });
+    assert.deepEqual(run(level, [{ ...REPLAYS[2][boundary], ticks: 240 }], stopped).position, stopped.position);
+  }
+  const badLane = run(level, [{ ticks: 67, x: 1, y: 0 }, { ticks: 65, x: 0, y: 1 }]);
+  assert.equal(terrainAt(level, badLane.position).id, 'hard');
+  const wrongSteering = run(level, [{ ticks: 240, x: 1, y: 0 }], badLane);
+  assert.equal(wrongSteering.deathCause, 'spikes');
+  assert.equal(wrongSteering.position.x, badLane.position.x, 'steering cannot repair the locked line');
 });
 
-test('HardIce_Witness_StopsAtCurbBeforeRelaunchingNorth', () => {
-  const level = LEVELS[2], state = run(level, REPLAYS[2].slice(0, 3));
-  assert.equal(state.deaths, 0);
-  assert.equal(terrainAt(level, state.position).id, 'hard');
-  assert.deepEqual(state.velocity, { x: 0, y: 0 });
-  const next = step(level, state, { x: 0, y: -1 });
-  assert.equal(next.velocity.x, 0);
-  assert.equal(next.velocity.y, -4.8);
-});
-
-test('HardIce_AlignmentAndCurbArrivalMargins_StillReachLandingAndExit', () => {
-  const level = LEVELS[2];
-  for (let alignment = -6; alignment <= 6; alignment++) for (const arrival of [-24, 0, 24]) {
-    const commands = REPLAYS[2].map((command, index) => ({
-      ...command, ticks: command.ticks + (index === 0 ? alignment : index === 2 ? arrival : 0),
-    }));
-    const landing = run(level, commands.slice(0, 4));
-    assert.equal(landing.deaths, 0);
-    assert.equal(terrainAt(level, landing.position).id, 'normal');
-    assert.equal(landing.visited.length, level.checkpoints.length);
-    // Keep walking on the landing until the exit, rather than requiring the same final marker tick.
-    const state = run(level, [...commands.slice(0, 4), { ticks: 120, x: -1, y: 0 }]);
-    assert.equal(state.deaths, 0, `alignment ${alignment}, arrival ${arrival}`);
-    assert.equal(state.won, true);
-    assert.equal(state.visited.length, level.checkpoints.length);
+test('HardIce_AlignmentAndBothCurbArrivals_HaveIndependentForgivingMargins', () => {
+  for (let align = -6; align <= 6; align++) for (const first of [-24, 0, 24]) for (const second of [-24, 0, 24]) {
+    const state = run(LEVELS[2], REPLAYS[2].map((c, i) => ({
+      ...c, ticks: i === 4 ? 150 : c.ticks + (i === 0 ? align : i === 1 ? first : i === 2 ? second : 0),
+    })));
+    assert.equal(state.deaths, 0);
+    assert.equal(state.won, true, `${align},${first},${second}`);
+    assert.equal(state.visited.length, 2);
   }
 });
 
-test('Timing_GatesAndSawBridge_CannotBeWalkedAround', () => {
-  for (const index of [3, 4, 5]) {
-    const level = LEVELS[index];
-    const gate = new Set(level.hazards.flatMap(hazard => {
-      if (hazard.kind === 'pulse') return [`${hazard.x},${hazard.y}`];
-      const tiles = [];
-      for (let y = hazard.from.y; y <= hazard.to.y; y++) tiles.push(`${hazard.from.x},${y}`);
-      return tiles;
-    }));
-    const reachable = (blocked: ReadonlySet<string>) => {
-      const pending = [level.spawn], seen = new Set<string>();
-      while (pending.length) {
-        const point = pending.pop()!, key = `${point.x},${point.y}`;
-        const terrain = terrainAt(level, point);
-        if (seen.has(key) || blocked.has(key) || terrain.solid || terrain.lethal) continue;
-        if (point.x === level.goal.x && point.y === level.goal.y) return true;
-        seen.add(key);
-        for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) pending.push({ x: point.x + x, y: point.y + y });
+for (const [index, cause, unsafeOffsets] of [
+  [3, 'pulse', [240, 240]], [4, 'saw', [150, 150]], [5, 'pulse', [240, 300]],
+] as const) {
+  test(`Timing_${index}_BothIntroducedCrossingsTolerateEveryTwoHundredMillisecondLaunchError`, () => {
+    const waits = REPLAYS[index].flatMap((c, i) => !c.x && !c.y ? [i] : []);
+    assert.equal(waits.length, 2);
+    for (const [w, boundary] of waits.entries()) {
+      const waiting = run(LEVELS[index], REPLAYS[index].slice(0, boundary));
+      assert.equal(terrainAt(LEVELS[index], waiting.position).id, 'normal');
+      for (let offset = -24; offset <= 24; offset++) {
+        const state = run(LEVELS[index], REPLAYS[index].map((c, i) =>
+          ({ ...c, ticks: c.ticks + (i === boundary ? offset : 0) })));
+        assert.equal(state.deaths, 0, `${boundary},${offset}`);
+        assert.equal(state.won, true);
+        assert.equal(state.visited.length, LEVELS[index].checkpoints.length);
       }
-      return false;
-    };
-    assert.equal(reachable(new Set()), true, level.id);
-    assert.equal(reachable(gate), false, `${level.id}: every walkable route must cross the hazard`);
-  }
-});
-
-for (const [index, cause, unsafeWait] of [[3, 'pulse', 360], [4, 'saw', 0], [5, 'pulse', 650]] as const) {
-  test(`Timing_${index}_AnUnsafeLaunchPhaseHitsTheHazard`, () => {
-    const state = run(LEVELS[index], REPLAYS[index].map(command =>
-      !command.x && !command.y ? { ...command, ticks: unsafeWait } : command));
-    assert.equal(state.deathCause, cause);
-  });
-  test(`Timing_${index}_EveryLaunchOffsetWithinTwoHundredMillisecondsIsSafe`, () => {
-    const level = LEVELS[index], commands = REPLAYS[index];
-    const wait = commands.findIndex(command => !command.x && !command.y);
-    assert.ok(wait >= 0 && commands[wait].ticks >= 30, 'a deliberate, meaningful wait');
-    const waiting = run(level, commands.slice(0, wait));
-    assert.equal(terrainAt(level, waiting.position).id, 'normal', 'wait on a safe planning pad');
-    for (let offset = -24; offset <= 24; offset++) {
-      const state = run(level, commands.map((command, i) => ({ ...command, ticks: command.ticks + (i === wait ? offset : 0) })));
-      assert.equal(state.won, true, `launch offset ${offset}`);
-      assert.equal(state.deaths, 0);
-      assert.equal(state.visited.length, level.checkpoints.length);
+      const unsafe = run(LEVELS[index], REPLAYS[index].map((c, i) =>
+        ({ ...c, ticks: c.ticks + (i === boundary ? unsafeOffsets[w] : 0) })));
+      assert.equal(unsafe.deathCause, cause, 'timing must matter, not just decorative hazards');
     }
   });
 }
 
-test('PulseWitnesses_CrossInTheMiddleHalfOfTheQuietWindow', () => {
-  const crossingTicks: number[] = [];
+test('PulseIntroductions_AllActualExposureIsInTheMiddleHalfOfTheQuietWindow', () => {
   for (const index of [3, 5]) {
     const level = LEVELS[index];
-    let state = createState(level), crossing = 0;
-    for (const command of REPLAYS[index]) for (let tick = 0; tick < command.ticks; tick++) {
-      state = step(level, state, command);
-      const pulse = level.hazards.find(hazard => {
-        if (hazard.kind !== 'pulse') return false;
-        const dx = Math.max(Math.abs(state.position.x - hazard.x - 0.5) - RULES.pulseRadius, 0);
-        const dy = Math.max(Math.abs(state.position.y - hazard.y - 0.5) - RULES.pulseRadius, 0);
-        return Math.hypot(dx, dy) < RULES.radius;
-      });
-      if (pulse?.kind !== 'pulse') continue;
-      crossing++;
-      const cycle = (state.tick + pulse.phase) % pulse.period, margin = (pulse.period - pulse.on) / 4;
-      assert.ok(cycle >= pulse.on + margin && cycle <= pulse.period - margin, `${level.id}: tick ${state.tick}`);
+    let exposure = 0;
+    for (const state of statesFor(index)) for (const hazard of level.hazards) {
+      if (hazard.kind !== 'pulse') continue;
+      const dx = Math.max(Math.abs(state.position.x - hazard.x - 0.5) - RULES.pulseRadius, 0);
+      const dy = Math.max(Math.abs(state.position.y - hazard.y - 0.5) - RULES.pulseRadius, 0);
+      if (Math.hypot(dx, dy) >= RULES.radius) continue;
+      exposure++;
+      const phase = (state.tick + hazard.phase) % hazard.period, margin = (hazard.period - hazard.on) / 4;
+      assert.ok(phase >= hazard.on + margin && phase <= hazard.period - margin);
     }
-    assert.ok(crossing > 0, 'the witness must cross the blast footprint, not bypass it');
-    crossingTicks.push(crossing);
+    assert.equal(exposure, index === 3 ? 84 : 201, 'both unavoidable gates are traversed');
   }
-  assert.ok(crossingTicks[1] >= crossingTicks[0] * 2.3, 'mud needs more than twice the exposure time');
 });
 
-test('Mud_LateWindowThatWouldAllowWalking_IsTooShortForMud', () => {
-  const level = LEVELS[5];
-  const late = REPLAYS[5].map(command => !command.x && !command.y ? { ...command, ticks: 550 } : command);
-  const missed = run(level, late);
-  assert.equal(missed.deathCause, 'pulse', 'starting late must matter at mud speed');
-  const normalGround = parseLevel({ ...level, tiles: level.tiles.map(row => row.replaceAll(':', '.')) });
-  const walked = run(normalGround, late);
-  assert.equal(walked.deaths, 0);
-  assert.equal(walked.won, true, 'the same late window would have been long enough on normal ground');
+test('Mud_BothTerracesRemainControllableAndALateWalkingWindowIsTooShort', () => {
+  const level = LEVELS[5], states = statesFor(5);
+  let mudTicks = 0;
+  for (const state of states) if (terrainAt(level, state.position).id === 'mud') {
+    mudTicks++;
+    const stopped = step(level, state, { x: 0, y: 0 });
+    assert.deepEqual(stopped.position, state.position);
+    assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
+    assert.equal(stopped.deaths, 0);
+  }
+  assert.ok(mudTicks >= 870);
+  for (let i = 0; i < states.length - 1; i++) if (terrainAt(level, states[i].position).id === 'mud')
+    assert.ok(Math.abs(Math.hypot(states[i + 1].velocity.x, states[i + 1].velocity.y) - 1.5) < 1e-9);
+  function firstCrossing(course: Level) {
+    let state = run(course, [{ ticks: 350, x: 0, y: 0 }]);
+    while (!state.deaths && !state.visited.length && state.tick < 1300) state = step(course, state, { x: 1, y: 0 });
+    return state;
+  }
+  assert.equal(firstCrossing(level).deathCause, 'pulse');
+  const walking = parseLevel({ ...level, tiles: level.tiles.map(row => row.replaceAll(':', '.')) });
+  const crossed = firstCrossing(walking);
+  assert.equal(crossed.deaths, 0);
+  assert.equal(crossed.visited.length, 1);
 });
 
-test('Mud_ActualCrossing_IsSlowerAndStillAllowsReleaseToStop', () => {
-  const level = LEVELS[5];
-  let state = createState(level), mudTicks = 0;
-  for (const command of REPLAYS[5]) for (let tick = 0; tick < command.ticks; tick++) {
-    const onMud = terrainAt(level, state.position).id === 'mud';
-    if (onMud) {
-      mudTicks++;
-      const stopped = step(level, state, { x: 0, y: 0 });
-      assert.deepEqual(stopped.position, state.position);
-      assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
+test('Finale_TravellingPhrasesFollowWalkingCadenceAndCampingMeetsTheReturningBlast', () => {
+  const level = LEVELS[7], states = statesFor(7);
+  for (const [start, length] of [[0, 9], [9, 10]]) {
+    for (let i = 0; i < length; i++) {
+      const hazard = level.hazards[start + i];
+      assert.equal(hazard.kind, 'pulse');
+      if (hazard.kind !== 'pulse') continue;
+      if (i) assert.equal((level.hazards[start + i - 1].phase - hazard.phase + hazard.period) % hazard.period, 33);
+      const nearest = states.reduce((best, next) =>
+        Math.hypot(next.position.x - hazard.x - 0.5, next.position.y - hazard.y - 0.5)
+          < Math.hypot(best.position.x - hazard.x - 0.5, best.position.y - hazard.y - 0.5) ? next : best);
+      assert.equal(hazardSample(hazard, nearest.tick).active, false);
+      const untilBlast = hazard.period - (nearest.tick + hazard.phase) % hazard.period;
+      assert.ok(untilBlast >= 65 && untilBlast <= 85, 'the chase follows close behind the legal runner');
+      const camped = run(level, [{ ticks: hazard.period, x: 0, y: 0 }], nearest);
+      assert.equal(camped.deathCause, 'pulse');
+      assert.equal(camped.tick, nearest.tick + untilBlast);
     }
-    state = step(level, state, command);
-    if (onMud && !state.won) assert.ok(Math.abs(Math.hypot(state.velocity.x, state.velocity.y) - 1.5) < 1e-9);
   }
-  assert.ok(mudTicks >= 300, 'practice a sustained slow crossing');
+});
+
+test('LaterCourses_EveryMovementBoundaryHasAFourTickMarginAndChaseLaunchesHaveTwelve', () => {
+  for (const index of [6, 7]) {
+    for (let boundary = 0; boundary < REPLAYS[index].length - 1; boundary++) {
+      const c = REPLAYS[index][boundary], margin = !c.x && !c.y ? 12 : 4;
+      for (let offset = -margin; offset <= margin; offset++) {
+        const state = run(LEVELS[index], REPLAYS[index].map((c, i) => ({
+          ...c, ticks: i === REPLAYS[index].length - 1 ? c.ticks + 120 : c.ticks + (i === boundary ? offset : 0),
+        })));
+        assert.equal(state.deaths, 0, `${index}/${boundary}/${offset}`);
+        assert.equal(state.won, true, `${index}/${boundary}/${offset}`);
+        assert.equal(state.visited.length, 3);
+      }
+    }
+  }
 });
 
 test('Inspect_AllCourseIndices_RunWitnessesAndReportDynamicUsage', () => {

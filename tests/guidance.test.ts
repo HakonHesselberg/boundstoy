@@ -15,11 +15,14 @@ test('Guide_SoftIce_TeachesTurningWithoutBraking', () => {
   const level = LEVELS[1];
   assert.match(courseGuide(level, createState(level)).hint, /no brakes/i);
 });
-test('Guide_PracticeCourses_ExplainTheNextRouteDecisionWithoutNewMechanics', () => {
+test('Guide_RelayCourses_ExplainConcreteDecisionsBeforeMixingTaughtMechanics', () => {
   const expected = [
-    ['soft-switchbacks-v1', /no brakes/i, /bend|sweep|turn/i],
-    ['hard-routing-v1', /lane|align/i, /curb|launch/i],
-    ['pocket-wave-v1', /wave/i, /pocket/i],
+    ['relay-spillway-v1', /line up/i, /lane|curb|launch/i],
+    ['relay-signal-v1', /watch/i, /dark/i],
+    ['relay-looms-v1', /saw/i, /move.*away/i],
+    ['relay-terraces-v1', /slow/i, /time|window/i],
+    ['relay-interchange-v1', /no brakes/i, /launch|curb|vents/i],
+    ['relay-crescendo-v1', /wave/i, /wave|rhythm|mud/i],
   ] as const;
   for (const [id, opening, decisions] of expected) {
     const level = LEVELS.find(level => level.id === id);

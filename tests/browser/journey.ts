@@ -136,6 +136,27 @@ export async function checkJourney({ page, origin, signal, log }: BrowserContext
     await writeFile(`${directory}entry-${width}x${height}.png`, Buffer.from(capture.data, 'base64'));
   }
   log(`PASS: all course screenshots and portrait/landscape/reduced-viewport entry checks. Evidence: ${directory}`);
+
+  await page.call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await page.call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  await page.evaluate('window.__BOUNDSTOY__.load(0)');
+  await click('primary-action');
+  const touchPoints = await page.evaluate<{ x: number; y: number; id: number }[]>(`['up', 'right'].map((direction, id) => {
+    const button = document.querySelector('[data-direction="' + direction + '"]');
+    const r = button.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2, id };
+  })`);
+  await page.call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints });
+  assert.deepEqual(await page.evaluate('window.__BOUNDSTOY__.snapshot().input'), { x: 1, y: -1 });
+  await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowLeft', code: 'ArrowLeft', windowsVirtualKeyCode: 37 });
+  assert.deepEqual(await page.evaluate('window.__BOUNDSTOY__.snapshot().input'), { x: 0, y: -1 });
+  await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR', windowsVirtualKeyCode: 82 });
+  assert.deepEqual(await page.evaluate('window.__BOUNDSTOY__.snapshot().input'), { x: 0, y: 0 });
+  await page.call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowLeft', code: 'ArrowLeft', windowsVirtualKeyCode: 37 });
+  await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR', windowsVirtualKeyCode: 82 });
+  assert.deepEqual(await page.evaluate('window.__BOUNDSTOY__.snapshot().input'), { x: 0, y: 0 });
+  log('PASS: simultaneous two-finger and keyboard input combines correctly and restart clears every held source.');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main(process.argv.slice(2), checkJourney);

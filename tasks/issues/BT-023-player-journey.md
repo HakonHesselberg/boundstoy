@@ -3,7 +3,7 @@
   "id": "BT-023",
   "title": "Make onboarding and campaign progress clear and rewarding",
   "type": "feature",
-  "status": "review",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": "BT-021",
@@ -37,13 +37,13 @@ existing local records and cleared input on transitions.
 
 ## Acceptance criteria
 
-- [ ] Fresh entry explains controls, goal and automatic checkpoint retries.
-- [ ] Reload targets the first uncleared current course, ignoring legacy IDs.
-- [ ] Results truthfully distinguish first clear, better, equal and slower runs.
-- [ ] Clearing the last missing course celebrates completion in any order.
-- [ ] Editor return explicitly says it restarts; pause retains last death cause.
-- [ ] Sound remains opt-in, remembers volume and has bounded concurrent voices.
-- [ ] Unit and browser verification cover the integrated journey.
+- [x] Fresh entry explains controls, goal and automatic checkpoint retries.
+- [x] Reload targets the first uncleared current course, ignoring legacy IDs.
+- [x] Results truthfully distinguish first clear, better, equal and slower runs.
+- [x] Clearing the last missing course celebrates completion in any order.
+- [x] Editor return explicitly says it restarts; pause retains last death cause.
+- [x] Sound remains opt-in, remembers volume and has bounded concurrent voices.
+- [x] Unit and browser verification cover the integrated journey.
 
 ## Implementation context
 
@@ -82,4 +82,10 @@ editor return, keyboard-only menu navigation and small viewport overlays.
 
 ## Result
 
-Pending combined replacement-campaign verification. No release claim.
+- Summary: Accepted the player journey on the fully replaced campaign.
+- Verification: release:check passes 187 tests, full offline browser gameplay,
+  journey run-ScC8VT and 60 real-pixel cases. Journey includes simultaneous
+  two-finger plus keyboard input and restart clearing; results and saved sound
+  retain truthful state. Astro root/nested integration also passes.
+- Integration: Runtime implemented in 568660c; combined campaign and final
+  touch-input evidence accepted in primary. No public release certification.

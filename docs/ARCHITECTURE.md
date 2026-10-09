@@ -5,7 +5,7 @@ The template's useful ideas are kept without introducing a framework:
 | Location | Responsibility |
 | --- | --- |
 | `data/terrain.ts` | Frozen terrain registry and balance constants |
-| `data/levels.ts` | Nine frozen, validated lesson/practice levels and checkpoint hints |
+| `data/levels.ts` | Eight frozen, validated Relay campaign levels and checkpoint hints |
 | `data/replays.ts` | Successful, deterministic input sequences |
 | `core/level.ts` | Typed level format, strict import validation, coordinates |
 | `core/simulation.ts` | Pure `createState`, `step`, hazard sampling and ASCII view |
@@ -24,9 +24,12 @@ The core never imports the DOM, Three.js, storage or the presentation layer.
 `step(level, prior, input)` returns a new state. Level arrays/definitions are
 frozen and shared between steps; snapshots never depend on rendering.
 
-The three practice courses append data to the unchanged six lessons. Travelling
-waves and delayed pocket blasts are composed from existing pulse phase offsets;
-there is no practice-specific branch in physics, rendering, UI or storage.
+The Relay campaign is entirely new data, not an extension or transformation of
+the retired prototype. Its later courses combine previously taught surfaces;
+travelling blasts use ordinary pulse phase offsets. Every timed map shares one
+hazard period so recovery tests can construct a legal continuation from every
+phase. There is no course-specific branch in physics or rendering.
+New stable `relay-*-v1` IDs separate current progress from retained old records.
 
 Soft ice rotates a fixed-length velocity vector towards input. It has no
 acceleration/drag path; releasing input and reversing never reduce its speed.
@@ -55,7 +58,9 @@ are batched into line segments. The locally generated environment map provides r
 without an HDR download. Rebuilding the board disposes old geometry/materials;
 page teardown releases renderer, textures, audio and event listeners.
 At small projected body sizes, a hollow locator identifies the player without
-enlarging its body/collider or covering pocket mouths. Route signs adapt to
+enlarging its body/collider or covering narrow-lane entrances. On open observation
+pads it points away from nearby pulse signals, keeping their telegraphs exposed.
+Route signs adapt to
 18 CSS pixels where needed; the full-board camera and large-screen signs stay
 unchanged. Locator resources are scene-owned, not allocated on every frame.
 

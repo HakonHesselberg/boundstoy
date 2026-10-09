@@ -5,11 +5,15 @@ import { RULES } from '../data/terrain.ts';
 import { hazardSample } from '../core/simulation.ts';
 import { createPulse, updatePulse } from '../presentation/hazard-visuals.ts';
 
-test('PocketWave_AllThreeOrientations_VisualsMatchEveryExactWarningAndLethalBoundary', () => {
-  for (const hazard of LEVELS[8].hazards) {
-    assert.equal(hazard.kind, 'pulse');
-    if (hazard.kind !== 'pulse') continue;
-    const ignition = 480 + (hazard.period - hazard.phase) % hazard.period;
+test('RelayFinale_BothTravellingPhrasesAndRiser_VisualsMatchEveryExactWarningAndLethalBoundary', () => {
+  const level = LEVELS.find(level => level.id === 'relay-crescendo-v1');
+  assert.ok(level, 'the finale supplies moving waves and a timed mud riser');
+  const pulses = level.hazards.filter(hazard => hazard.kind === 'pulse');
+  assert.equal(pulses.length, 20, 'nine first-phrase vents, ten answering vents and the riser');
+  for (const hazard of pulses) {
+    const ignition = 2 * hazard.period + (hazard.period - hazard.phase) % hazard.period;
+    assert.equal(hazardSample(hazard, ignition - 1).active, false);
+    assert.equal(hazardSample(hazard, ignition).active, true);
     const view = createPulse();
     for (const reducedMotion of [false, true]) for (const tick of [
       ignition - RULES.pulseWarningTicks - 1, ignition - RULES.pulseWarningTicks,

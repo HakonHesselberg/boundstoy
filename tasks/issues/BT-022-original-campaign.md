@@ -3,11 +3,11 @@
   "id": "BT-022",
   "title": "Author a wholly original bounds and escape campaign",
   "type": "feature",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": "BT-021",
-  "scope": ["data/levels.ts", "data/replays.ts", "tests/courses.test.ts", "tests/recovery.test.ts", "tests/guidance.test.ts", "tests/hazard-visuals.test.ts", "tests/mobile-readability.test.ts", "tests/browser/scenarios.ts", "README.md", "CLAUDE.md", "docs/GAME_SYSTEMS.md", "docs/ARCHITECTURE.md", "docs/TESTING.md"],
+  "scope": ["data/levels.ts", "data/replays.ts", "presentation/readability.ts", "tests/courses.test.ts", "tests/recovery.test.ts", "tests/guidance.test.ts", "tests/hazards.test.ts", "tests/render-loop.test.ts", "tests/hazard-visuals.test.ts", "tests/mobile-readability.test.ts", "tests/browser/scenarios.ts", "README.md", "CLAUDE.md", "docs/GAME_SYSTEMS.md", "docs/ARCHITECTURE.md", "docs/TESTING.md"],
   "approval": "2026-10-09 user explicitly requests completely new sets of levels, not the existing campaign; authorizes up to five rounds and reviewed local commits without pushing under BT-021.",
   "assignment": {
     "owner": "original-campaign-worker",
@@ -37,12 +37,12 @@ No runtime physics, UI or storage changes, no new dependency, no copied maps.
 
 ## Acceptance criteria
 
-- [ ] Every shipped level is new, rather than a renamed or transformed old map.
-- [ ] A cohesive progression teaches and practices existing movement and timing.
-- [ ] Each level has an exact deathless replay and safe checkpoint recovery.
-- [ ] Tests demonstrate meaningful route decisions and forgiving opening timing.
-- [ ] All tests and build pass; browser fixtures target the new courses.
-- [ ] Documentation removes obsolete preservation/prototype campaign claims.
+- [x] Every shipped level is new, rather than a renamed or transformed old map.
+- [x] A cohesive progression teaches and practices existing movement and timing.
+- [x] Each level has an exact deathless replay and safe checkpoint recovery.
+- [x] Tests demonstrate meaningful route decisions and forgiving opening timing.
+- [x] All tests and build pass; browser fixtures target the new courses.
+- [x] Documentation removes obsolete preservation/prototype campaign claims.
 
 ## Implementation context
 
@@ -64,10 +64,34 @@ the relevant safety properties. Return all command results and known limits.
 
 ## Handoff
 
-Pending. Worker may edit only declared scope, must not write task records,
-must not commit or push. Orchestrator reviews and integrates the scoped diff.
-No browser server unless needed for verification; report and stop owned resources.
+- Summary: Eight wholly original Relay courses delivered and integrated into
+  primary for release verification. Worker did not commit or change physics.
+- Changes: New course IDs, layouts, lessons, replays, course-specific tests,
+  browser fixtures and campaign documentation; retired fixed-index tests migrated.
+- Verification: Worker baseline 181/181; replacement RED 27 pass/5 fail;
+  final isolated suite 178/178 and build passed. Eight exact deathless replays,
+  11048 phase-specific recovery runs, 60 real-pixel cases and 16 offline browser
+  replays passed. Intro timed crossings tolerate +/-24 ticks.
+- Review: Independent review found the finale spawn locator obscured the first
+  signal while observing. Orchestrator reproduced this with additional spawn
+  and checkpoint tests; approach/departure samples revealed a second open-pad
+  overlap. Locator now points away from nearby signals on open pads while
+  preserving narrow-lane orientation. All observation/approach/center/departure
+  geometry tests pass without changing the authored layouts, replays or physics.
+- Commit: Scoped uncommitted diff integrated from .worktrees/BT-022 into primary;
+  campaign commit waits for combined verification.
+- Resources: Worker browser groups/profiles/servers cleaned. Three named
+  exploration scripts removed; screenshots retained as evidence.
+- Risks: Human comprehension, fun and touchscreen precision remain unverified.
+- Decisions: Two stale-fixture files and the review-discovered locator fix are
+  tightly coupled campaign-replacement work under the user's existing approval.
 
 ## Result
 
-Pending.
+- Summary: Accepted original campaign and review-driven locator correction.
+- Verification: Combined release gate passed 187 tests, production browser
+  run-TTZaRp, journey run-ScC8VT and 60-pixel-case run-Nv0Cm6. Both real Astro
+  bases passed all eight exact offline witnesses in run-f744701b-71af-4b5c-ad20-ef25af82d1a4.
+  Desktop screenshots confirm new route geometries; human enjoyment is not certified.
+- Integration: Scoped worker changes and orchestrator review fixes integrated
+  into primary, committed with this acceptance record. Worker worktree retained.

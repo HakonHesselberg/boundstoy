@@ -117,6 +117,8 @@ faster/equal/slower personal-best feedback. Real pointer activation verifies
 sound opt-in, retained keyboard focus, remembered volume and restart-triggered
 audio initialization without autoplay on reload. Unit tests bound synthesized
 sound to eight simultaneous voices and verify mute/disposal cleanup.
+Real two-finger direction input is combined with an opposing keyboard direction,
+then restarted while held; all input sources must clear without stuck movement.
 
 The journey captures every course at 1440x900 and entry overlays at 390x844,
 844x390 and 720x450 in `artifacts/release/`, after waiting for a rendered frame.

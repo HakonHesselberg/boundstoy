@@ -57,8 +57,8 @@ function shape(rows: readonly string[]) {
 
 test('Campaign_EightOriginalRelayCourses_NeverInheritPrototypeIdsOrLayouts', () => {
   assert.deepEqual(LEVELS.map(level => level.id), [
-    'relay-courtyard-v1', 'relay-hairpin-v1', 'relay-spillway-v1', 'relay-signal-v1',
-    'relay-looms-v1', 'relay-terraces-v1', 'relay-interchange-v1', 'relay-crescendo-v1',
+    'relay-courtyard-v1', 'relay-hairpin-v1', 'relay-spillway-v1', 'relay-signal-v2',
+    'relay-looms-v1', 'relay-terraces-v2', 'relay-interchange-v2', 'relay-crescendo-v2',
   ]);
   assert.ok(LEVELS.length >= 8 && LEVELS.length <= 10);
   assert.equal(new Set(LEVELS.map(level => level.name)).size, LEVELS.length);

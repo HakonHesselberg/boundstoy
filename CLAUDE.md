@@ -9,9 +9,14 @@ Scope: a shippable, consumer-facing game with at most ten focused levels,
 a secondary level editor, and the existing four movement surfaces. Teach each
 mechanic before combining it; build on existing mechanics only.
 The current eight-course Relay campaign replaces the retired prototype entirely.
-Protect safe observation and checkpoint recovery, generous introductory timing,
-and deliberate continuous-movement phrases in later mixed courses. Changes to
-routes require exact legal replays, necessity checks and measured input margins.
+It remains a regression baseline, not accepted gameplay: the user rejected its
+low difficulty and replay value. The approved Aftershock world (BT-024) must
+prove three challenging greyboxes before expanding to eight stages.
+Explosions are lethal for exactly one simulation tick; lingering effects are
+harmless. Do not restore sustained flames or stack consecutive detonations to
+disguise a continuous damage window. Keep the four movement rules unchanged.
+Changes to routes require exact legal replays, necessity checks and measured
+input margins; these checks are not a substitute for worthwhile gameplay.
 Do not restore the obsolete six-lesson/Pocket wave preservation constraints.
 Do not add puzzle systems, accounts, telemetry or backend services. Keep the
 main UI focused on playing, not a development dashboard.

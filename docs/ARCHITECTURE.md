@@ -29,7 +29,9 @@ the retired prototype. Its later courses combine previously taught surfaces;
 travelling blasts use ordinary pulse phase offsets. Every timed map shares one
 hazard period so recovery tests can construct a legal continuation from every
 phase. There is no course-specific branch in physics or rendering.
-New stable `relay-*-v1` IDs separate current progress from retained old records.
+Stable Relay IDs separate current progress from retained prototype records.
+Pulse courses use `-v2` after the instantaneous-explosion change; earlier
+sustained-flame times are retained but do not count as current clears.
 
 Soft ice rotates a fixed-length velocity vector towards input. It has no
 acceleration/drag path; releasing input and reversing never reduce its speed.
@@ -52,6 +54,10 @@ stored in state, not use `Math.random` or wall-clock time.
 Rendering reads state. Decorative bobbing, glow and turning use a separate
 visual clock; hazards always sample the simulation tick. Reduced-motion users
 keep static decorations but still see hazards move (necessary game information).
+Pulse collisions occur only at cycle tick zero. Burst visibility is independent:
+it samples ticks since ignition for a 36-tick one-shot effect, including when
+a rendered frame skips ignition. The plate signals safe ground immediately
+after the single lethal tick; remaining particles are harmless.
 
 Tiles and spike clusters use instanced geometry. Static markings and path edges
 are batched into line segments. The locally generated environment map provides reflections

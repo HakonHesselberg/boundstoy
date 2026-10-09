@@ -17,7 +17,7 @@ export function courseGuide(level: Level, state: State) {
 const DEATH_MESSAGES: Readonly<Record<DeathCause, string>> = Object.freeze({
   void: 'Over the edge. Stay on the floor and plan your next move.',
   spikes: 'Caught the spikes. Leave more room around the obstacles.',
-  pulse: 'Caught the blast. Wait on solid ground for a safe window.',
+  pulse: 'Caught the detonation. Move just after the blast; fading debris is harmless.',
   saw: 'Caught by the saw. Watch its return trip before you launch.',
 });
 export function deathMessage(cause: DeathCause): string {

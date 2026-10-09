@@ -49,50 +49,56 @@ export function createPulse() {
 
   const burst = new THREE.Group();
   const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 1),
-    new THREE.MeshBasicMaterial({ color: 0xfff1ad, toneMapped: false }));
+    new THREE.MeshBasicMaterial({ color: 0xfff1ad, transparent: true, depthWrite: false, toneMapped: false }));
   core.position.y = 0.4; burst.add(core);
-  const flame = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0),
+  const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0),
     new THREE.MeshBasicMaterial({ color: 0xff692d, transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }));
-  flame.position.y = 0.42; burst.add(flame);
+  shell.position.y = 0.42; burst.add(shell);
   const wave = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.045, 6, 24),
-    new THREE.MeshBasicMaterial({ color: 0xffdb6a, transparent: true, opacity: 0.9, toneMapped: false }));
+    new THREE.MeshBasicMaterial({ color: 0xffdb6a, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
   wave.rotation.x = -Math.PI / 2; wave.position.y = 0.12; burst.add(wave);
   const sparks = new THREE.Group();
   const sparkGeometry = new THREE.ConeGeometry(0.065, 0.32, 4);
-  const sparkMaterial = new THREE.MeshBasicMaterial({ color: 0xffd878, toneMapped: false });
+  const sparkMaterial = new THREE.MeshBasicMaterial({ color: 0xffd878, transparent: true, depthWrite: false, toneMapped: false });
   for (let i = 0; i < 8; i++) sparks.add(new THREE.Mesh(sparkGeometry, sparkMaterial));
   burst.add(sparks); group.add(burst);
-  return { group, plate, outline, warning, ring, burst, core, flame, wave, sparks };
+  return { group, plate, outline, warning, ring, burst, core, shell, wave, sparks, sparkMaterial };
 }
 
 export type PulseView = ReturnType<typeof createPulse>;
 
 export function updatePulse(view: PulseView, hazard: Pulse, tick: number, reducedMotion: boolean) {
   const sample = hazardSample(hazard, tick);
-  const cycle = sample.progress * hazard.period;
+  const cycle = sample.cycle;
   const charge = sample.warning ? (cycle - hazard.period + RULES.pulseWarningTicks) / RULES.pulseWarningTicks : 0;
-  const age = Math.min(cycle / hazard.on, 1);
+  const age = Math.min(cycle / RULES.pulseEffectTicks, 1);
+  const flash = Math.max(1 - cycle / RULES.pulseFlashTicks, 0);
   view.warning.visible = sample.warning;
-  view.burst.visible = sample.active;
+  // Sample time since ignition so a rendered frame need not land on the lethal tick.
+  view.burst.visible = cycle < RULES.pulseEffectTicks;
   view.plate.material.color.setHex(sample.active ? 0xff551e : sample.warning ? 0x52321c : 0x251b2c);
   view.plate.material.emissive.setHex(sample.active ? 0xff4114 : sample.warning ? 0xaa4313 : 0x341527);
   view.plate.material.emissiveIntensity = sample.active ? 1.6 : sample.warning ? 0.3 + charge * 0.4 : 0.15;
   view.outline.material.color.setHex(sample.active ? 0xffefbd : sample.warning ? 0xffc454 : 0xad617d);
   view.ring.scale.setScalar(reducedMotion ? 1 : 1 - charge * 0.6);
   view.sparks.visible = !reducedMotion;
-  const eruption = reducedMotion ? 0.65 : 1 - Math.min(age / 0.45, 1);
-  view.core.scale.set(0.85 + eruption * 0.15, 1.4 + eruption * 1.4, 0.85 + eruption * 0.15);
-  view.core.position.y = 0.35 + eruption * 0.16;
-  view.flame.scale.set(1, 1.6 + eruption * 1.5, 1);
-  view.flame.rotation.y = reducedMotion ? 0 : age * 5;
-  view.wave.scale.setScalar(reducedMotion ? 1 : 0.5 + Math.min(age * 5, 1) * 0.5);
-  view.wave.material.opacity = 0.4 + eruption * 0.5;
+  view.core.visible = flash > 0;
+  view.core.material.opacity = flash * (reducedMotion ? 0.6 : 1);
+  view.core.scale.setScalar(reducedMotion ? 1 : 0.7 + (1 - flash) * 0.6);
+  view.shell.scale.setScalar(reducedMotion ? 1 : 0.6 + age * 0.8);
+  view.shell.position.y = reducedMotion ? 0.42 : 0.42 + age * 0.3;
+  view.shell.material.color.setHex(flash > 0 ? 0xff692d : 0x9aaab4);
+  view.shell.material.opacity = (1 - age) ** 2 * 0.4;
+  view.wave.scale.setScalar(reducedMotion ? 1 : 0.5 + age * 0.9);
+  view.wave.material.opacity = (1 - age) * 0.9;
+  view.sparkMaterial.opacity = (1 - age) ** 2;
   view.sparks.children.forEach((spark, index) => {
-    const flight = reducedMotion ? 0.5 : (age * 1.6 + index * 0.117) % 1;
+    const flight = reducedMotion ? 0 : age;
     const angle = index * Math.PI / 4;
-    const radius = 0.15 + flight * 0.23;
-    spark.position.set(Math.cos(angle) * radius, 0.15 + Math.sin(flight * Math.PI) * 1.2, Math.sin(angle) * radius);
+    const radius = 0.12 + flight * 0.43;
+    spark.position.set(Math.cos(angle) * radius, 0.15 + 4 * flight * (1 - flight) * (0.6 + index % 3 * 0.15),
+      Math.sin(angle) * radius);
     spark.rotation.set(Math.sin(angle) * 0.5, angle, -Math.cos(angle) * 0.5);
-    spark.scale.setScalar(1 - flight * 0.6);
+    spark.scale.setScalar(1 - flight);
   });
 }

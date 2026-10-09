@@ -90,19 +90,25 @@ Camping on any of the nineteen wave vents fails. Mud then changes the pace
 before one last saw-timed crossing. Every reference checkpoint segment takes
 less than ten seconds; these are clean execution times, not beginner targets.
 
-The collision radius remains 0.20 tiles; all four movement rules and hazard
-collision rules are unchanged. Campaign pulse durations are freshly authored.
-New editor pads still use 45 active ticks; imported JSON/draft durations remain
-literal authored values.
+The collision radius remains 0.20 tiles and all four movement rules are unchanged.
+Explosions now kill for one simulation tick only. Editor pads detonate every
+three seconds; imported JSON/drafts retain their periods and phases, but legacy
+`on` durations are converted to `1`.
 
-New `relay-*-v1` IDs keep earlier prototype scores separate. Existing drafts and
-older records are preserved, but old clears do not complete new courses or
+Relay IDs keep earlier prototype scores separate; pulse courses use `-v2` to
+separate instantaneous-explosion records from earlier sustained-flame runs.
+Existing drafts and older records are preserved, but old clears do not complete changed courses or
 affect Continue. Choose **Remix level** in the editor to copy a current layout.
 
 Explosion pads are dark when safe, charge in amber, then erupt into bright
 fireballs, shock rings and sparks. The outlined square is the danger footprint.
-Fire stays visible for the complete lethal phase and disappears when it is safe
-to cross. Optional audio includes a low detonation thump.
+The tile is safe immediately after detonation, even while the burst dissipates
+for 300 ms. Fading debris is harmless, not continuous fire. Optional audio
+includes a low detonation thump.
+
+The approved **Aftershock** replacement world is in development, not included
+yet. Its first gate is proving three challenging, replayable encounters with
+these instantaneous explosions; the Relay campaign is not accepted as that world.
 
 ## Build / deploy
 

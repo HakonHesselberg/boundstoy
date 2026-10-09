@@ -18,11 +18,11 @@ test('Guide_SoftIce_TeachesTurningWithoutBraking', () => {
 test('Guide_RelayCourses_ExplainConcreteDecisionsBeforeMixingTaughtMechanics', () => {
   const expected = [
     ['relay-spillway-v1', /line up/i, /lane|curb|launch/i],
-    ['relay-signal-v1', /watch/i, /dark/i],
+    ['relay-signal-v2', /watch/i, /debris.*safe/i],
     ['relay-looms-v1', /saw/i, /move.*away/i],
-    ['relay-terraces-v1', /slow/i, /time|window/i],
-    ['relay-interchange-v1', /no brakes/i, /launch|curb|vents/i],
-    ['relay-crescendo-v1', /wave/i, /wave|rhythm|mud/i],
+    ['relay-terraces-v2', /slow/i, /time|window/i],
+    ['relay-interchange-v2', /no brakes/i, /launch|curb|vents/i],
+    ['relay-crescendo-v2', /wave/i, /wave|rhythm|mud/i],
   ] as const;
   for (const [id, opening, decisions] of expected) {
     const level = LEVELS.find(level => level.id === id);

@@ -11,8 +11,8 @@ function course(id: string, name: string, description: string, size: readonly [n
   });
   return parseLevel({ version: 1, id, name, description, tiles: grid.map(row => row.join('')), spawn, goal, checkpoints, hazards });
 }
-const pulse = (x: number, y: number, period: number, on: number, phase: number): Hazard =>
-  ({ kind: 'pulse', x, y, period, on, phase: ((phase % period) + period) % period });
+const pulse = (x: number, y: number, period: number, phase: number): Hazard =>
+  ({ kind: 'pulse', x, y, period, on: 1, phase: ((phase % period) + period) % period });
 
 // Relay station: eight original routes, authored around observation, commitment and recovery.
 // IDs deliberately share nothing with the retired prototype, including its stored best times.
@@ -56,7 +56,7 @@ export const LEVELS = Object.freeze([
       fill(7, 7, 3, 2, '!');
     }, { x: 9, y: 2 }, { x: 8, y: 14 }, [{ x: 12, y: 2 }, { x: 5, y: 14 }]),
 
-  course('relay-signal-v1', 'Signal stairs',
+  course('relay-signal-v2', 'Signal stairs',
     'Read one gate at a time. Climb through the first dark signal, rest on the elbow, then cross the second and turn toward the exit.', [16, 15], fill => {
       fill(1, 10, 5, 4, '.');
       fill(2, 6, 3, 4, '.');
@@ -68,8 +68,8 @@ export const LEVELS = Object.freeze([
       fill(6, 3, 4, 1, '#');
       fill(6, 7, 4, 1, '#');
     }, { x: 3, y: 11 }, { x: 11, y: 2 }, [{ x: 3, y: 5 }, { x: 11, y: 5 }], [
-      ...[2, 3, 4].map(x => pulse(x, 8, 600, 120, 170)),
-      ...[4, 5, 6].map(y => pulse(8, y, 600, 120, 413)),
+      ...[2, 3, 4].map(x => pulse(x, 8, 600, 170)),
+      ...[4, 5, 6].map(y => pulse(8, y, 600, 413)),
     ]),
 
   course('relay-looms-v1', 'Patrol looms',
@@ -90,7 +90,7 @@ export const LEVELS = Object.freeze([
       { kind: 'saw', from: { x: 5, y: 9 }, to: { x: 11, y: 9 }, period: 600, phase: 120 },
     ]),
 
-  course('relay-terraces-v1', 'Silt terraces',
+  course('relay-terraces-v2', 'Silt terraces',
     'Slow does not mean slippery. Cross the silt on a fresh dark signal, turn on the dry terrace, and budget more time for the descent.', [20, 18], fill => {
       fill(1, 1, 5, 5, '.');
       fill(6, 3, 6, 2, ':');
@@ -103,11 +103,11 @@ export const LEVELS = Object.freeze([
       fill(12, 7, 1, 5, '#');
       fill(15, 7, 1, 5, '#');
     }, { x: 3, y: 3 }, { x: 5, y: 13 }, [{ x: 13, y: 3 }, { x: 13, y: 13 }], [
-      ...[3, 4].map(y => pulse(9, y, 720, 120, 0)),
-      ...[13, 14].map(x => pulse(x, 9, 720, 120, 0)),
+      ...[3, 4].map(y => pulse(9, y, 720, 0)),
+      ...[13, 14].map(x => pulse(x, 9, 720, 0)),
     ]),
 
-  course('relay-interchange-v1', 'High interchange',
+  course('relay-interchange-v2', 'High interchange',
     'Carry a green-ice hook into a dry transfer platform. Change to a locked blue slide, relaunch at the curb, then time the high signal bridge.', [23, 21], fill => {
       fill(1, 15, 4, 5, '.');
       fill(5, 15, 8, 5, '~');
@@ -125,10 +125,10 @@ export const LEVELS = Object.freeze([
       fill(5, 14, 4, 1, '!');
     }, { x: 3, y: 17 }, { x: 18, y: 7 },
     [{ x: 11, y: 10 }, { x: 4, y: 2 }, { x: 18, y: 2 }], [
-      pulse(11, 2, 600, 100, 200), pulse(14, 2, 600, 100, 200),
+      pulse(11, 2, 600, 200), pulse(14, 2, 600, 200),
     ]),
 
-  course('relay-crescendo-v1', 'Last light relay',
+  course('relay-crescendo-v2', 'Last light relay',
     'Follow the clearing signal around two elbows without camping on a vent. Recover between phrases, climb the slow riser, then let the last patrol pass.', [24, 22], fill => {
       fill(1, 16, 4, 5, '.');
       fill(5, 18, 5, 1, '.');
@@ -160,10 +160,10 @@ export const LEVELS = Object.freeze([
     [{ x: 9, y: 12 }, { x: 17, y: 20 }, { x: 21, y: 5 }], [
       // The wave follows the reference runner; the returning blast punishes camping.
       ...[[5, 18], [6, 18], [7, 18], [8, 18], [9, 18], [9, 17], [9, 16], [9, 15], [9, 14]]
-        .map(([x, y], i) => pulse(x, y, 720, 100, 720 - (230 + i * 33))),
+        .map(([x, y], i) => pulse(x, y, 720, 720 - (230 + i * 33))),
       ...[[12, 12], [13, 12], [14, 12], [15, 12], [16, 12], [17, 12], [17, 13], [17, 14], [17, 15], [17, 16]]
-        .map(([x, y], i) => pulse(x, y, 720, 100, 720 - (760 + i * 33))),
-      pulse(21, 10, 720, 120, 0),
+        .map(([x, y], i) => pulse(x, y, 720, 720 - (760 + i * 33))),
+      pulse(21, 10, 720, 0),
       { kind: 'saw', from: { x: 16, y: 2 }, to: { x: 16, y: 8 }, period: 720, phase: 0 },
     ]),
 ]);
@@ -187,9 +187,9 @@ export const COURSE_LESSONS: Readonly<Record<string, readonly Lesson[]>> = Objec
     ['Two locks, two launches', 'Slide down to the curb. Launch left along the bottom lane, let the next curb stop you, then launch down to 02. Do not aim through the inside spikes.'],
     ['Leave the spillway', 'Solid ground restores full control. Walk right to the exit.'],
   ),
-  'relay-signal-v1': lessons(
-    ['Watch from the foot', 'Stay on this dry platform to watch the first signal. When the blast goes dark, walk up through it to 01. Amber means another blast is approaching.'],
-    ['Read the second signal', 'Stop on the elbow. Wait for the right-hand gate to go dark, then cross right to 02 without stopping in the gate.'],
+  'relay-signal-v2': lessons(
+    ['Watch from the foot', 'Stay on this dry platform to watch the first signal. Walk up to 01 just after it explodes; fading debris is safe. Amber means another blast is approaching.'],
+    ['Read the second signal', 'Stop on the elbow. Cross right to 02 just after the next gate explodes. Fading debris is safe, but leave before the next amber warning ends.'],
     ['Above the signals', 'Turn up on the safe landing and walk to the exit.'],
   ),
   'relay-looms-v1': lessons(
@@ -197,18 +197,18 @@ export const COURSE_LESSONS: Readonly<Record<string, readonly Lesson[]>> = Objec
     ['Change your viewpoint', 'Stop here and watch the second saw. When it moves away from the vertical crossing, walk up to 02.'],
     ['Beyond the looms', 'Turn right across the broad upper platform to the exit.'],
   ),
-  'relay-terraces-v1': lessons(
+  'relay-terraces-v2': lessons(
     ['Budget the slow crossing', 'Mud is slow, not slippery: release to stop. Watch the signal from dry ground and use a fresh dark window to walk right to 01.'],
     ['Down the second terrace', 'Wait on this dry terrace for the lower signal. Walk down through the silt to 02; allow more time than a normal-floor crossing.'],
     ['Dry return', 'Turn left along the dry lower shelf. Feel full walking speed return on the way to the exit.'],
   ),
-  'relay-interchange-v1': lessons(
+  'relay-interchange-v2': lessons(
     ['Carry the hook', 'Green ice has no brakes. Launch right, then sweep up into the dry transfer at 01. Leave space for the arc before the far edge.'],
     ['Change movement rules', 'Align on the middle row of this pad, then launch left on blue ice. Let the curb stop you; launch up its outside lane to 02.'],
     ['The high signal bridge', 'You can stop here. Read both vents, then cross right through their dark windows to 03. Do not wait on a vent.'],
     ['Final descent', 'Turn down on this broad landing to the exit.'],
   ),
-  'relay-crescendo-v1': lessons(
+  'relay-crescendo-v2': lessons(
     ['First continuous phrase', 'Watch the travelling wave. Walk right, then up around the elbow to 01. Keep moving over the vents: a returning blast catches anyone camping.'],
     ['Answer the phrase', 'Recover here, then read the next wave. Walk right and turn down at its elbow to 02. Keep the same steady walking rhythm.'],
     ['The slow riser', 'Walk right onto the riser, then climb up. Mud needs a longer dark window at the signal. Observe from this dry pad before committing to 03.'],

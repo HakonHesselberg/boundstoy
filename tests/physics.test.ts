@@ -24,7 +24,7 @@ test('Step_PlayerHitbox_PointTwoRadiusAllowsCloserWallPulseAndSawClearance', () 
   assert.ok(Math.abs(moved.position.x - 14.79) < 1e-9);
   assert.deepEqual(step(level, moved, { x: 1, y: 0 }).position, moved.position);
   for (const [hazard, safeX, lethalX] of [
-    [{ kind: 'pulse', x: 5, y: 5, period: 240, on: 120, phase: 0 }, 6.135, 6.125],
+    [{ kind: 'pulse', x: 5, y: 5, period: 240, on: 120, phase: 239 }, 6.135, 6.125],
     [{ kind: 'saw', from: { x: 5, y: 5 }, to: { x: 5, y: 5 }, period: 240, phase: 0 }, 6.015, 6.005],
   ] as const) {
     const danger = room('.', [hazard]);
@@ -185,12 +185,37 @@ test('Step_Pit_RespawnsAtCheckpointAndPreservesRunTime', () => {
   assert.equal(state.tick, 210);
 });
 
-test('Hazard_Pulse_HasDeterministicWarningAndSafeWindow', () => {
-  const hazard = { kind: 'pulse' as const, x: 5, y: 5, period: 240, on: 60, phase: 0 };
-  assert.equal(hazardSample(hazard, 0).active, true);
-  assert.equal(hazardSample(hazard, 100).active, false);
-  assert.equal(hazardSample(hazard, 225).warning, true);
-  assert.equal(hazardSample(hazard, 240).active, true);
+test('Hazard_Pulse_OnlyDetonationTickIsLethalRegardlessOfLegacyDuration', () => {
+  for (const period of [120, 240, 601, 3600]) for (const phase of [0, 1, period - 1]) {
+    const hazard = { kind: 'pulse' as const, x: 5, y: 5, period, on: 60, phase };
+    for (let tick = -period; tick <= 2 * period; tick++) {
+      const cycle = ((tick + phase) % period + period) % period;
+      const sample = hazardSample(hazard, tick);
+      assert.equal(sample.active, cycle === 0, `${period}/${phase}@${tick}`);
+      assert.equal(sample.warning, cycle >= period - 54);
+    }
+  }
+});
+
+test('Step_PulseFootprint_SafeBeforeAndImmediatelyAfterDetonation', () => {
+  const level = room('.', [{ kind: 'pulse', x: 3, y: 5, period: 240, on: 60, phase: 0 }]);
+  for (const tick of [238, 239, 240, 241, 478, 479, 480]) {
+    const next = step(level, { ...createState(level), tick }, { x: 0, y: 0 });
+    assert.equal(next.deaths, next.tick % 240 === 0 ? 1 : 0, `collision at ${next.tick}`);
+  }
+});
+
+test('Step_PulseAftermath_CanEnterOnTheNextTickAndRemainUntilNextIgnition', () => {
+  const level = room('.', [{ kind: 'pulse', x: 5, y: 5, period: 240, on: 120, phase: 0 }]);
+  const outside = { ...createState(level), tick: 239, position: { x: 4.865, y: 5.5 } };
+  const detonation = step(level, outside, { x: 0, y: 0 });
+  assert.equal(detonation.deaths, 0);
+  const entered = step(level, detonation, { x: 1, y: 0 });
+  assert.ok(entered.position.x > 5.5 - RULES.pulseRadius - RULES.radius);
+  const safe = run(level, entered, { x: 0, y: 0 }, 238);
+  assert.equal(safe.tick, 479);
+  assert.equal(safe.deaths, 0, 'even an overlapping footprint is safe between detonations');
+  assert.equal(step(level, safe, { x: 0, y: 0 }).deathCause, 'pulse');
 });
 
 test('Hazard_Saw_MovesBetweenEndpoints', () => {
@@ -201,7 +226,7 @@ test('Hazard_Saw_MovesBetweenEndpoints', () => {
 });
 
 test('Step_ActiveHazard_KillsPlayer', () => {
-  const level = room('.', [{ kind: 'pulse', x: 3, y: 5, period: 240, on: 60, phase: 0 }]);
+  const level = room('.', [{ kind: 'pulse', x: 3, y: 5, period: 240, on: 60, phase: 239 }]);
   const hit = step(level, createState(level), { x: 0, y: 0 });
   assert.equal(hit.deaths, 1);
   assert.equal(hit.deathCause, 'pulse');

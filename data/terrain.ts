@@ -16,6 +16,8 @@ export const RULES = Object.freeze({
   radius: 0.20,
   respawnTicks: 54,
   pulseWarningTicks: 54,
+  pulseEffectTicks: 36,
+  pulseFlashTicks: 6,
   pulseRadius: 0.43,
   sawRadius: 0.31,
   markerRadius: 0.42,

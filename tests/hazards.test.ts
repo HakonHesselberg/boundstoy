@@ -6,7 +6,7 @@ import { hazardSample } from '../core/simulation.ts';
 import { createPulse, updatePulse } from '../presentation/hazard-visuals.ts';
 
 test('RelayFinale_BothTravellingPhrasesAndRiser_VisualsMatchEveryExactWarningAndLethalBoundary', () => {
-  const level = LEVELS.find(level => level.id === 'relay-crescendo-v1');
+  const level = LEVELS.find(level => level.id === 'relay-crescendo-v2');
   assert.ok(level, 'the finale supplies moving waves and a timed mud riser');
   const pulses = level.hazards.filter(hazard => hazard.kind === 'pulse');
   assert.equal(pulses.length, 20, 'nine first-phrase vents, ten answering vents and the riser');
@@ -17,12 +17,14 @@ test('RelayFinale_BothTravellingPhrasesAndRiser_VisualsMatchEveryExactWarningAnd
     const view = createPulse();
     for (const reducedMotion of [false, true]) for (const tick of [
       ignition - RULES.pulseWarningTicks - 1, ignition - RULES.pulseWarningTicks,
-      ignition - 1, ignition, ignition + hazard.on - 1, ignition + hazard.on,
+      ignition - 1, ignition, ignition + 1, ignition + 35, ignition + 36,
     ]) {
       const sample = hazardSample(hazard, tick);
       updatePulse(view, hazard, tick, reducedMotion);
       assert.equal(view.warning.visible, sample.warning, `${hazard.x},${hazard.y}@${tick}: warning`);
-      assert.equal(view.burst.visible, sample.active, `${hazard.x},${hazard.y}@${tick}: lethal`);
+      assert.equal(sample.active, tick === ignition, 'exactly one lethal tick');
+      assert.equal(view.burst.visible, tick >= ignition && tick < ignition + 36,
+        `${hazard.x},${hazard.y}@${tick}: cosmetic aftermath`);
       assert.equal(view.plate.geometry.parameters.width, 2 * RULES.pulseRadius);
       assert.equal(view.plate.geometry.parameters.depth, 2 * RULES.pulseRadius);
     }

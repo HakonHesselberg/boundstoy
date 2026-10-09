@@ -38,12 +38,19 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
 ## Hazards and goals
 
 - Pulse: a square danger zone, 0.43-tile half-size plus player radius.
-  `(tick + phase) % period < on` is active; the final 54 ticks warn of activation.
-  Dark vent = safe, contracting amber ring = warning, fireball and sparks = active.
-  All blast animation uses simulation ticks, so pausing freezes it and replay
-  screenshots are repeatable. Reduced motion keeps a static but bright blast.
-  Current campaign durations are authored per route. New editor pads use period 360 / on 45 / phase 0
-  (0.375 seconds active, 2.625 safe). Imported JSON keeps its literal `on` value.
+  `(tick + phase) % period === 0` is lethal for **one 120 Hz simulation tick**
+  (about 8.33 ms), not one displayed frame. The final 54 ticks warn of detonation.
+  The tile is safe on the very next tick, even with visual debris over it.
+  The ground plate immediately returns to its safe colour; a six-tick flash,
+  expanding shock ring and non-looping debris dissipate over 36 ticks (300 ms).
+  Effects sample time since ignition, so skipping the ignition render frame
+  does not hide the explosion. Pause freezes the effect; reduced motion removes
+  particle travel and expansion but preserves warning, flash and fade.
+  New editor pads use period 360 / on 1 / phase 0 (one detonation every 3 seconds).
+  Version-1 imports validate the old `on` field but normalize it to `1`, retaining
+  geometry, period and phase. Exported JSON always uses `on: 1`. The editor
+  reports this change on import/draft restoration; sustained flames are not
+  an alternative mode. The initial state is tick 0; `step` first evaluates tick 1.
 - Saw: a 0.31-tile radius moving linearly between two cell centers and back.
   `period` is the complete out-and-back cycle. Its whole path is drawn.
 - Checkpoint: touch within 0.42 tiles to activate. Each checkpoint activates once
@@ -62,8 +69,9 @@ break equal-time ties. Restart clears checkpoints, falls and time.
 
 The eight-course Relay campaign replaces every prototype layout, ID and witness.
 It teaches before combining, then uses existing movement and hazards in longer
-phrases. No physics, storage migration, imported-level format or new system is
-needed to express these routes.
+phrases. These existing routes are regression fixtures, not the approved
+Aftershock world or evidence of interesting gameplay. Pulse courses now have
+`-v2` IDs so their times do not compare against sustained-flame `-v1` records.
 
 | Level | Route composition | Observation / commitment |
 | --- | --- | --- |
@@ -90,9 +98,9 @@ any trajectory or launch is safe.
 
 The finale's nine-vent east/north phrase and ten-vent east/south answer advance
 one tile every 33 ticks (0.275 seconds), close to walking cadence. Their shared
-720-tick period and 100-tick blasts make a returning chase: the reference player
+720-tick period and instantaneous blasts make a returning chase: the reference player
 passes vent centers 65–85 ticks before they ignite. Camping on any vent dies
-at its next ignition. The slow riser uses a 120-tick blast on the same cycle;
+at its next ignition. The slow riser detonates for one tick on the same cycle;
 the final saw also shares that period. No hiding pockets or inherited
 prototype wave geometry remain.
 
@@ -127,14 +135,16 @@ than flat warning symbols. Visual height never changes passability.
   "goal": { "x": 6, "y": 1 },
   "checkpoints": [],
   "hazards": [
-    { "kind": "pulse", "x": 4, "y": 1, "period": 360, "on": 90, "phase": 0 },
+    { "kind": "pulse", "x": 4, "y": 1, "period": 360, "on": 1, "phase": 0 },
     { "kind": "saw", "from": { "x": 2, "y": 3 }, "to": { "x": 5, "y": 3 }, "period": 360, "phase": 60 }
   ]
 }
 ```
 
 Bounds: 8-40 columns, 6-32 rows, 80 hazards, 30 checkpoints, 100 KB imported JSON.
-Periods are 120-3600 ticks. Pulses must leave at least 60 safe ticks. Version,
+Periods are 120-3600 ticks. The legacy `on` input remains a required integer
+in `1..period-60` for version-1 compatibility, but is normalized to `1`; it
+does not control damage or visual duration. Version,
 tile characters, coordinates, required text and numeric values are validated;
 unknown hazard kinds are rejected. Spawn, exit and checkpoints must be on safe
 terrain. Hazard paths can cross void; placing a pulse does not create ground.

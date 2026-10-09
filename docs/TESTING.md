@@ -3,6 +3,9 @@
 `npm run evaluate` runs local issue/index validation, Node tests, TypeScript and
 the production build. There is no added test framework or browser automation
 dependency. Regenerate `tasks/INDEX.md` after editing issue metadata.
+Run the full test suite and typecheck/build sequentially: Astro subprocess
+tests briefly generate `.ts` fixtures under their ignored artifacts directory.
+Concurrent typechecking can mistake those temporary fixtures for project source.
 
 For automated production-browser acceptance, run `npm run test:browser` with an
 installed Chromium. It builds, serves an owned temporary origin and drives an
@@ -67,8 +70,12 @@ Concept checks teach each mechanic before combining it. Behaviour checks show:
   maximum is 1147 ticks / 9.5583 seconds), so retries do not repeat long solved
   stretches. Routes have at least 15 tiles of actual travel, or 30 in later maps.
 
-Geometry/phase tests also check tall spike silhouettes, low curbs, visible
-charge/blast states, exact lethal-window visibility, and reduced-motion effects.
+Geometry/phase tests also check tall spike silhouettes, low curbs, warnings,
+single-tick detonation and 36-tick harmless aftermath, including phase wrapping,
+legacy duration normalization and safe entry on the next tick. Render batching
+at 15/30/60/120/144 Hz must detect exact ignition ticks even between display
+frames. Effects must remain visible after a skipped ignition frame, dissipate
+without particle loops, and repeat deterministically when paused or replayed.
 
 The finale's nineteen wave vents advance every 33 ticks. The legal witness
 passes each vent center 65–85 ticks before its returning blast. Camping on
@@ -97,7 +104,7 @@ positions at four viewport/DPR combinations (60 cases). Route signs remain
 18 CSS pixels or larger, on screen and non-overlapping; desktop camera and
 body/collider sizes are unchanged.
 
-## Relay release-candidate acceptance
+## Historical Relay release-candidate checks (before instantaneous explosions)
 
 The integrated `npm run release:check` passes 187 portable tests, production
 browser gameplay/offline checks, saved-progress and sound journey checks, and
@@ -114,7 +121,10 @@ with a 133.4 ms maximum hitch. This is one local observation, not a hardware
 compatibility matrix or input-latency certification. The deterministic loop
 already bounds simulation catch-up after hitches.
 
-These checks establish technical candidate readiness, not review sentiment.
+These historical checks established a technical playtest candidate, not
+gameplay acceptance. The user subsequently rejected its difficulty and replay
+value. Aftershock is tracked separately in BT-024; none of this evidence
+establishes that the replacement world is finished or fun.
 Independent newcomer playtesting, physical touchscreen precision, Firefox/WebKit,
 audio comfort and broader hardware performance remain unverified. The new
 campaign's fun, difficulty curve and repeat-play value require real players.

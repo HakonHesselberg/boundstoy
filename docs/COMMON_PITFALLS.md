@@ -6,7 +6,10 @@
 - Do not make soft ice snap to input, or allow hard ice to steer while moving.
 - Soft-ice curbs reflect momentum; hard-ice curbs stop it. Do not conflate them.
 - Hard-ice lock ends on leaving the surface or hitting a wall, not on key release.
-- Keep hazard meshes and collision radii/active phases aligned.
+- Keep hazard footprints aligned with collision radii. Pulse danger lasts one
+  simulation tick; its 36-tick visual aftermath is deliberately harmless.
+  Derive effect age from the cycle, not just `active`, or skipped render frames
+  will hide detonations. Do not reintroduce looping flames.
 - A level validation pass proves structure, not solvability. Keep witness replays.
 - Imported level names are text, never `innerHTML`.
 - Preserve leading/trailing spaces in tile rows: spaces represent void.

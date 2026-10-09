@@ -28,12 +28,12 @@ export function terrainAt(level: Level, position: Point): Terrain {
 export function hazardSample(hazard: Hazard, tick: number) {
   const cycle = ((tick + hazard.phase) % hazard.period + hazard.period) % hazard.period;
   if (hazard.kind === 'pulse') {
-    return { position: center(hazard), active: cycle < hazard.on,
+    return { position: center(hazard), active: cycle === 0, cycle,
       warning: cycle >= hazard.period - RULES.pulseWarningTicks, progress: cycle / hazard.period };
   }
   const t = 1 - Math.abs(2 * cycle / hazard.period - 1);
   return { position: { x: hazard.from.x + 0.5 + (hazard.to.x - hazard.from.x) * t,
-    y: hazard.from.y + 0.5 + (hazard.to.y - hazard.from.y) * t }, active: true, warning: false, progress: t };
+    y: hazard.from.y + 0.5 + (hazard.to.y - hazard.from.y) * t }, active: true, warning: false, progress: t, cycle };
 }
 export function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);

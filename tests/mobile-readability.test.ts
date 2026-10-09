@@ -50,7 +50,7 @@ test('PlayerLocator_ActualOpaqueGeometry_IsAtLeastTwelveCssPixelsWithoutScalingT
 });
 
 test('PlayerLocator_ChaseElbowsAndRiser_LeaveEveryLethalFootprintExposed', () => {
-  const index = LEVELS.findIndex(level => level.id === 'relay-crescendo-v1'), level = LEVELS[index];
+  const index = LEVELS.findIndex(level => level.id === 'relay-crescendo-v2'), level = LEVELS[index];
   assert.ok(level);
   let state = createState(level);
   const states = [state];
@@ -141,7 +141,7 @@ if (process.argv.includes('--readability-browser')) {
   const { main } = await import('../scripts/browser-check.ts');
   const { waitFor } = await import('./browser/runtime.ts');
   const scenarios = LEVELS.map((_, index) => ({ index, name: 'spawn', commands: [] as { ticks: number; x: number; y: number }[] }));
-  const finale = LEVELS.findIndex(level => level.id === 'relay-crescendo-v1');
+  const finale = LEVELS.findIndex(level => level.id === 'relay-crescendo-v2');
   for (const tick of [157, 290, 423, 680, 847, 980, 1951]) {
     let remaining = tick;
     const commands = REPLAYS[finale].flatMap(command => {

@@ -4,7 +4,8 @@
 npm ci
 npm run test:browser
 npm run test:journey
-# Combined release gate: portable checks + production browser + journey + readability
+npm run test:explosions
+# Combined release gate: portable + production browser + journey + explosions + readability
 npm run release:check
 ```
 
@@ -59,6 +60,14 @@ Prefer the npm command for acceptance so stale assets cannot pass.
 
 ## What is checked
 
+- The dedicated explosion check imports a legacy pulse and verifies disclosed
+  `on: 1` normalization, exact detonation collision, safe entry one tick later,
+  the next distinct detonation and a render batch that skips ignition.
+  Full/reduced-motion captures at 1060x800 show warning, flash, harmless
+  aftermath and cleared ground. Paused screenshots must be identical.
+  Repeated effects must not grow GPU geometry after initial death-effect upload.
+  Captures are under `artifacts/explosions/`; runner logs and cleanup evidence
+  use the usual per-run browser directory.
 - A single generic initial Play waits for intent and accepts Enter. Level
   selection (including before initial Play), Next, Retry and Restart game level
   start immediately with viewport focus and no tutorial overlay. Completed

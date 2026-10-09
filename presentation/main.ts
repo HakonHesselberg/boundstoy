@@ -280,7 +280,7 @@ function boot(scene: Scene) {
     for (const [tile, terrain] of Object.entries(TERRAIN)) {
       if (level.tiles.some(row => row.includes(tile))) add(terrain.name, terrain.hint, terrain.color);
     }
-    if (level.hazards.some(hazard => hazard.kind === 'pulse')) add('Pulse pads', 'Amber warns of a blast. Cross only when the pad is dark.', '#ecae6a');
+    if (level.hazards.some(hazard => hazard.kind === 'pulse')) add('Pulse pads', 'Amber warns of an instant blast. The tile is safe immediately afterwards, even while debris fades.', '#ecae6a');
     if (level.hazards.some(hazard => hazard.kind === 'saw')) add('Saws', 'Watch the patrol and cross when the way is clear.', '#e35b80');
   }
   function openMenu() {
@@ -337,7 +337,11 @@ function boot(scene: Scene) {
     if (!draft) {
       try {
         const saved = localStorage.getItem(DRAFT_KEY);
-        if (saved) draft = importLevel(saved);
+        if (saved) {
+          draft = importLevel(saved);
+          if (draft.hazards.some(hazard => hazard.kind === 'pulse'))
+            notify('Draft restored. Pulse pads now explode for one tick; fading debris is harmless.');
+        }
       } catch (error) { report('Could not load editor draft', error); }
     }
     draft ??= parseLevel({ ...LEVELS[selectedCourse], id: 'my-course', name: `${LEVELS[selectedCourse].name} remix` });
@@ -350,7 +354,7 @@ function boot(scene: Scene) {
     { id: 'spawn', label: 'Start', color: '#3c887c', mark: 'S', help: 'Place the starting point. This also creates safe floor.' },
     { id: 'goal', label: 'Exit', color: '#9e7951', mark: 'G', help: 'Place the golden exit. This also creates safe floor.' },
     { id: 'checkpoint', label: 'Checkpoint', color: '#3c887c', mark: 'C', help: 'Place a saved respawn point. Erase removes it.' },
-    { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'A timed pad: 0.375 seconds active, then 2.625 seconds safe. JSON can change its timing.' },
+    { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'An instant explosion every 3 seconds. Fading debris is harmless. JSON changes period and phase; legacy on durations become one tick.' },
     { id: 'saw', label: 'Saw', color: '#943552', mark: 'X', help: 'Click the start, then the end of a patrol. Travels out and back every 3 seconds.' },
     { id: 'erase', label: 'Erase object', color: '#253549', mark: '×', help: 'Remove a checkpoint or hazard at its starting tile. Floor stays unchanged.' },
   ];
@@ -540,7 +544,9 @@ function boot(scene: Scene) {
     try {
       commit(importLevel(element<HTMLTextAreaElement>('level-json').value));
       element<HTMLInputElement>('level-name').value = level.name;
-      notify('Level imported. Ready to playtest.');
+      notify(level.hazards.some(hazard => hazard.kind === 'pulse')
+        ? 'Level imported. Pulse pads explode for one tick; legacy on durations are converted. Fading debris is harmless.'
+        : 'Level imported. Ready to playtest.');
     } catch (error) { notify(`Import rejected: ${error instanceof Error ? error.message : String(error)}`, true); }
   }, options);
   element('download').addEventListener('click', () => {

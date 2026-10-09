@@ -3,6 +3,29 @@ import test from 'node:test';
 import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
 import { createState, DT, step, STILL } from '../core/simulation.ts';
 import { LEVELS } from '../data/levels.ts';
+import { parseLevel } from '../core/level.ts';
+import { blankLevel } from '../core/editor.ts';
+
+for (const hz of [15, 30, 60, 120, 144]) {
+  test(`FixedSteps_${hz}Hz_DoesNotSkipSingleTickDetonationsBetweenRenderedFrames`, () => {
+    const base = blankLevel();
+    const level = parseLevel({ ...base, hazards: [
+      { kind: 'pulse', ...base.spawn, period: 120, phase: 119, on: 1 },
+    ] });
+    let state = createState(level), accumulator = 0;
+    const deaths: number[] = [];
+    for (let frame = 0; frame < hz * 2; frame++) {
+      const pending = fixedSteps(accumulator, 1 / hz);
+      accumulator = pending.remainder;
+      for (let i = 0; i < pending.count; i++) {
+        state = step(level, state, STILL);
+        if (state.event === 'death') deaths.push(state.tick);
+      }
+    }
+    assert.deepEqual(deaths, [1, 121]);
+    assert.equal(state.tick, 240);
+  });
+}
 
 function harness(onFrame?: (elapsed: number) => void) {
   let nextId = 0, requests = 0;
@@ -83,7 +106,7 @@ test('RenderLoop_FixedStepSimulation_Preserves120HzAcrossPauseAndResize', () => 
 
 for (const hz of [15, 30, 60, 120, 144]) {
   test(`RenderLoop_${hz}HzFrames_ProduceExactlyTheSameTenSecondsOfMovement`, () => {
-    const level = LEVELS.find(level => level.id === 'relay-crescendo-v1'), input = { x: 1, y: 0 };
+    const level = LEVELS.find(level => level.id === 'relay-crescendo-v2'), input = { x: 1, y: 0 };
     assert.ok(level, 'the travelling-wave finale exercises movement, death and continuing hazard phases');
     let state = createState(level), expected = state, accumulator = 0;
     for (let tick = 0; tick < 1200; tick++) expected = step(level, expected, input);

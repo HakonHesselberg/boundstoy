@@ -64,8 +64,10 @@ export function parseLevel(value: unknown): Level {
     const period = integer(h.period, `hazards[${i}].period`, 120, 3600);
     const phase = integer(h.phase, `hazards[${i}].phase`, 0, period - 1);
     if (h.kind === 'pulse') {
+      // Version-1 imports keep their rhythm, but legacy flame durations become single detonations.
+      integer(h.on, `pulse[${i}].on`, 1, period - 60);
       return Object.freeze({ kind: 'pulse', ...point(h, `pulse[${i}]`), period, phase,
-        on: integer(h.on, `pulse[${i}].on`, 1, period - 60) });
+        on: 1 });
     }
     if (h.kind === 'saw') {
       return Object.freeze({ kind: 'saw', from: point(h.from, `saw[${i}].from`), to: point(h.to, `saw[${i}].to`), period, phase });

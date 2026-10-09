@@ -22,7 +22,7 @@ test('Spikes_Tile_HasTallPointedMetalTeethNotFlatDiamonds', () => {
   assert.ok(WALL_HEIGHT < 0.3, 'barriers should be low curbs');
 });
 
-test('Pulse_SafeWarningAndBlast_AreDistinctAndMatchCollisionWindow', () => {
+test('Pulse_DetonationAndHarmlessAftermath_AreDistinctFromTheWarning', () => {
   const view = createPulse();
   updatePulse(view, pulse, 200, false);
   assert.equal(view.burst.visible, false);
@@ -33,11 +33,15 @@ test('Pulse_SafeWarningAndBlast_AreDistinctAndMatchCollisionWindow', () => {
   updatePulse(view, pulse, 0, false);
   assert.equal(view.burst.visible, true);
   assert.equal(view.warning.visible, false);
-  assert.ok(view.core.scale.y > 1, 'detonation has a rising fireball silhouette');
-  updatePulse(view, pulse, 89, false);
-  assert.equal(view.burst.visible, true, 'danger stays visible through the entire lethal interval');
-  updatePulse(view, pulse, 90, false);
-  assert.equal(view.burst.visible, false, 'no lingering blast on safe ground');
+  const hotPlate = view.plate.material.color.getHex();
+  updatePulse(view, pulse, 1, false);
+  assert.equal(hazardSample(pulse, 1).active, false);
+  assert.equal(view.burst.visible, true, 'the tile is safe even while the explosion dissipates');
+  assert.notEqual(view.plate.material.color.getHex(), hotPlate, 'ground danger ends immediately');
+  updatePulse(view, pulse, 35, false);
+  assert.equal(view.burst.visible, true);
+  updatePulse(view, pulse, 36, false);
+  assert.equal(view.burst.visible, false, 'aftermath lasts 300 ms, not the old authored on duration');
   assert.equal(view.plate.geometry.parameters.width, RULES.pulseRadius * 2);
 });
 
@@ -50,7 +54,29 @@ test('Pulse_PausedOrReducedMotion_KeepsDeterministicLegibleDanger', () => {
   updatePulse(view, pulse, 10, true);
   assert.equal(view.burst.visible, true);
   assert.equal(view.sparks.visible, false);
-  assert.ok(view.core.visible);
+  assert.ok(view.wave.material.opacity > 0);
+});
+
+test('Pulse_SkippedIgnitionFrame_StillRendersAFadingNonLoopingExplosion', () => {
+  const view = createPulse();
+  let previousOpacity = 1, previousRadius = 0;
+  const resources = view.group.children.length;
+  for (let tick = 4; tick < 36; tick += 4) {
+    updatePulse(view, pulse, tick, false);
+    assert.equal(view.burst.visible, true);
+    assert.equal(hazardSample(pulse, tick).active, false);
+    assert.ok(view.wave.material.opacity < previousOpacity);
+    assert.ok(view.wave.scale.x > previousRadius);
+    previousOpacity = view.wave.material.opacity;
+    previousRadius = view.wave.scale.x;
+    assert.equal(view.group.children.length, resources);
+  }
+  updatePulse(view, pulse, 36, false);
+  assert.equal(view.burst.visible, false);
+  updatePulse(view, pulse, 364, false);
+  const repeated = view.sparks.children.map(spark => spark.position.clone());
+  updatePulse(view, pulse, 4, false);
+  assert.deepEqual(view.sparks.children.map(spark => spark.position), repeated);
 });
 
 test('RelayPulses_AllAuthoredGatesAndWaveVents_MatchExactWarningAndLethalBoundaries', () => {
@@ -59,16 +85,17 @@ test('RelayPulses_AllAuthoredGatesAndWaveVents_MatchExactWarningAndLethalBoundar
   for (const hazard of pulses) {
     const ignition = 2 * hazard.period + (hazard.period - hazard.phase) % hazard.period;
     const view = createPulse();
-    for (const reducedMotion of [false, true]) for (const [offset, warning, active] of [
-      [-RULES.pulseWarningTicks - 1, false, false], [-RULES.pulseWarningTicks, true, false],
-      [-1, true, false], [0, false, true], [hazard.on - 1, false, true], [hazard.on, false, false],
+    for (const reducedMotion of [false, true]) for (const [offset, warning, active, aftermath] of [
+      [-RULES.pulseWarningTicks - 1, false, false, false], [-RULES.pulseWarningTicks, true, false, false],
+      [-1, true, false, false], [0, false, true, true], [1, false, false, true],
+      [35, false, false, true], [36, false, false, false],
     ] as const) {
       const tick = ignition + offset, sample = hazardSample(hazard, tick);
       assert.equal(sample.warning, warning, 'test actual boundaries, not just agreement between two wrong phases');
       assert.equal(sample.active, active);
       updatePulse(view, hazard, tick, reducedMotion);
       assert.equal(view.warning.visible, warning, `${hazard.x},${hazard.y}@${tick}`);
-      assert.equal(view.burst.visible, active, `${hazard.x},${hazard.y}@${tick}`);
+      assert.equal(view.burst.visible, aftermath, `${hazard.x},${hazard.y}@${tick}`);
       assert.equal(view.plate.geometry.parameters.width, 2 * RULES.pulseRadius);
       assert.equal(view.plate.geometry.parameters.depth, 2 * RULES.pulseRadius);
     }

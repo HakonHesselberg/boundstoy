@@ -1,15 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { LEVELS, COURSE_LESSONS } from '../data/levels.ts';
 import { REPLAYS } from '../data/replays.ts';
 import { RULES } from '../data/terrain.ts';
-import { parseLevel, type Level } from '../core/level.ts';
-import { createState, step, ascii, terrainAt } from '../core/simulation.ts';
+import { parseLevel, type Level, type Hazard } from '../core/level.ts';
+import { createState, step, ascii, terrainAt, hazardSample, type State } from '../core/simulation.ts';
 
 type Command = Readonly<{ ticks: number; x: number; y: number }>;
-function run(level: Level, commands: readonly Command[]) {
-  let state = createState(level);
+function run(level: Level, commands: readonly Command[], initial = createState(level)) {
+  let state = initial;
   for (const command of commands) {
     for (let tick = 0; tick < command.ticks; tick++) {
       state = step(level, state, command);
@@ -19,7 +20,14 @@ function run(level: Level, commands: readonly Command[]) {
   return state;
 }
 
-test('Curriculum_SixConcepts_IntroducesOnlyTheNamedMechanic', () => {
+test('OriginalSix_AllLevelLessonAndReplayData_RemainUnchanged', () => {
+  const originals = LEVELS.slice(0, 6);
+  const lessons = Object.fromEntries(originals.map(level => [level.id, COURSE_LESSONS[level.id]]));
+  const digest = createHash('sha256').update(JSON.stringify([originals, lessons, REPLAYS.slice(0, 6)])).digest('hex');
+  assert.equal(digest, '8fde6ad1b5d819afcbdecc478c10a0a0a42e645dc44dfc9d25754289b14b4531');
+});
+
+test('Curriculum_SixLessonsAndThreeFocusedPractices_UseOnlyTheirNamedMechanics', () => {
   const expected = [
     ['first-steps-v1', '.', []],
     ['gentle-curve-v1', '.~', []],
@@ -27,8 +35,12 @@ test('Curriculum_SixConcepts_IntroducesOnlyTheNamedMechanic', () => {
     ['pulse-crossing-v1', '.', ['pulse']],
     ['saw-crossing-v1', '.', ['saw']],
     ['mud-crossing-v1', '.:', ['pulse']],
+    ['soft-switchbacks-v1', '.~', []],
+    ['hard-routing-v1', '.=', []],
+    ['pocket-wave-v1', '.', ['pulse']],
   ] as const;
-  assert.equal(LEVELS.length, 6);
+  assert.equal(LEVELS.length, 9);
+  assert.ok(LEVELS.length <= 10);
   assert.equal(REPLAYS.length, LEVELS.length);
   assert.deepEqual(Object.keys(COURSE_LESSONS), LEVELS.map(level => level.id));
   for (const [index, [id, surfaces, hazards]] of expected.entries()) {
@@ -44,6 +56,263 @@ test('Curriculum_SixConcepts_IntroducesOnlyTheNamedMechanic', () => {
       assert.ok(Object.isFrozen(lesson));
       assert.ok(lesson.title.length > 0 && lesson.hint.length > 0 && lesson.hint.length <= 200);
     }
+  }
+});
+
+test('Practice_CompactRoutes_ProvideSafeRecoveryBetweenSections', () => {
+  assert.equal(LEVELS.slice(6).length, 3);
+  for (const level of LEVELS.slice(6)) {
+    assert.ok(level.tiles[0].length <= 24 && level.tiles.length <= 24, level.id);
+    assert.ok(level.checkpoints.length >= 2, 'checkpoint solved sections');
+    for (const point of [level.spawn, ...level.checkpoints, level.goal]) {
+      assert.equal(terrainAt(level, point).id, 'normal', `${level.id}: stoppable planning ground`);
+    }
+  }
+});
+
+test('PocketWave_ThreeTravelingWaves_DetonateEachPocketAfterTheLocalPathClears', () => {
+  const level = LEVELS.find(level => level.id === 'pocket-wave-v1');
+  assert.ok(level);
+  assert.equal(level.hazards.length, 24);
+  for (let section = 0; section < 3; section++) {
+    const wave: readonly Hazard[] = level.hazards.slice(section * 8, section * 8 + 7);
+    const pocket: Hazard = level.hazards[section * 8 + 7];
+    assert.equal(pocket.kind, 'pulse');
+    for (const [index, pulse] of wave.entries()) {
+      assert.equal(pulse.kind, 'pulse');
+      assert.equal(pulse.period, 240);
+      const activation = (pulse.period - pulse.phase) % pulse.period;
+      assert.equal(hazardSample(pulse, activation - 1).active, false);
+      assert.equal(hazardSample(pulse, activation).active, true);
+      if (index) assert.equal((wave[index - 1].phase - pulse.phase + pulse.period) % pulse.period, 12);
+    }
+    const local: Hazard = wave[3];
+    assert.equal(local.kind, 'pulse');
+    if (local.kind !== 'pulse' || pocket.kind !== 'pulse') continue;
+    const localActivation = (local.period - local.phase) % local.period;
+    const detonation = localActivation + local.on + 28;
+    assert.equal(hazardSample(local, detonation).active, false);
+    assert.equal(hazardSample(pocket, detonation - 1).active, false);
+    assert.equal(hazardSample(pocket, detonation).active, true);
+    assert.equal(hazardSample(pocket, detonation - RULES.pulseWarningTicks).warning, true);
+  }
+});
+
+function statesFor(index: number) {
+  const level = LEVELS[index], states: State[] = [createState(level)];
+  for (const command of REPLAYS[index]) for (let tick = 0; tick < command.ticks; tick++) {
+    states.push(step(level, states.at(-1)!, command));
+  }
+  return states;
+}
+
+function canWalkToGoal(level: Level, blocked: ReadonlySet<string>) {
+  const seen = new Set<string>(), pending = [level.spawn];
+  while (pending.length) {
+    const point = pending.pop()!, key = `${point.x},${point.y}`;
+    const ground = terrainAt(level, point);
+    if (seen.has(key) || ground.solid || ground.lethal || blocked.has(key)) continue;
+    if (point.x === level.goal.x && point.y === level.goal.y) return true;
+    seen.add(key);
+    for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) pending.push({ x: point.x + x, y: point.y + y });
+  }
+  return false;
+}
+
+test('Practice_EachReachedCheckpoint_CanStopAndObserveForTwoWaveCycles', () => {
+  for (const index of [6, 7, 8]) {
+    const level = LEVELS[index];
+    const checkpoints = statesFor(index).filter(state => state.event === 'checkpoint');
+    assert.equal(checkpoints.length, level.checkpoints.length);
+    for (const checkpoint of checkpoints) {
+      const stopped = run(level, [{ ticks: 480, x: 0, y: 0 }], checkpoint);
+      assert.equal(stopped.deaths, 0);
+      assert.deepEqual(stopped.position, checkpoint.position);
+      assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
+    }
+  }
+});
+
+test('SoftPractice_SevenSeparateSteeringArcs_NeverBrakeOrBounce', () => {
+  const level = LEVELS[6], states = statesFor(6);
+  let arcs = 0, turning = false, iceTicks = 0, turn = 0;
+  for (let tick = 1; tick < states.length; tick++) {
+    const before = states[tick - 1], after = states[tick];
+    const onIce = terrainAt(level, before.position).id === 'soft';
+    if (onIce) {
+      iceTicks++;
+      assert.ok(Math.abs(Math.hypot(after.velocity.x, after.velocity.y) - 4.4) < 1e-9);
+      const delta = Math.atan2(
+        before.velocity.x * after.velocity.y - before.velocity.y * after.velocity.x,
+        before.velocity.x * after.velocity.x + before.velocity.y * after.velocity.y,
+      );
+      assert.ok(Math.abs(delta) <= 3.2 / RULES.tickRate + 1e-9, 'steering, not a wall reflection');
+      turn += Math.abs(delta);
+      const changed = Math.abs(delta) > 1e-9;
+      if (changed && !turning) arcs++;
+      turning = changed;
+    } else turning = false;
+  }
+  assert.equal(arcs, 7);
+  assert.ok(turn > Math.PI * 1.9, 'two substantially different routed sections, not a diagonal coast');
+  assert.ok(iceTicks >= 800);
+});
+
+test('SoftPractice_OmittingAnyOfTheSevenArcs_HitsSpikesOrLeavesTheRoute', () => {
+  for (const index of [1, 2, 3, 6, 7, 8, 9]) {
+    const commands = REPLAYS[6].map((command, i) => i === index
+      ? { ...REPLAYS[6][i - 1], ticks: command.ticks } : command);
+    const state = run(LEVELS[6], commands);
+    assert.ok(state.deathCause === 'spikes' || state.deathCause === 'void', `omitted arc ${index}`);
+  }
+  for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) {
+    const state = run(LEVELS[6], [{ ticks: 1800, x, y }]);
+    assert.equal(state.won, false, `held direction ${x},${y}`);
+  }
+});
+
+test('SoftPractice_EveryTurnBoundaryHasAnEightyMillisecondMargin', () => {
+  const level = LEVELS[6], replay = REPLAYS[6];
+  for (let index = 0; index < replay.length - 1; index++) for (let offset = -10; offset <= 10; offset++) {
+    const commands = replay.map((command, i) => ({
+      ...command, ticks: i === index ? command.ticks + offset : i === replay.length - 1 ? 180 : command.ticks,
+    }));
+    const state = run(level, commands);
+    assert.equal(state.deaths, 0, `boundary ${index}, offset ${offset}`);
+    assert.equal(state.won, true, `boundary ${index}, offset ${offset}`);
+    assert.equal(state.visited.length, level.checkpoints.length);
+  }
+});
+
+test('HardPractice_ThreeCurbs_StopBeforeNorthWestAndSouthRelaunches', () => {
+  const level = LEVELS[7], replay = REPLAYS[7];
+  for (const [index, x, y] of [[1, 0, -1], [3, -1, 0], [6, 0, 1]]) {
+    const stopped = run(level, replay.slice(0, index + 1));
+    assert.equal(terrainAt(level, stopped.position).id, 'hard');
+    assert.deepEqual(stopped.velocity, { x: 0, y: 0 });
+    const next = step(level, stopped, { x, y });
+    assert.deepEqual(next.velocity, { x: 4.8 * x, y: 4.8 * y });
+    const stuck = run(level, [{ ...replay[index], ticks: 240 }], stopped);
+    assert.deepEqual(stuck.position, stopped.position, 'continuing straight cannot negotiate this curb');
+    assert.equal(stuck.won, false);
+  }
+});
+
+test('HardPractice_PoorAlignmentInEachStagingArea_FailsTheNextSection', () => {
+  const level = LEVELS[7], replay = REPLAYS[7];
+  const lowerLane = run(level, [{ ticks: 240, x: 1, y: 0 }]);
+  assert.equal(lowerLane.deathCause, 'spikes');
+  const innerLane = run(level, [
+    ...replay.slice(0, 3), { ticks: 67, x: -1, y: 0 }, { ticks: 200, x: 0, y: -1 },
+  ]);
+  assert.equal(innerLane.deathCause, 'spikes');
+  const unaligned = run(level, [...replay.slice(0, 5), { ticks: 200, x: -1, y: 0 }]);
+  assert.equal(unaligned.deathCause, 'void', 'the third departure must use the lower opening');
+});
+
+test('HardPractice_EachOutsideLane_IsRequiredWithoutAdjacentLandingShortcuts', () => {
+  const level = LEVELS[7];
+  assert.equal(canWalkToGoal(level, new Set()), true);
+  for (const lane of [['15,11', '16,11'], ['15,6', '16,6'], ['1,8', '2,8']]) {
+    assert.equal(canWalkToGoal(level, new Set(lane)), false, `must pass the outside lane ${lane}`);
+  }
+});
+
+test('HardPractice_AlignmentAndAllThreeCurbArrivals_HaveIndependentMargins', () => {
+  const level = LEVELS[7], replay = REPLAYS[7];
+  for (let alignment = -10; alignment <= 10; alignment++) {
+    for (const first of [-18, 18]) for (const second of [-18, 18]) for (const third of [-18, 18]) {
+      const commands = replay.map((command, index) => ({
+        ...command,
+        ticks: index === 1 ? command.ticks + first : index === 3 ? command.ticks + second
+          : index === 6 ? command.ticks + third : [0, 5].includes(index) ? command.ticks + alignment
+            : index === replay.length - 1 ? 180 : command.ticks,
+      }));
+      const state = run(level, commands);
+      assert.equal(state.deaths, 0, `alignment ${alignment}; curbs ${first},${second},${third}`);
+      assert.equal(state.won, true);
+      assert.equal(state.visited.length, level.checkpoints.length);
+    }
+  }
+});
+
+test('PocketWave_EachCorridor_IsUnavoidableEvenWithItsSidePocket', () => {
+  const level = LEVELS[8];
+  assert.equal(canWalkToGoal(level, new Set()), true);
+  for (let section = 0; section < 3; section++) {
+    const wave = level.hazards.slice(section * 8, section * 8 + 7);
+    const blocked = new Set(wave.map(hazard => hazard.kind === 'pulse' ? `${hazard.x},${hazard.y}` : ''));
+    assert.equal(canWalkToGoal(level, blocked), false, `wave ${section} cannot be walked around`);
+  }
+});
+
+test('PocketWave_EveryStraightLaunchInAFullCycle_FailsWithoutHiding', () => {
+  const level = LEVELS[8], replay = REPLAYS[8];
+  for (let section = 0; section < 3; section++) {
+    const index = section * 5, start = run(level, replay.slice(0, index));
+    for (let delay = 0; delay < 240; delay++) {
+      const state = run(level, [{ ticks: delay, x: 0, y: 0 }, { ...replay[index], ticks: 600 }], start);
+      assert.equal(state.deathCause, 'pulse', `section ${section}, departure ${delay}`);
+      assert.equal(state.visited.length, section, 'no next checkpoint without a pocket');
+    }
+  }
+});
+
+test('PocketWave_StayingOnThePathOrCampingInThePocket_DiesAtTheExpectedBlast', () => {
+  const level = LEVELS[8], replay = REPLAYS[8];
+  for (const [section, pathBlast, pocketBlast] of [[0, 205, 333], [1, 735, 873], [2, 1253, 1371]]) {
+    const index = section * 5;
+    const exposed = run(level, [...replay.slice(0, index + 1), { ticks: 240, x: 0, y: 0 }]);
+    assert.equal(exposed.deathCause, 'pulse');
+    assert.equal(exposed.tick, pathBlast);
+    const camped = run(level, [...replay.slice(0, index + 2), { ticks: 240, x: 0, y: 0 }]);
+    assert.equal(camped.deathCause, 'pulse');
+    assert.equal(camped.tick, pocketBlast);
+    assert.equal(camped.visited.length, section);
+  }
+});
+
+test('PocketWave_LocalLaunchAndPocketDwellWindows_AreFiniteNineteenTickIntervals', () => {
+  const level = LEVELS[8], replay = REPLAYS[8];
+  for (let section = 0; section < 3; section++) {
+    const index = section * 5, start = run(level, replay.slice(0, index));
+    const commands = replay.slice(index, index + 5);
+    const low = section === 1 ? -10 : -9, high = section === 1 ? 8 : 9;
+    for (let delay = 0; delay < 240; delay++) {
+      const offset = delay > 120 ? delay - 240 : delay;
+      const state = run(level, [{ ticks: delay, x: 0, y: 0 }, ...commands], start);
+      const expected = offset >= low && offset <= high;
+      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `launch ${section}: ${offset}`);
+    }
+    for (let offset = -40; offset <= 40; offset++) {
+      const state = run(level, commands.map((command, i) => ({
+        ...command, ticks: command.ticks + (i === 2 ? offset : 0),
+      })), start);
+      const expected = offset >= low && offset <= high;
+      assert.equal(state.deaths === 0 && state.visited.length === section + 1, expected, `dwell ${section}: ${offset}`);
+      if (!expected) assert.equal(state.deathCause, 'pulse', 'too early meets the wave; too late meets the pocket blast');
+    }
+  }
+});
+
+test('PocketWave_FourTickInputErrorsAndCombinedDwellErrors_StillCompleteTheRoute', () => {
+  const level = LEVELS[8], replay = REPLAYS[8];
+  for (let index = 0; index < replay.length - 1; index++) for (let offset = -4; offset <= 4; offset++) {
+    const commands = replay.map((command, i) => ({
+      ...command, ticks: i === index ? command.ticks + offset : i === replay.length - 1 ? 100 : command.ticks,
+    }));
+    const state = run(level, commands);
+    assert.equal(state.won, true, `boundary ${index}, offset ${offset}`);
+    assert.equal(state.deaths, 0);
+    assert.equal(state.visited.length, 3);
+  }
+  for (const first of [-2, 2]) for (const second of [-2, 2]) for (const third of [-2, 2]) {
+    const state = run(level, replay.map((command, index) => ({
+      ...command, ticks: command.ticks + (index === 2 ? first : index === 7 ? second : index === 12 ? third : 0),
+    })));
+    assert.equal(state.won, true);
+    assert.equal(state.deaths, 0);
+    assert.equal(state.visited.length, 3);
   }
 });
 
@@ -277,13 +546,13 @@ test('Inspect_AllCourseIndices_RunWitnessesAndReportDynamicUsage', () => {
   const inspect = (index: string) => spawnSync(process.execPath, ['scripts/inspect.ts', index, '--replay'], {
     cwd: new URL('..', import.meta.url), encoding: 'utf8',
   });
-  for (let index = 0; index < 6; index++) {
+  for (let index = 0; index < LEVELS.length; index++) {
     const result = inspect(String(index));
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /"won": true/);
     assert.match(result.stdout, /"deaths": 0/);
   }
-  for (const index of ['-1', '6', '1.5', 'invalid']) {
+  for (const index of ['-1', String(LEVELS.length), '1.5', 'invalid']) {
     const result = inspect(index);
     assert.notEqual(result.status, 0);
     assert.ok(result.stderr.includes(`<0..${LEVELS.length - 1}>`), result.stderr);

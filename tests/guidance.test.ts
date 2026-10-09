@@ -15,6 +15,22 @@ test('Guide_SoftIce_TeachesTurningWithoutBraking', () => {
   const level = LEVELS[1];
   assert.match(courseGuide(level, createState(level)).hint, /no brakes/i);
 });
+test('Guide_PracticeCourses_ExplainTheNextRouteDecisionWithoutNewMechanics', () => {
+  const expected = [
+    ['soft-switchbacks-v1', /no brakes/i, /bend|sweep|turn/i],
+    ['hard-routing-v1', /lane|align/i, /curb|launch/i],
+    ['pocket-wave-v1', /wave/i, /pocket/i],
+  ] as const;
+  for (const [id, opening, decisions] of expected) {
+    const level = LEVELS.find(level => level.id === id);
+    assert.ok(level, id);
+    const hints = COURSE_LESSONS[id].map(lesson => lesson.hint);
+    assert.match(hints[0], opening);
+    assert.ok(hints.slice(0, -1).every(hint => decisions.test(hint)), id);
+    assert.equal(hints.length, level.checkpoints.length + 1);
+    assert.ok(hints.every(hint => hint.length <= 200));
+  }
+});
 test('Guide_CheckpointProgress_AdvancesThroughEveryCoursesOwnLessons', () => {
   for (const level of LEVELS) {
     let state = createState(level);

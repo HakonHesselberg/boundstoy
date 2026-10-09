@@ -1,0 +1,7 @@
+---
+import Boundstoy from '../components/Boundstoy.astro';
+import Host from '../layouts/Host.astro';
+const src = `${import.meta.env.BASE_URL}games/boundstoy/index.html?debug`;
+---
+
+<Host><Boundstoy {src} title="Boundstoy Astro verification" height="900px" /></Host>

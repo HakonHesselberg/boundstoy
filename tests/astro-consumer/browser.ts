@@ -15,6 +15,13 @@ export function permittedRequest(address: string, origin: string, base: string):
   return url.origin === origin && url.pathname.startsWith(base);
 }
 
+export async function captureFailure(page: Pick<Cdp, 'call'>, evidence: string, log: (message: string) => void) {
+  try {
+    const capture = await page.call<{ data: string }>('Page.captureScreenshot', { format: 'jpeg', quality: 60 });
+    await writeFile(join(evidence, 'failure.jpg'), Buffer.from(capture.data, 'base64'));
+  } catch (captureError) { log(`Screenshot unavailable: ${String(captureError)}`); }
+}
+
 // The standalone runner boots dist/?debug unconditionally. Reuse its tested transport,
 // static server, isolation and cleanup primitives, but navigate the real Astro host here.
 export async function checkBrowser(site: string, base: string, files: Inventory, options: Options,
@@ -117,12 +124,7 @@ export async function checkBrowser(site: string, base: string, files: Inventory,
     assert.deepEqual(problems, [], 'Consumer console, protocol and network checks must be clean.');
   } catch (error) {
     failure = signal.aborted ? signal.reason : error;
-    if (page) {
-      try {
-        const capture = await page.call<{ data: string }>('Page.captureScreenshot', { format: 'jpeg', quality: 60 });
-        await writeFile(join(evidence, 'failure.jpg'), Buffer.from(capture.data, 'base64'));
-      } catch { /* The browser may have exited or the deadline closed its socket. */ }
-    }
+    if (page) await captureFailure(page, evidence, log);
   } finally {
     try { await cleanup.close(); cleaned = true; }
     catch (error) { failure = new Error([failure, error].filter(Boolean).map(String).join('\n')); }

@@ -6,7 +6,8 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditConsumer, inventory, stageConsumer, validateBase } from './astro-consumer/fixture.ts';
-import { permittedRequest } from './astro-consumer/browser.ts';
+import { captureFailure, permittedRequest } from './astro-consumer/browser.ts';
+import { waitFor } from './browser/runtime.ts';
 import { runTool } from '../scripts/check-astro.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -27,6 +28,19 @@ test('AstroBrowser_RequestBoundary_RejectsRemoteAndRootEscapes', () => {
     'http://127.0.0.1:4339/showcase/arcade/game.js', 'https://example.invalid/showcase/arcade/game.js',
     'ws://127.0.0.1:4338/showcase/arcade/socket',
   ]) assert.equal(permittedRequest(url, origin, base), false, url);
+});
+
+test('AstroBrowser_FailureScreenshot_LogsCaptureErrorWithoutReplacingPrimaryFailure', async () => {
+  const primary = new Error('Original consumer failure'), secondary = new Error('CDP socket closed');
+  const logs: string[] = [];
+  await assert.rejects(async () => {
+    try { throw primary; }
+    catch (error) {
+      await captureFailure({ async call() { throw secondary; } }, fixture, message => logs.push(message));
+      throw error;
+    }
+  }, error => error === primary);
+  assert.deepEqual(logs, ['Screenshot unavailable: Error: CDP socket closed']);
 });
 
 test('AstroFixture_ManifestAndLock_PinOnlyIsolatedBuildTooling', async () => {
@@ -134,12 +148,33 @@ test('AstroTool_Deadline_ReapsOwnedBuildProcessAndRetainsFailureLog', {
 }, async t => {
   const directory = join(fixture, 'artifacts', `tool-${randomUUID()}`);
   await mkdir(directory, { recursive: true });
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  const controller = new AbortController();
+  let command: Promise<unknown> | undefined, finished = false;
+  t.after(async () => {
+    controller.abort(new Error('Owned command test cleanup'));
+    try { await command; }
+    finally { await rm(directory, { recursive: true, force: true }); }
+  });
   const log = join(directory, 'command.log');
-  await assert.rejects(runTool(process.execPath, ['-e',
-    'console.log(process.pid); setTimeout(() => {}, 5000);'],
-  directory, process.env, AbortSignal.timeout(500), log), /aborted|timeout/i);
-  const pid = Number((await readFile(log, 'utf8')).trim());
-  assert.ok(Number.isInteger(pid) && pid > 0, 'Owned command reached startup.');
+  command = runTool(process.execPath, ['-e', `
+    process.stdout.write(String(process.pid), () => {
+      require('node:fs').writeFileSync('ready.pid', String(process.pid));
+    });
+    setInterval(() => {}, 1000);
+  `], directory, process.env, controller.signal, log).then(
+    () => { finished = true; return null; },
+    error => { finished = true; return error; },
+  );
+  const pid = await waitFor('Owned command concrete startup signal', async () => {
+    if (finished) throw new Error(`Owned command exited before signaling readiness: ${String(await command)}`);
+    let ready: string;
+    try { ready = await readFile(join(directory, 'ready.pid'), 'utf8'); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; }
+    return /^\d+$/.test(ready) && Number(ready) > 0 ? Number(ready) : null;
+  }, 10_000, t.signal);
+  const reason = new Error('Fixture deadline after confirmed startup');
+  controller.abort(reason);
+  assert.equal(await command, reason, 'The running command propagates the requested deadline.');
+  assert.equal((await readFile(log, 'utf8')).trim(), String(pid), 'Child output survives deadline cleanup.');
   assert.throws(() => process.kill(-pid, 0), { code: 'ESRCH' }, 'No build/install descendant survived the deadline.');
 });

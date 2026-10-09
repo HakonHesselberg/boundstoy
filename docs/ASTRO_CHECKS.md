@@ -31,7 +31,7 @@ deadline), allowing for software-WebGL work on a shared machine.
 No sandbox-disabling option is accepted.
 
 `npm run evaluate` remains portable and does not install Astro, build this
-consumer or launch a browser. Its eight native Astro tests only read the
+consumer or launch a browser. Its nine native Astro tests only read the
 tracked fixture, exercise staging/audits with synthetic files, and run bounded
 Node CLI/process regressions. They cover execution even when
 `import.meta.main` is absent. The process-group test is POSIX-only, like the
@@ -122,7 +122,8 @@ The printed run directory contains:
   owned PID/process group, preview/debug ports and cleanup result.
 - `report.json`: overall pass/failure and the bases actually completed.
   Browser failures also attempt `failure.jpg`; an exited browser may prevent
-  capture without concealing the original failure.
+  capture without concealing the original failure. Secondary capture errors
+  are recorded as `Screenshot unavailable: ...` in the browser report logs.
 
 No manual server or shared browser context is used. Browser isolation,
 sandbox-preserving arguments, CDP transport, static serving, finite waits and
@@ -134,9 +135,11 @@ socket path-length limits in deep worktrees.
 
 Success, browser failure, deadline and SIGINT/SIGTERM paths close owned
 processes, sockets and preview listeners; disposable profiles are removed.
-Tool-command deadlines also reap owned build/install descendants. Generated
-consumer installations, output, caches and evidence are intentionally retained
-under ignored artifacts for inspection. Remove only the relevant printed run
+Tool-command deadlines also reap owned build/install descendants.
+The native deadline test waits for a concrete child-ready signal (with a
+10000 ms startup bound) before aborting and always cleans up on test failure.
+Generated consumer installations, output, caches and evidence are intentionally
+retained under ignored artifacts for inspection. Remove only the relevant printed run
 directories when no longer needed; never touch another run's live profile.
 
 ## Verified scope

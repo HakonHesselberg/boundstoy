@@ -35,7 +35,8 @@ Progress keys: `boundstoy.progress.v1`, `boundstoy.draft.v1`.
 Clear those keys to reset local data. Storage permission/quota failures are
 visible and do not prevent play; export JSON to preserve drafts manually.
 
-Release scope: six teaching levels using existing mechanics only, no more than
-ten levels without a new scope decision. The editor is a secondary menu action.
+Release scope: six teaching levels plus three focused practice courses using
+existing mechanics only, no more than ten levels without a new scope decision.
+The editor is a secondary menu action.
 Desktop Chromium and emulated mobile viewports are checked; real Safari/Firefox
 and physical mobile GPU/device behaviour are not certified by those checks.

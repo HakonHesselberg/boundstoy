@@ -30,9 +30,12 @@ checkpoint in order, has zero retries, and wins on the final recorded tick:
 | 3 | Pulse crossing / pulse timing | 1 | 520 ticks / 4.3333 seconds |
 | 4 | Saw crossing / saw timing | 1 | 440 ticks / 3.6667 seconds |
 | 5 | Take your time / mud | 1 | 806 ticks / 6.7167 seconds |
+| 6 | Switchback sweep / soft-ice practice | 2 | 1277 ticks / 10.6417 seconds |
+| 7 | Three curb route / hard-ice practice | 3 | 1580 ticks / 13.1667 seconds |
+| 8 | Pocket wave / precise pulse practice | 3 | 1593 ticks / 13.275 seconds |
 
 These are witness solutions, not target times for a new player or an exhaustive
-solver. Run `npm run inspect -- N --replay` for any index 0-5 to print the ASCII
+solver. Run `npm run inspect -- N --replay` for any index 0-8 to print the ASCII
 board and final state. Inspecting an invalid index reports the actual valid range.
 
 Concept checks prohibit not-yet-taught special mechanics. Behaviour checks
@@ -54,6 +57,29 @@ demonstrate that:
 
 Geometry/phase tests also check tall spike silhouettes, low curbs, visible
 charge/blast states, exact lethal-window visibility, and reduced-motion effects.
+
+Practice regressions preserve the original six level/lesson/replay fixtures
+with a hash and check safe checkpoint recovery. Switchback sweep's seven
+reference arcs retain 4.4 tiles/second without bounces; omitting each arc fails,
+while individual input boundaries tolerate +/-10 ticks. Three curb route
+requires three outside lanes and curb relaunches; alignment +/-10 ticks and
+combined curb-arrival errors +/-18 ticks remain safe.
+
+Pocket wave tests use the actual hazard definitions to verify 12-tick wave
+steps and pocket ignition 28 ticks after the adjacent path clears. Every
+straight-launch phase in a complete 240-tick cycle fails in all three sections;
+camping dies on the expected pocket blast. For the reference section inputs:
+
+| Section | Safe launch offset | Safe pocket dwell |
+| --- | --- | --- |
+| Rightward lane / upper pocket | -9 through +9 ticks | 93-111 ticks |
+| Upward lane / right pocket | -10 through +8 ticks | 98-116 ticks |
+| Leftward lane / lower pocket | -9 through +9 ticks | 88-106 ticks |
+
+Each interval contains 19 legal integer-tick choices, deliberately tighter
+than the introductory timing checks. Full-route tests also cover individual
+input-boundary errors of +/-4 ticks and combined pocket-dwell errors. These
+checks establish feasible precise movement, not human input accuracy or fun.
 
 ## Browser acceptance
 
@@ -88,7 +114,29 @@ for a board cell without modifying the game.
 
 ## Current release evidence
 
-The integrated tree passes 116 Node tests: 68 original game/visual/tooling
+The nine-course 0.4.0 tree passes 136 Node tests, TypeScript and the static build.
+The integrated production-browser run passes 20 scenario groups, including all
+nine exact witness finishes, zero deaths and ordered checkpoints. Direct
+selection/next/retry/final flow, keyboard/touch/cancel, idle/hidden rendering,
+editor isolation, saves and offline play remain intact. The report is
+`artifacts/browser-check/run-3IiDC7/report.json`; BT-015 records the worker
+delivery and BT-016 records combined acceptance.
+
+The orchestrator inspected all three new boards at 1280x800 and 390x844.
+Pocket wave was inspected with the player safely hidden at tick 230, then
+outside the respective pockets as they ignited at ticks 333, 873 and 1371,
+before finishing at tick 1593. Paused debug frames had only the pause overlay
+temporarily hidden for visual inspection; simulation and hazards were unchanged.
+Ordinary UI behaviour was checked separately by the production runner.
+
+Mobile actions fit, but board markers are small on the larger ice maps. Human
+route interpretation, touchscreen precision, enjoyment and difficulty tuning
+remain unverified; these synthetic checks do not certify them. No original
+lesson tuning or BT-014 research experiment was silently applied.
+
+## Six-lesson baseline evidence
+
+The earlier integrated tree passed 116 Node tests: 68 original game/visual/tooling
 checks, 15 renderer-scheduling checks, 13 browser-runner infrastructure checks,
 and 20 tracker checks, plus TypeScript and the static build.
 
@@ -99,7 +147,7 @@ freeze, native pointer editor painting/undo, JSON round-trip/rejection,
 playtest record isolation, portrait finish bounds, landscape level selection,
 and offline-after-load completion were exercised. Desktop and mobile
 screenshots were inspected.
-The current static output also loaded under `/games/boundstoy/` inside a titled
+The six-lesson static output also loaded under `/games/boundstoy/` inside a titled
 iframe with correct relative asset URLs and working keyboard input.
 
 Release QA found and fixed a misleading normal-ground void message that referred

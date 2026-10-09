@@ -5,9 +5,12 @@ This file provides guidance to Claude Code when working with this repository.
 ## Project Overview
 
 Boundstoy is a static browser playground for ice sliding and timed bounds.
-Scope: a shippable, consumer-facing game with at most ten focused teaching levels,
+Scope: a shippable, consumer-facing game with at most ten focused levels,
 a secondary level editor, and the existing four movement surfaces. Each level
 introduces or practices one concept; build on existing mechanics only.
+The current nine courses are six forgiving lessons plus three focused practices.
+Pocket wave intentionally demands precise hide/escape timing; do not apply
+beginner timing margins to it or silently retune the original six lessons.
 Do not add puzzle systems, accounts, telemetry or backend services. Keep the
 main UI focused on playing, not a development dashboard.
 Soft ice always glides at full speed with bounded turning, never braking.

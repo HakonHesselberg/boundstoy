@@ -3,7 +3,7 @@
   "id": "BT-015",
   "title": "Add three substantial single-mechanic practice courses",
   "type": "feature",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": null,
@@ -51,15 +51,15 @@ handles documentation/version/acceptance separately.
 
 ## Acceptance criteria
 
-- [ ] Exactly nine levels are available: the original six unchanged, plus three distinct named practice courses.
-- [ ] Soft-ice practice requires at least three meaningful direction changes while gliding at full speed; a simple held direction cannot bypass it.
-- [ ] Hard-ice practice requires at least three deliberate curb stops/relaunch decisions, with visible alignment choices.
-- [ ] Pulse practice has a visibly ordered path wave and delayed pocket explosions, requiring at least three precise hide/leave decisions.
-- [ ] Behavioural tests demonstrate that staying on the path fails, camping in a pocket fails after its delay, and correctly timed pocket entry/exit survives.
-- [ ] New courses have safe checkpoints between substantial sections, clear route continuity and distinct geometry instead of repetitive hazard density.
-- [ ] Every new course has a legal keyboard-only, exact-final-tick, zero-death witness visiting checkpoints in order.
-- [ ] Turn/alignment margins remain practical in the ice courses. The advanced pulse course intentionally has tighter movement/timing windows; tests establish a finite feasible window and report its exact margins instead of enforcing the beginner-level generosity.
-- [ ] Native course/guidance tests, inspection for all levels, type checking/build and full production-browser acceptance pass.
+- [x] Exactly nine levels are available: the original six unchanged, plus three distinct named practice courses.
+- [x] Soft-ice practice requires at least three meaningful direction changes while gliding at full speed; a simple held direction cannot bypass it.
+- [x] Hard-ice practice requires at least three deliberate curb stops/relaunch decisions, with visible alignment choices.
+- [x] Pulse practice has a visibly ordered path wave and delayed pocket explosions, requiring at least three precise hide/leave decisions.
+- [x] Behavioural tests demonstrate that staying on the path fails, camping in a pocket fails after its delay, and correctly timed pocket entry/exit survives.
+- [x] New courses have safe checkpoints between substantial sections, clear route continuity and distinct geometry instead of repetitive hazard density.
+- [x] Every new course has a legal keyboard-only, exact-final-tick, zero-death witness visiting checkpoints in order.
+- [x] Turn/alignment margins remain practical in the ice courses. The advanced pulse course intentionally has tighter movement/timing windows; tests establish a finite feasible window and report its exact margins instead of enforcing the beginner-level generosity.
+- [x] Native course/guidance tests, inspection for all levels, type checking/build and full production-browser acceptance pass.
 
 ## Implementation context
 
@@ -97,8 +97,16 @@ No untrusted game/map installation or solver dependency.
 
 ## Handoff
 
-Pending.
+- Summary: Worker delivered three focused practice courses; the original six definitions, lessons and replays are unchanged.
+- Changes: Only data/levels.ts, data/replays.ts, tests/courses.test.ts and tests/guidance.test.ts. Switchback sweep is 22x19 with seven witness steering arcs and two checkpoints; Three curb route is 19x18 with three curb relaunches/checkpoints; Pocket wave is 16x16 with three lane/pocket sequences and three checkpoints.
+- Verification: Worker evaluation passed 136 tests, typecheck/build, all nine inspect witnesses and production browser acceptance. New exact finishes are 1277, 1580 and 1593 ticks with no deaths. Soft turn boundaries tolerate +/-10 ticks; hard alignment tolerates +/-10 and combined curb arrivals +/-18. Pulse launch/dwell windows contain 19 legal tick choices per section; all 240 straight-launch phases and camping fail. Evidence: worker artifacts/bt015-evaluate.log, artifacts/bt015-inspect-*.txt and artifacts/browser-check/run-kh5afs/report.json.
+- Risks: Synthetic solutions do not establish enjoyment. Mobile route markers are small, especially on the larger ice maps; hard-ice lane interpretation and intentionally demanding pulse timing need human play.
+- Commit: 294c63e4a52fad88caae5a2afae108f63da70cd3 on task/bt-015, based on b1c2c75aeb05777cb224e91c54d0aa377ae3c311. The user amendment recorded in dcd983f was sent to the same worker.
+- Resources: Worker reported its preview/context stopped and isolated browser runs cleaned. Its worktree remains for traceability. Orchestrator visual resources belong to BT-016.
+- Decisions: Existing 240-tick pulse cycles, 12-tick travelling offsets and pocket ignition 28 ticks after the adjacent lane clears implement the hard challenge without new mechanics. Original lessons retain their generous timing.
 
 ## Result
 
-Pending.
+- Summary: Accepted after scoped code/test review, integration and independent production-browser verification.
+- Verification: Parent npm run evaluate passed all 136 tests and the static build. Parent npm run test:browser passed all nine exact finishes, ordered checkpoints, progression, desktop/portrait/landscape controls, editor, saves and offline checks; report artifacts/browser-check/run-3IiDC7/report.json. Deterministic visual inspection confirmed safe hiding at tick 230 and successful exits as pockets ignite at 333, 873 and 1371, followed by the 1593-tick finish.
+- Integration: Worker commit 294c63e is integrated into master by merge 56e1a31. Physics, renderer, UI, dependencies and original lesson data are unchanged. Release documentation and resource-cleanup acceptance continue in BT-016.

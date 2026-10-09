@@ -5,7 +5,7 @@ The template's useful ideas are kept without introducing a framework:
 | Location | Responsibility |
 | --- | --- |
 | `data/terrain.ts` | Frozen terrain registry and balance constants |
-| `data/levels.ts` | Six frozen, validated teaching levels and checkpoint lessons |
+| `data/levels.ts` | Nine frozen, validated lesson/practice levels and checkpoint hints |
 | `data/replays.ts` | Successful, deterministic input sequences |
 | `core/level.ts` | Typed level format, strict import validation, coordinates |
 | `core/simulation.ts` | Pure `createState`, `step`, hazard sampling and ASCII view |
@@ -22,6 +22,10 @@ The template's useful ideas are kept without introducing a framework:
 The core never imports the DOM, Three.js, storage or the presentation layer.
 `step(level, prior, input)` returns a new state. Level arrays/definitions are
 frozen and shared between steps; snapshots never depend on rendering.
+
+The three practice courses append data to the unchanged six lessons. Travelling
+waves and delayed pocket blasts are composed from existing pulse phase offsets;
+there is no practice-specific branch in physics, rendering, UI or storage.
 
 Soft ice rotates a fixed-length velocity vector towards input. It has no
 acceleration/drag path; releasing input and reversing never reduce its speed.

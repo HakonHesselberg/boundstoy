@@ -1,7 +1,7 @@
 # Boundstoy
 
 A small, static browser game about movement and timing, with six focused
-teaching levels and a minimal player-facing interface. Walk, steer a
+lessons, three substantial practice courses and a minimal player-facing interface. Walk, steer a
 constant-speed glide across soft ice, commit to a hard-ice slide, and learn
 when to cross moving hazards. A secondary level editor lets you build more.
 
@@ -39,7 +39,7 @@ not part of the normal play screen.
 
 - Normal ground, steerable soft ice, direction-locked hard ice, and mud.
 - Void, low striped barriers, metal spike clusters, telegraphed explosions, and moving saws.
-- Six focused levels, unlimited retries, checkpoints, local best times.
+- Nine focused levels, unlimited retries, checkpoints, local best times.
 - Numbered route markers, checkpoint-aware lessons, cause-specific retry
   feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
@@ -54,7 +54,7 @@ After the initial page
 and assets load, play and editing need no network. Offline **reload** is not
 guaranteed: there is intentionally no service worker.
 
-## The six lessons
+## The nine courses
 
 | Level | Focus |
 | --- | --- |
@@ -64,11 +64,20 @@ guaranteed: there is intentionally no service worker.
 | Pulse crossing | Waiting for a safe explosion window |
 | Saw crossing | Reading a moving patrol and choosing a crossing |
 | Take your time | Slower mud movement, reusing the already-taught pulse |
+| Switchback sweep | Repeated soft-ice steering around staggered obstacles |
+| Three curb route | Three hard-ice alignment, stop and relaunch decisions |
+| Pocket wave | Precise explosion-wave timing with temporary hiding pockets |
 
-There is no mixed-mechanics final gauntlet. Each level introduces one concept
-using existing systems, with safe staging areas and forgiving timing margins.
-All levels are available from the menu. They are deliberately short and easy to
-tune; the curriculum stays below the ten-level cap.
+The first six are short lessons with forgiving timing margins. The last three
+practice one established mechanic through several decisions, with safe checkpoints
+between sections. There is no mixed-mechanics final gauntlet. All nine are
+available from the menu; the curriculum stays below the ten-level cap.
+
+**Pocket wave is deliberately hard.** Explosions travel through three narrow
+corridors, advancing one tile every 0.1 seconds. Hide in each side pocket, then
+leave as the path clears: the pocket detonates about 0.23 seconds later. Neither
+running straight through nor camping works. The three orientations reuse the
+same read, hide and escape idea rather than introducing another hazard type.
 
 New level IDs keep earlier prototype scores separate. Existing drafts and
 older records are preserved; choose **Remix level** in the editor to copy a
@@ -92,7 +101,7 @@ Use HTTP rather than opening the HTML through `file://`.
 
 Three.js is the only production dependency (no runtime transitive dependencies).
 Vite, TypeScript and type declarations are development-only. Tests use Node's
-built-in runner. The production JS is approximately 164 KB gzipped; Vite warns
+built-in runner. The production JS is approximately 166 KB gzipped; Vite warns
 about its uncompressed size because the WebGL renderer lives in the same bundle.
 We keep one preloaded bundle instead of adding lazy network loads during play.
 
@@ -152,7 +161,7 @@ npm run typecheck
 npm run evaluate                 # tracker + tests + production build
 npm run inspect -- 0             # ASCII course and state
 npm run inspect -- 1 --replay    # deathless reference playthrough
-npm run inspect -- 5 --replay    # the sixth lesson; valid indices are 0-5
+npm run inspect -- 8 --replay    # Pocket wave; valid indices are 0-8
 ```
 
 For repeatable production-browser acceptance, with an installed Chromium:
@@ -190,7 +199,7 @@ prepared. Normal level selection, Next and Retry still start live play on a
 `?debug` page; call `load(index)` before each exact input-only witness.
 `advance` runs the same collision, hazards, checkpoint and win logic as keyboard
 play; it does not teleport or disable hazards. The reference inputs in
-`data/replays.ts` reach all six exits with no falls. This is evidence of
+`data/replays.ts` reach all nine exits with no falls. This is evidence of
 solvability, **not** an exhaustive BFS proof, and it cannot decide whether the
 game feels fun. Use real browser screenshots and human play alongside the tests.
 The debug API is absent without `?debug`.

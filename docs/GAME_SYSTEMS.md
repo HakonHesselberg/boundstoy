@@ -53,12 +53,12 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
 - Exit: touch within 0.42 tiles to finish; hazards take precedence if both collide
   on the same tick. The finish tick is frozen.
 
-All six levels are always available. Best runs compare time first, then retries to
+All nine levels are always available. Best runs compare time first, then retries to
 break equal-time ties. Restart clears checkpoints, falls and time.
 
 ## Course design
 
-The release uses six short lessons, not mixed introductory courses:
+The release uses six short lessons followed by three single-mechanic practices:
 
 | Level | Special mechanic | Existing ideas reused |
 | --- | --- | --- |
@@ -68,17 +68,39 @@ The release uses six short lessons, not mixed introductory courses:
 | Pulse crossing | Periodic explosion timing | Normal ground, checkpoints, safe waiting pads |
 | Saw crossing | Moving-patrol timing | Normal ground and a crossing that cannot be walked around |
 | Take your time | Mud slowdown | The already-taught pulse; no other special terrain/hazard |
+| Switchback sweep | Repeated soft-ice steering | Staggered spikes, normal checkpoint landings |
+| Three curb route | Three hard-ice curb relaunches | Lane alignment, static obstacles, normal staging pads |
+| Pocket wave | Precise travelling explosion waves | Normal movement, existing pulse phases, temporary side pockets |
 
 No level introduces an additional mechanic that belongs to a later lesson.
-The maximum curriculum size remains ten; adding more mixed challenges is not
-part of this release. Keep each future level's primary concept explicit.
+The original six layouts, IDs, lessons and reference inputs are unchanged.
+Nine courses stay below the ten-level cap; mixed-mechanic challenges are not
+part of this release.
 
 The soft-ice lesson requires actual heading changes and has a broad landing.
 The hard-ice lesson requires choosing the lane before entering and stopping at
-a curb to turn. Each timed crossing has a safe place to wait and a reference
+a curb to turn. Each introductory timed crossing has a safe place to wait and a reference
 launch away from the edge of its safe window. The mud lesson's hazard exposure
 lasts 104 ticks versus 44 when walking over the same crossing, making the slower
 speed relevant rather than merely cosmetic.
+
+Switchback sweep routes a full-speed glide through two sections; its reference
+path uses seven separate steering arcs without wall bounces. Three curb route
+requires three outside lanes, curb stops and north/west/south relaunches.
+
+Pocket wave deliberately demands more precise timing than the lessons. Three
+one-tile corridors run right, up and left, each with a one-tile side pocket and
+a safe checkpoint beyond it. Seven pulse pads per corridor activate in travel
+order, 12 ticks (0.1 seconds) apart, on a 240-tick cycle. Lane blasts last
+100, 110 and 90 ticks respectively. Each pocket ignites 28 ticks
+(0.2333 seconds) after its adjacent path pad clears and burns for 50 ticks.
+All of this uses the existing pulse period/on/phase fields, not new hazard logic.
+
+The reference route must hide and then leave each pocket. Its local launch and
+dwell windows contain 19 legal tick choices per section; exiting early meets
+the path wave and exiting late meets the pocket blast. These are measured
+reference-input margins, not an exhaustive bound on every possible trajectory.
+Checkpoints provide safe observation and recovery without weakening the timing.
 
 Barriers are 0.24 tiles tall with a contrasting top edge; their collision is
 still a full solid cell. Each spike tile has five pointed metal teeth rather

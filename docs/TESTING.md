@@ -66,9 +66,10 @@ for a board cell without modifying the game.
 1. Start using the actual UI, hold a movement key and release on normal ground.
 2. Exercise constant-speed soft-ice steering, pause/resume, restart and focus
    leaving the game; no held keyboard/pointer input may remain stuck.
-3. Complete all six witnesses in order through the actual intro/next/finish
-   flow. Match the Node ticks and checkpoint counts. Check campaign restart and
-   current-level retry without erasing best times.
+3. Check the generic initial Play gate, then direct level selection, next-level
+   progression, retry and campaign restart without repeated tutorial popups.
+   Verify exact input witnesses using explicit paused debug resets, separately
+   from live navigation timing, without padding ticks or weakening checkpoint checks.
 4. Open Menu, select every level, exercise sound/fullscreen/help, and reload to
    verify saved completion. The normal URL must not expose the debug API.
 5. Enter Menu -> Level editor. Paint with the pointer, undo, export JSON, make
@@ -91,8 +92,8 @@ The integrated tree passes 116 Node tests: 68 original game/visual/tooling
 checks, 15 renderer-scheduling checks, 13 browser-runner infrastructure checks,
 and 20 tracker checks, plus TypeScript and the static build.
 
-The orchestrator replayed all six levels in Chromium through the next-level
-intro and final campaign screen: exact ticks above, zero retries, all
+The orchestrator replayed all six levels in Chromium and verified next-level
+navigation and the final campaign screen: exact ticks above, zero retries, all
 checkpoints, and six saved records. Real keyboard walking/release, pause, menu
 freeze, native pointer editor painting/undo, JSON round-trip/rejection,
 playtest record isolation, portrait finish bounds, landscape level selection,
@@ -141,7 +142,7 @@ tick 24, then normal play advanced to 55. The resized frozen canvas was visually
 inspected and returned to idle after screenshot/focus invalidation.
 
 These are scheduler/render-submission checks, not a hardware energy benchmark.
-Visible uncovered intro/editor/victory animation still runs; modal menus freeze
+Visible uncovered initial-entry/editor/victory animation still runs; modal menus freeze
 the covered scene. Screenshot tools can themselves cause a valid focus/viewport
 invalidation, so assess settled idle windows separately from interactions.
 
@@ -159,6 +160,20 @@ workers for BT-006 and BT-007; the follow-up batch used two independent parallel
 workers for BT-002 and BT-011. Their scoped commits were reviewed and integrated
 by the orchestrator. Baselines, worker IDs, accepted SHAs and evidence are
 recorded in Git and the issue handoffs.
+
+## Non-blocking level flow
+
+BT-013 removes per-level tutorial gates. One generic initial Play action remains;
+selection, next, retry, campaign restart and editor return enter play directly.
+Help, contextual hints, pause and results remain separate. Debug loads reset
+paused for exact witnesses and do not change ordinary player behaviour.
+
+The integrated browser run passed 17 scenario groups, including real
+keyboard/touch/cancel navigation and 44px action bounds at 1280x800, 390x844 and
+844x390. It preserved all six exact witness ticks, idle/hidden-loop checks,
+editor record isolation, saves and offline operation. The retained acceptance
+report is `artifacts/browser-check/run-ZyxA3J/report.json`; its profile, browser
+PID/process group and preview/debug ports were independently confirmed cleaned.
 
 Keep the original template's discipline: add regressions before physics fixes,
 use immutable inputs, keep checks green, and verify the browser rather than

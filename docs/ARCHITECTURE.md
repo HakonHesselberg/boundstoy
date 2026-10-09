@@ -52,8 +52,12 @@ typed core interfaces rather than introducing an abstraction.
 
 The player interface is a playfield plus a small HUD/contextual hint. A compact
 menu owns level selection, sound, fullscreen, help and secondary editor entry.
-Counts and intro/next/final progression derive from `LEVELS.length`, not a fixed
-first/second-level flow. The debug API remains opt-in and has no permanent
+Counts and next/final progression derive from `LEVELS.length`, not a fixed
+first/second-level flow. There is one generic initial Play gate, not a tutorial
+modal per level. Deliberate level selection, next, retry and editor-return
+actions load directly into play; debug loads use an explicit paused entry mode
+so witness checks cannot race live ticks. Focus moves to the game before the
+activating control is hidden. The debug API remains opt-in and has no permanent
 developer-facing UI in ordinary play.
 
 The render loop owns at most one pending RAF. Static paused scenes sleep until
@@ -61,7 +65,7 @@ invalidated; hidden pages cancel pending work. `Scene.resize` and highlight
 changes invalidate presentation without stepping physics. `drawNow` keeps
 debug stepping synchronous. Resume/mode changes reset the elapsed-time anchor
 so an idle interval never becomes simulation catch-up. Menus freeze covered
-intro/editor/victory animation, which resumes when visible and uncovered.
+initial-entry/editor/victory animation, which resumes when visible and uncovered.
 
 Production-browser testing lives outside the runtime bundle: `scripts/browser-check.ts`
 and private `tests/browser/` helpers use native Node HTTP/WebSocket plus an

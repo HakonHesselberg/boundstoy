@@ -3,15 +3,15 @@
   "id": "BT-013",
   "title": "Remove per-level tutorial popups",
   "type": "feature",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P1",
   "depends_on": [],
   "parent": null,
-  "scope": ["index.html", "presentation/main.ts", "presentation/style.css", "tests/browser/scenarios.ts", "tests/browser-check.test.ts", "docs/BROWSER_CHECKS.md", "README.md"],
+  "scope": ["index.html", "presentation/main.ts", "presentation/style.css", "tests/browser/scenarios.ts", "tests/browser-check.test.ts", "docs/BROWSER_CHECKS.md", "docs/TESTING.md", "docs/ARCHITECTURE.md", "README.md"],
   "approval": "User explicitly requested starting both BT-013 and BT-014 on 2026-10-09. Approval covers removal of per-level tutorial popups while preserving pause/results/help and existing gameplay.",
   "assignment": {
     "owner": "tutorial-flow-worker",
-    "run": "dispatching-sync; runtime agent ID will be recorded when returned",
+    "run": "803a68dd-a19a-4432-9c2a-4e68e8885702",
     "branch": "task/bt-013",
     "worktree": ".worktrees/BT-013"
   },
@@ -41,12 +41,12 @@ Do not change physics, level layouts, timing windows, records or editor data.
 
 ## Acceptance criteria
 
-- [ ] Entering or advancing to a level does not show a tutorial/instruction popup.
-- [ ] Level selection, next-level progression and retry do not require an extra tutorial dismissal before playing.
-- [ ] Initial game entry, keyboard focus and touch controls remain deliberate and usable; sound remains muted until enabled.
-- [ ] Pause/resume, result screens, campaign completion and secondary editor access retain their intended behaviour.
-- [ ] Instructions remain available without blocking play through the contextual hint and/or Help menu.
-- [ ] Deterministic debug resets and legal replay verification remain valid; browser checks assert the new flow instead of expecting per-level intros.
+- [x] Entering or advancing to a level does not show a tutorial/instruction popup.
+- [x] Level selection, next-level progression and retry do not require an extra tutorial dismissal before playing.
+- [x] Initial game entry, keyboard focus and touch controls remain deliberate and usable; sound remains muted until enabled.
+- [x] Pause/resume, result screens, campaign completion and secondary editor access retain their intended behaviour.
+- [x] Instructions remain available without blocking play through the contextual hint and/or Help menu.
+- [x] Deterministic debug resets and legal replay verification remain valid; browser checks assert the new flow instead of expecting per-level intros.
 
 ## Implementation context
 
@@ -69,8 +69,16 @@ required controls are clipped or unexpectedly active behind overlays.
 
 ## Handoff
 
-Pending.
+- Summary: Worker removed per-level tutorial popups while retaining one generic intentional initial Play action and explicit pause/results/help flows.
+- Changes: Worker changed index.html, presentation/main.ts, tests/browser/scenarios.ts, docs/BROWSER_CHECKS.md and README.md. CSS, renderer, physics, timing, level data and storage schema were unchanged. Orchestrator aligned the related architecture/testing documentation during acceptance.
+- Verification: Worker demonstrated a failing pre-change navigation regression, then npm run evaluate passed all 116 tests/typecheck/build. The production browser suite passed 17 scenario groups, including generic entry, real keyboard/touch/cancel, selection/next/retry/final/editor-return navigation at desktop/portrait/landscape sizes, idle/focus handling, saves and offline play. All six witnesses retained exact ticks, zero deaths and ordered checkpoints.
+- Risks: Physical-device and non-Chromium coverage remain unverified; the existing bundle warning is unchanged.
+- Commit: 0ffec236259603adf3ee5739f480ac974a7e2437 on task/bt-013, integrated into master.
+- Resources: Worker verified ten owned runs cleaned and left no manual server/context. Orchestrator's integrated run artifacts/browser-check/run-ZyxA3J also passed; the exact profile/PIDs/process group/ports were independently confirmed removed or stopped.
+- Decisions: Normal navigation starts directly; debug.load remains an explicit paused reset so deterministic inspection does not race live ticks. BT-014 recommendations were not applied.
 
 ## Result
 
-Pending.
+- Summary: Accepted. The first page load retains a generic Play gate; subsequent level navigation has no repeated tutorial dismissal.
+- Verification: Orchestrator reviewed the five-file worker diff, ran the combined portable evaluation and production browser suite, and confirmed 17 passing scenario groups with no browser problems. Cleanup was checked using recorded resource identities, not only the report flag.
+- Integration: Worker commit 0ffec23 is on master, followed by the orchestrator's related documentation and issue-closure commit. No changes to the six-level curriculum or existing mechanics.

@@ -35,8 +35,7 @@ mechanics evidence here. Accessible author posts were used instead.
 Local grounding is the assigned baseline
 `0d97f5af30603fc5ce62907164e12941faa1b3c4`: [README](../../README.md),
 [GAME_SYSTEMS](../GAME_SYSTEMS.md), and [course definitions](../../data/levels.ts).
-There was no documentation manifest; the explicitly requested documents were
-read directly. Boundstoy remains single-player, static/offline after loading,
+Boundstoy remains single-player, static/offline after loading,
 six one-concept lessons, maximum ten, and existing mechanics only.
 
 ## Comparison
@@ -208,8 +207,9 @@ not established standards or statistically powered conclusions.
    **Hypothesis:** slightly more lead-in teaches anticipation without disguising
    constant speed. **Change:** restore the spike column at `x=8, y=6..9`
    to soft ice, leaving `x=9, y=6..9` lethal; all speeds, turn rates and landing
-   tiles stay unchanged. This adds one tile, about 0.23 seconds of travel, before
-   the remaining leading face. **Observe:** first three attempts, spike/void
+   tiles stay unchanged. This adds one tile of horizontal clearance before the
+   remaining leading face (about 0.23 seconds when moving horizontally at full
+   speed, longer on a diagonal approach). **Observe:** first three attempts, spike/void
    deaths, successful deliberate heading changes, and explanations of release
    and reverse input. **Proposed pass:** at least four of six players complete
    within three attempts and median spike deaths decrease, with no increase in
@@ -218,8 +218,10 @@ not established standards or statistically powered conclusions.
 
 2. **Pulse crossing: strengthen existing footprint feedback.**
    **Hypothesis:** stronger spatial contrast reduces uncertain commitments.
-   **Change:** double the current pulse-outline thickness, leaving colour
+   **Change:** double the visible pulse-outline thickness, leaving colour
    states, period 480, active duration 240 and warning 54 ticks unchanged.
+   Verify the rendered stroke, not just a material setting: WebGL line-width
+   limits may require a geometry-based outline for this experiment.
    **Observe:** on paused examples, ask players to distinguish safe, charging
    and active; then observe live launch choices and footprint-edge deaths.
    The warning means activation is approaching, not an unconditional promise
@@ -256,7 +258,8 @@ All links below were opened on **2026-10-09**. Confidence describes support
 for the attributed claim, not confidence that the map is enjoyable.
 
 - **[1] [Deca Bound — WieJ](https://www.youtube.com/watch?v=OgLecsPyObI)**,
-  published January 18, 2026. Creator description supplies creation date,
+  published January 17, 2026 UTC (the locally displayed date was January 18).
+  Player metadata reports `2026-01-17T15:11:30-08:00`. Creator description supplies creation date,
   obstacles, lives and subjective difficulty. Browser-rendered frames inspected
   at 00:34.15, 00:36 and 00:40 show changing blue effects and linked dotted
   regions. High confidence in description/visible arrangement; low in inferred

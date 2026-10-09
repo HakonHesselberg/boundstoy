@@ -1,8 +1,8 @@
 # Boundstoy
 
 A small, static browser game about movement and timing, with six focused
-lessons, three substantial practice courses and a minimal player-facing interface. Walk, steer a
-constant-speed glide across soft ice, commit to a hard-ice slide, and learn
+lessons, three substantial practice courses and a minimal player-facing interface.
+Walk, steer a constant-speed glide across soft ice, commit to a hard-ice slide, and learn
 when to cross moving hazards. A secondary level editor lets you build more.
 
 Started from a copy of [ai-game-template](https://github.com/HakonHesselberg/ai-game-template).
@@ -25,6 +25,8 @@ directly—there are no per-level tutorial popups. Hints stay below the board;
 full level instructions are available in **Menu → How to play**.
 **Space** pauses, **R** restarts, and **Escape** opens the menu.
 Checkpoints save your position after a fall.
+Pause, restart and level changes clear held controls; release and press again
+to move after those transitions.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
 selection, sound, fullscreen, help and the editor. Sound starts muted.
 
@@ -40,7 +42,7 @@ not part of the normal play screen.
 - Normal ground, steerable soft ice, direction-locked hard ice, and mud.
 - Void, low striped barriers, metal spike clusters, telegraphed explosions, and moving saws.
 - Nine focused levels, unlimited retries, checkpoints, local best times.
-- Numbered route markers, checkpoint-aware lessons, cause-specific retry
+- Adaptive route signs and a hollow small-screen player locator, checkpoint-aware lessons, cause-specific retry
   feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
   local draft saving, and validated JSON import/export/download.
@@ -101,7 +103,7 @@ Use HTTP rather than opening the HTML through `file://`.
 
 Three.js is the only production dependency (no runtime transitive dependencies).
 Vite, TypeScript and type declarations are development-only. Tests use Node's
-built-in runner. The production JS is approximately 166 KB gzipped; Vite warns
+built-in runner. The production JS is approximately 167 KB gzipped; Vite warns
 about its uncompressed size because the WebGL renderer lives in the same bundle.
 We keep one preloaded bundle instead of adding lazy network loads during play.
 
@@ -133,6 +135,12 @@ custom location use `<Boundstoy src="/play/boundstoy/index.html" height="100dvh"
 The default URL respects Astro's configured base path. Choose an iframe height
 that leaves the game's controls visible on the host page; the wrapper's default
 is 1100px if no height is supplied. A static link to the standalone game also works.
+
+The unmodified wrapper has been compiled in a real, pinned Astro consumer at
+both root and nested base paths. The optional `npm run test:astro` command
+repeats that check, including keyboard isolation, fullscreen and offline play.
+Astro is installed only inside the disposable test consumer, never as a game
+dependency. See [Astro verification](docs/ASTRO_CHECKS.md) for its scope.
 
 ## Level editor
 
@@ -168,6 +176,8 @@ For repeatable production-browser acceptance, with an installed Chromium:
 
 ```sh
 npm run test:browser
+npm run test:readability         # actual opaque locator pixels, DPR 1/2, route visibility
+npm run test:astro               # real static Astro builds; isolated tooling install
 ```
 
 This builds the game, starts an owned temporary loopback server/browser, drives
@@ -179,6 +189,10 @@ Missing prerequisites and failed checks exit nonzero, never silently skip.
 See [browser checks](docs/BROWSER_CHECKS.md) for executable overrides, evidence,
 cleanup verification and platform limitations. The regular `evaluate` command
 does not require Chromium.
+The two additional commands use the same sandboxed browser primitives.
+Readability preserves the full-board camera and actual collision sizes; it
+measures locator pixels rather than pretending the physical robot is larger.
+The Astro check needs npm registry access for its pinned test-only installation.
 
 Open `http://127.0.0.1:4321/?debug` to opt into `window.__BOUNDSTOY__`:
 

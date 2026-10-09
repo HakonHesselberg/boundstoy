@@ -3,7 +3,7 @@
   "id": "BT-004",
   "title": "Verify the Astro wrapper in a real consumer build",
   "type": "chore",
-  "status": "in_progress",
+  "status": "done",
   "priority": "P2",
   "depends_on": [],
   "parent": null,
@@ -42,11 +42,11 @@ package publishing, or new frontend framework.
 
 ## Acceptance criteria
 
-- [ ] A documented command compiles an Astro consumer using the copied wrapper and built game assets.
-- [ ] Root and nested base paths produce a working, titled iframe without missing assets or paths escaping the intended base.
-- [ ] Keyboard focus, local progress, and fullscreen permissions work within the iframe.
-- [ ] The host and game remain fully static after loading, without new runtime external requests.
-- [ ] The fixture leaves no owned background processes running and does not alter a real website.
+- [x] A documented command compiles an Astro consumer using the copied wrapper and built game assets.
+- [x] Root and nested base paths produce a working, titled iframe without missing assets or paths escaping the intended base.
+- [x] Keyboard focus, local progress, and fullscreen permissions work within the iframe.
+- [x] The host and game remain fully static after loading, without new runtime external requests.
+- [x] The fixture leaves no owned background processes running and does not alter a real website.
 
 ## Implementation context
 
@@ -65,8 +65,16 @@ for Boundstoy. Record exact fixture commands and remaining browser limitations.
 
 ## Handoff
 
-Pending.
+- Summary: Real Astro 7.3.8 static consumers compile and run at / and /showcase/arcade/ with the unchanged supplied wrapper.
+- Changes: Added scripts/check-astro.ts, isolated fixture/lockfile under tests/astro-consumer/, nine portable native tests, and docs/ASTRO_CHECKS.md. Root/game dependencies and the wrapper are unchanged.
+- Verification: Worker built both configurations and verified every production asset/notice byte, native keyboard focus/isolation, actual fullscreen, offline play, all nine exact finishes and persisted progress. A deliberately wrong title failed with cleanup. Initial evaluation passed 144 tests; the requested logging/startup-race follow-up passed nine targeted and 145 total native tests with typecheck.
+- Risks: Verified Linux Chromium, desktop and same-origin mounting only; not arbitrary host CSP/Permissions-Policy, cross-origin storage, all Astro versions or mobile hardware. Installs need registry access; runtime play does not.
+- Commit: dfed4cf4f2f3dc38e5e623a6ea90927d86ef443a plus d6b0aea10ae700ead2cc3aa898bd4a4680ab289e, integrated by 3cefc54.
+- Resources: Worker evidence tests/astro-consumer/artifacts/run-4e7e287a-0fff-4f03-ae26-61998ea48637/ and cleanup.json records ten stopped browser attempts. Private final installations/evidence remain ignored. Follow-up native children were reaped; no manual browser/server was started.
+- Decisions: Astro stays pinned test tooling, not a runtime/root dependency. Telemetry/update checks are disabled. Reuse existing CDP/isolation/cleanup primitives; keep optional integration out of evaluate. Parent adds the npm command and updates the shared 180-second default in documentation.
 
 ## Result
 
-Pending.
+- Summary: Accepted after reviewing the fixture, lockfile checks, browser assertions and actual root/nested screenshots.
+- Verification: Parent integrated evaluation passed 174 tests/typecheck/build before readability integration. Review requested explicit secondary screenshot-error logging and readiness-based child abort instead of a 500 ms startup race; both fixes are included and tested.
+- Integration: Both worker commits are on master. BT-019 runs the optional consumer command against the final combined production build and records its resource cleanup.

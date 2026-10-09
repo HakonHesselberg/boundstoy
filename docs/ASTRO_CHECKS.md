@@ -11,7 +11,7 @@ From the Boundstoy repository root, with its normal dependencies installed:
 
 ```sh
 npm run evaluate
-npm run build && node scripts/check-astro.ts --timeout 180000
+npm run test:astro
 ```
 
 The second command needs an installed, sandbox-capable Linux Chromium and
@@ -23,7 +23,7 @@ node scripts/check-astro.ts --browser /absolute/path/to/chromium --timeout 18000
 ```
 
 The timeout includes fixture installation, both builds and browser checks.
-Its default is 90000 ms; supported values are 100–600000 ms. Missing Chromium,
+Its default is 180000 ms; supported values are 100–600000 ms. Missing Chromium,
 unsupported platforms, invalid flags, build errors, unsupported fullscreen,
 browser errors and expired deadlines **fail**, never silently skip.
 Individual CDP commands have a 15000 ms cap (also bounded by the whole-run
@@ -37,13 +37,14 @@ Node CLI/process regressions. They cover execution even when
 `import.meta.main` is absent. The process-group test is POSIX-only, like the
 existing browser-harness tests.
 
-An optional root script can be added by the release orchestrator:
+The optional root script is:
 
 ```json
 "test:astro": "npm run build && node scripts/check-astro.ts"
 ```
 
-Then use `npm run test:astro -- --timeout 180000`. Do not add this integration
+Use `npm run test:astro -- --timeout 300000` for an explicitly longer budget.
+Do not add this integration
 command to the portable `evaluate` pipeline.
 
 ## Reproducible copy/build workflow
@@ -144,13 +145,23 @@ directories when no longer needed; never touch another run's live profile.
 
 ## Verified scope
 
+The integrated 0.4.1 `npm run test:astro` command passed both bases with the
+current readability and input/timing changes:
+
+`tests/astro-consumer/artifacts/run-b56ced70-49e9-4e3a-b308-2506851de5e0/`
+
+Both isolated browsers, profiles, CDP sockets and preview listeners were
+independently confirmed stopped/removed. The combined portable suite passes
+179 checks. The earlier worker-baseline evidence below remains historical.
+
 BT-004 was exercised with Node **24.19.0**, npm **11.17.0**, Astro **7.3.8**
 and sandboxed Chromium **151.0.7922.137** on Linux, at **1280×1400** with
 headless software WebGL. Both bases passed in:
 
 `tests/astro-consumer/artifacts/run-4e7e287a-0fff-4f03-ae26-61998ea48637/`
 
-`npm run evaluate` passed all **144** tests, typechecking, tracker validation
+The worker baseline's `npm run evaluate` passed all **144** tests,
+typechecking, tracker validation
 and the production build; the existing large-bundle warning remains.
 `tests/astro-consumer/artifacts/deliberate-wrong-title/browser.json` records
 an intentionally corrupted emitted title being rejected with

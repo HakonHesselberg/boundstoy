@@ -112,10 +112,62 @@ for a board cell without modifying the game.
    relative asset URLs and keyboard input. An actual Astro compilation is a
    separate check, not implied by a successful raw iframe test.
 
-## Current release evidence
+## Pre-playtest hardening (0.4.1)
 
-The nine-course 0.4.0 tree passes 136 Node tests, TypeScript and the static build.
-The integrated production-browser run passes 20 scenario groups, including all
+The integrated portable suite has 179 checks, including actual recovery from
+all nine spawns and 16 checkpoints. Every site is reached by real input, followed
+by an actual death and 54-tick respawn; nine held-input combinations cannot move
+the player during respawn. Safe waiting and cardinal input rejoin known routes:
+4575 phase-specific runs finish without another death, covering every tick of
+each timed course's cycle. These are constructive recovery witnesses, not an
+exhaustive solver for every trajectory.
+
+Seventy-two seeded 1200-tick varied-input runs are each executed twice, with
+repeated resets, immutable-state and collision/progress invariants. Normal,
+soft and hard movement cannot pass through touching diagonal wall corners.
+All original nine exact witnesses and course data remain unchanged.
+
+Frame tests cover 15/30/60/120/144 Hz, irregular intervals and a five-second
+stall. They reproduced a 1199-versus-1200 tick discrepancy at 120 Hz before the
+shared production stepper fixed floating-point boundary loss. Real browser
+auto-repeat also reproduced movement reappearing after restart; a fresh press
+is now required after input clearing.
+
+The production browser suite has 23 groups, adding held-key/touch restart,
+4x CPU throttling, a 200 ms main-thread stall, 36 level rebuilds and four
+editor/playtest returns with stable per-scene geometry/texture counts. Its
+whole-run default is now 180 seconds; individual command deadlines remain strict.
+
+`npm run test:readability` measures 36 actual opaque locator footprints, not
+nominal sprite boxes: practice spawns, pockets and exact ignition escapes at
+390x844/DPR 1 and 2, 844x390 and 1440x1200. Phone cases are at least 12 CSS
+pixels in both dimensions (minimum 12x14); desktop omits the redundant cue.
+Projected camera framing and physical body/collider dimensions are unchanged.
+Adaptive route signs remain visible, and all 24 Pocket wave pads are checked at
+exact warning/lethal boundaries with and without reduced motion.
+
+`npm run test:astro` compiles the unmodified wrapper with pinned Astro 7.3.8
+at root and nested bases, then checks static assets/notices, actual iframe input
+and fullscreen, all nine offline witnesses and saved progress. Its tooling is
+isolated from game dependencies; see [ASTRO_CHECKS.md](ASTRO_CHECKS.md).
+
+Physical touchscreen precision, arbitrary custom editor layouts, other browsers,
+human route comprehension, enjoyment and difficulty tuning still need direct
+assessment. The batch deliberately does not retune levels or mechanics.
+
+Final 0.4.1 acceptance passed `npm run evaluate`, `npm run test:browser`,
+`npm run test:readability` and `npm run test:astro`. Evidence is retained in
+`artifacts/preplay-*-final.log`, browser reports `run-Mcq4xa` and `run-lK6Rf9`,
+and `tests/astro-consumer/artifacts/run-b56ced70-49e9-4e3a-b308-2506851de5e0/`.
+The locator adds one retained geometry: repeated Pocket wave builds stay at
+174 geometries/10 textures, and editor returns at 33/7. Owned process groups,
+profiles and ports were independently checked after completion. Combined
+implementation/acceptance records are BT-003, BT-004 and BT-017 through BT-019.
+
+## Nine-course baseline evidence (0.4.0)
+
+The nine-course 0.4.0 tree passed 136 Node tests, TypeScript and the static build.
+The integrated production-browser run passed 20 scenario groups, including all
 nine exact witness finishes, zero deaths and ordered checkpoints. Direct
 selection/next/retry/final flow, keyboard/touch/cancel, idle/hidden rendering,
 editor isolation, saves and offline play remain intact. The report is
@@ -129,7 +181,7 @@ before finishing at tick 1593. Paused debug frames had only the pause overlay
 temporarily hidden for visual inspection; simulation and hazards were unchanged.
 Ordinary UI behaviour was checked separately by the production runner.
 
-Mobile actions fit, but board markers are small on the larger ice maps. Human
+At that baseline, mobile actions fit but board markers were small on the larger ice maps. Human
 route interpretation, touchscreen precision, enjoyment and difficulty tuning
 remain unverified; these synthetic checks do not certify them. No original
 lesson tuning or BT-014 research experiment was silently applied.

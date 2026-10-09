@@ -12,10 +12,11 @@ The template's useful ideas are kept without introducing a framework:
 | `core/editor.ts` | Pure paint/place/blank-level transformations |
 | `application/storage.ts` | Progress validation and best-run selection |
 | `application/guidance.ts` | Checkpoint-aware lessons and cause-specific retry text |
-| `application/render-loop.ts` | Single RAF chain, visibility, invalidation and disposal |
+| `application/render-loop.ts` | Single RAF chain, fixed-step partitioning, visibility and disposal |
 | `presentation/main.ts` | DOM UI, input, accumulator loop, editor orchestration |
 | `presentation/scene.ts` | Three.js rendering and ray/plane pointer picking |
 | `presentation/hazard-visuals.ts` | Testable spike geometry and tick-driven charge/blast visuals |
+| `presentation/readability.ts` | Adaptive non-colliding locator and route signs; camera unchanged |
 | `presentation/audio.ts` | Opt-in WebAudio effects |
 | `astro/Boundstoy.astro` | Static iframe wrapper, no hydration |
 
@@ -37,6 +38,10 @@ elapsed time, caps a hitch at 100 ms, and executes complete steps. This avoids
 unbounded catch-up after a stall. A slow device can therefore run in slow motion;
 records measure simulated time, not a competitive wall-clock timer. Hiding the
 tab or losing window focus pauses the game and clears held inputs.
+The frame loop and tests share fixed-step partitioning with a tiny tick-boundary
+rounding tolerance, preventing a lost tick at particular refresh rates while
+retaining real partial ticks. Keyboard auto-repeat cannot re-add a direction
+cleared by pause, restart or navigation; a fresh press is required.
 
 No gameplay RNG is currently necessary. Any future randomness must be seeded and
 stored in state, not use `Math.random` or wall-clock time.
@@ -49,6 +54,10 @@ Tiles and spike clusters use instanced geometry. Static markings and path edges
 are batched into line segments. The locally generated environment map provides reflections
 without an HDR download. Rebuilding the board disposes old geometry/materials;
 page teardown releases renderer, textures, audio and event listeners.
+At small projected body sizes, a hollow locator identifies the player without
+enlarging its body/collider or covering pocket mouths. Route signs adapt to
+18 CSS pixels where needed; the full-board camera and large-screen signs stay
+unchanged. Locator resources are scene-owned, not allocated on every frame.
 
 The application intentionally has no event bus, ECS, physics package, UI
 framework or plugin system. New behaviour should first extend the narrow,
@@ -75,3 +84,6 @@ Production-browser testing lives outside the runtime bundle: `scripts/browser-ch
 and private `tests/browser/` helpers use native Node HTTP/WebSocket plus an
 installed isolated Chromium. It is an opt-in check, not a game dependency or
 background service.
+The optional real Astro fixture under `tests/astro-consumer/` copies the same
+production bytes and wrapper into an isolated pinned build. It reuses the
+browser transport/cleanup primitives and introduces no game runtime dependency.

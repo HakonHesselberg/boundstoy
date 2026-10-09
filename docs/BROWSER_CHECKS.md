@@ -31,18 +31,20 @@ protocol errors/timeouts and cleanup without requiring Chromium.
   Do not use the test browser to browse untrusted sites.
 
 ```sh
-npm run test:browser -- --browser /absolute/path/to/chromium --timeout 120000
+npm run test:browser -- --browser /absolute/path/to/chromium --timeout 300000
 ```
 
 Only `--browser` and `--timeout` are accepted. The executable is spawned directly
 with an argument array, never interpolated into a shell. The timeout is an
-integer in **milliseconds**, from 100 to 600000; default **90000**. It covers
+integer in **milliseconds**, from 100 to 600000; default **180000**. It covers
 the browser runner, not the preceding `npm run build`. Browser startup/document
 load has a 15-second deadline; CDP commands/connections and UI waits have
 5-second deadlines. Increasing the whole-run timeout does not mask a stalled
 individual command. Missing browsers, broken builds, protocol errors, console
 errors/assertions, unavailable controls and failed checks all exit nonzero.
 There are no browser-related skips or success fallbacks.
+The expanded stress suite took 112-167 seconds on the shared test machine;
+the whole-run budget includes repeated scene rebuilds, not just a smoke load.
 
 To rerun against an already built bundle:
 
@@ -64,6 +66,10 @@ Prefer the npm command for acceptance so stale assets cannot pass.
   Switching to another owned blank tab verifies hidden-page idleness and
   explicit resume on return. No dependence on a continuously running paused
   render loop; one-shot pause/resize invalidations drain before measurement.
+- Restart/selection while a direction remains held, including real key
+  auto-repeat; continued touch contact after restart cannot restore cleared
+  movement. A 4x CPU throttle and 200 ms main-thread stall exercise bounded
+  frame recovery and clean pause.
 - **1280×800 desktop, 390×844 portrait and 844×390 landscape**: required
   navigation controls fit on screen (scrolling menus/editor panels as needed),
   have at least 44×44 CSS-pixel targets and are not obscured. Selection,
@@ -85,6 +91,9 @@ Prefer the npm command for acceptance so stale assets cannot pass.
   both live and saved draft, and a winning imported playtest using a built-in
   level ID that must not overwrite its betterable campaign record. Both completed
   and unfinished playtests return directly to the same editor draft.
+- Four full passes through all levels (36 rebuilds) compare per-scene
+  geometry/texture counts, followed by four editor/playtest returns. Each
+  rebuild is an individually bounded command, not one long blocking batch.
 - Saved progress survives a real reload and hydrates the level menu. A separate
   ordinary navigation verifies `window.__BOUNDSTOY__` is absent and level
   selection/retry also start without a second Play in the non-debug game.
@@ -160,9 +169,13 @@ This is a focused Chromium smoke check, not a general automation framework or
 cross-browser certification. The browser command requires POSIX process groups
 (verified on Linux) and fails explicitly on Windows rather than risking orphaned
 children. Windows explicitly skips only the POSIX-group portable unit test.
-Physical-device touch behavior, layouts beyond the three sizes above, audible
-sound output, fullscreen, download-dialog behavior, reduced motion, context loss
-and visual quality/readability remain manual checks. Emulated touch verifies
+Physical-device touch behavior, layouts beyond the checked sizes, audible
+sound output, download-dialog behavior and context loss remain manual checks.
+`npm run test:readability` separately measures opaque locator pixels at phone
+sizes/DPR 1 and 2 and checks the unchanged desktop view; native tests check
+exact pulse visibility with reduced motion. `npm run test:astro` additionally
+checks actual same-origin iframe fullscreen. Subjective visual quality and
+human playability are not certified by these commands. Emulated touch verifies
 capture release and cancellation, not every physical input device.
 Software WebGL is not a hardware-GPU
 performance benchmark. Live keyboard tests sample rendered simulation states,

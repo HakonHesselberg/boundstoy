@@ -33,8 +33,10 @@
               <section class="overlay-card" aria-labelledby="overlay-title" aria-describedby="overlay-copy">
                 <span class="eyebrow" id="overlay-kicker">READ THE RHYTHM. MAKE YOUR MOVE.</span>
                 <h2 id="overlay-title">Small tracks. Big flow.</h2>
-                <p id="overlay-copy">Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Checkpoints catch your next attempt.</p>
-                <div id="finish-stats" class="finish-stats" hidden><div><small>Time</small><strong id="finish-time"></strong></div><div><small>Retries</small><strong id="finish-retries"></strong></div><div><small>Best</small><strong id="finish-best"></strong></div></div>
+                <p id="overlay-copy">Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Each retry repeats the pattern; R resets the run.</p>
+                <p id="mastery-target" class="finish-comparison"></p>
+                <div id="finish-stats" class="finish-stats" hidden><div><small>Time</small><strong id="finish-time"></strong></div><div><small>Retries</small><strong id="finish-retries"></strong></div><div><small>Best clean</small><strong id="finish-best"></strong></div></div>
+                <p id="finish-mastery" class="finish-comparison" hidden></p>
                 <p id="finish-comparison" class="finish-comparison" role="status" hidden></p>
                 <button id="primary-action" class="primary">Play →</button>
                 <button id="intro-audio" class="secondary-action" aria-label="Enable sound" aria-pressed="false">Sound off</button>
@@ -76,7 +78,7 @@
         <div class="menu-heading"><h2 id="menu-title" tabindex="-1">Take a breather.</h2><button id="menu-close" aria-label="Close menu">×</button></div>
         <div id="menu-home">
           <button id="menu-play" class="primary">Play →</button>
-          <div class="panel-heading"><h3>Levels</h3><span id="completion-count" class="count-label"></span></div>
+          <div class="panel-heading"><h3>Aftershock · first encounters</h3><span id="completion-count" class="count-label"></span></div>
           <div class="course-list" id="course-list" aria-label="Choose a level"></div>
           <div class="menu-settings"><button id="audio" aria-label="Enable sound" aria-pressed="false">Sound off</button><button id="fullscreen" aria-label="Enter fullscreen">Fullscreen ⛶</button><button id="help">How to play</button></div>
           <label class="field-label" id="sound-volume-label" for="sound-volume">Volume 50%</label>

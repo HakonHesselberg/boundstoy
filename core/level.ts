@@ -14,6 +14,7 @@ export type Level = Readonly<{
   goal: Point;
   checkpoints: readonly Point[];
   hazards: readonly Hazard[];
+  resetPatternOnRetry?: boolean;
 }>;
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -41,6 +42,8 @@ export function isTile(value: string): value is Tile {
 export function parseLevel(value: unknown): Level {
   const raw = record(value, 'Level');
   if (raw.version !== 1) throw new Error('Unsupported level version. Expected version 1.');
+  if (raw.resetPatternOnRetry !== undefined && typeof raw.resetPatternOnRetry !== 'boolean')
+    throw new Error('resetPatternOnRetry must be a boolean.');
   const id = text(raw.id, 'id', 60);
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error('id must use lowercase letters, numbers and hyphens.');
   const rows = list(raw.tiles, 'tiles', 32);
@@ -81,6 +84,7 @@ export function parseLevel(value: unknown): Level {
     tiles: Object.freeze(tiles), spawn, goal,
     checkpoints: Object.freeze(list(raw.checkpoints, 'checkpoints', 30).map((p, i) => point(p, `checkpoint[${i}]`, true))),
     hazards: Object.freeze(hazards),
+    resetPatternOnRetry: raw.resetPatternOnRetry === true,
   });
 }
 

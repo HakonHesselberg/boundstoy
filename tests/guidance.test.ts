@@ -5,31 +5,16 @@ import { createState } from '../core/simulation.ts';
 import { courseGuide, deathMessage } from '../application/guidance.ts';
 import { blankLevel } from '../core/editor.ts';
 
-test('Guide_FirstCourse_TeachesWalkingAndReleaseToStop', () => {
+test('Guide_FirstEncounter_UsesItsAuthoredDecisionHint', () => {
   const level = LEVELS[0], guide = courseGuide(level, createState(level));
-  assert.match(guide.hint, /release to stop/i);
+  assert.equal(guide.hint, COURSE_LESSONS[level.id][0].hint);
   assert.equal(guide.index, 0);
   assert.equal(guide.total, level.checkpoints.length + 1);
 });
-test('Guide_SoftIce_TeachesTurningWithoutBraking', () => {
-  const level = LEVELS[1];
-  assert.match(courseGuide(level, createState(level)).hint, /no brakes/i);
-});
-test('Guide_RelayCourses_ExplainConcreteDecisionsBeforeMixingTaughtMechanics', () => {
-  const expected = [
-    ['relay-spillway-v1', /line up/i, /lane|curb|launch/i],
-    ['relay-signal-v2', /watch/i, /debris.*safe/i],
-    ['relay-looms-v1', /saw/i, /move.*away/i],
-    ['relay-terraces-v2', /slow/i, /time|window/i],
-    ['relay-interchange-v2', /no brakes/i, /launch|curb|vents/i],
-    ['relay-crescendo-v2', /wave/i, /wave|rhythm|mud/i],
-  ] as const;
-  for (const [id, opening, decisions] of expected) {
-    const level = LEVELS.find(level => level.id === id);
-    assert.ok(level, id);
-    const hints = COURSE_LESSONS[id].map(lesson => lesson.hint);
-    assert.match(hints[0], opening);
-    assert.ok(hints.slice(0, -1).every(hint => decisions.test(hint)), id);
+test('Guide_Aftershock_HasDistinctConciseEncounterHints', () => {
+  assert.equal(new Set(LEVELS.map(level => COURSE_LESSONS[level.id][0].hint)).size, LEVELS.length);
+  for (const level of LEVELS) {
+    const hints = COURSE_LESSONS[level.id].map(lesson => lesson.hint);
     assert.equal(hints.length, level.checkpoints.length + 1);
     assert.ok(hints.every(hint => hint.length <= 200));
   }

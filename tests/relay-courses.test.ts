@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { LEVELS, COURSE_LESSONS } from '../data/levels.ts';
-import { REPLAYS } from '../data/replays.ts';
+import { LEVELS, COURSE_LESSONS } from './fixtures/relay-levels.ts';
+import { REPLAYS } from './fixtures/relay-replays.ts';
+import { LEVELS as PLAYABLE_LEVELS } from '../data/levels.ts';
 import { RULES } from '../data/terrain.ts';
 import { readProgress, recordFinish } from '../application/storage.ts';
 import { parseLevel, type Level } from '../core/level.ts';
@@ -394,15 +395,15 @@ test('Inspect_AllCourseIndices_RunWitnessesAndReportDynamicUsage', () => {
   const inspect = (index: string) => spawnSync(process.execPath, ['scripts/inspect.ts', index, '--replay'], {
     cwd: new URL('..', import.meta.url), encoding: 'utf8',
   });
-  for (let index = 0; index < LEVELS.length; index++) {
+  for (let index = 0; index < PLAYABLE_LEVELS.length; index++) {
     const result = inspect(String(index));
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /"won": true/);
     assert.match(result.stdout, /"deaths": 0/);
   }
-  for (const index of ['-1', String(LEVELS.length), '1.5', 'invalid']) {
+  for (const index of ['-1', String(PLAYABLE_LEVELS.length), '1.5', 'invalid']) {
     const result = inspect(index);
     assert.notEqual(result.status, 0);
-    assert.ok(result.stderr.includes(`<0..${LEVELS.length - 1}>`), result.stderr);
+    assert.ok(result.stderr.includes(`<0..${PLAYABLE_LEVELS.length - 1}>`), result.stderr);
   }
 });

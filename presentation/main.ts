@@ -1,10 +1,10 @@
 import './style.css';
-import { LEVELS } from '../data/levels.ts';
+import { LEVELS, MASTERY_TARGETS } from '../data/levels.ts';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
-import { createState, step, hazardSample, ascii, DT, STILL } from '../core/simulation.ts';
+import { createState, step, hazardSample, hazardTick, ascii, DT, STILL } from '../core/simulation.ts';
 import { importLevel, parseLevel, type Level, type Point } from '../core/level.ts';
 import { paint, placeSaw, blankLevel, type Brush } from '../core/editor.ts';
-import { readProgress, recordFinish, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
+import { readProgress, recordFinish, bestClean, runRank, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
 import { nextCourse, finishResult } from '../application/campaign.ts';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences } from '../application/preferences.ts';
 import { Audio } from './audio.ts';
@@ -150,16 +150,22 @@ function boot(scene: Scene) {
       const body = document.createElement('span'), title = document.createElement('strong'), subtitle = document.createElement('small');
       title.textContent = course.name;
       const best = progress[course.id];
-      subtitle.textContent = best ? `Best ${timeLabel(best.ticks)} · ${best.deaths} retries` : 'Ready to play';
+      const clean = bestClean(best), target = MASTERY_TARGETS[course.id];
+      subtitle.textContent = `${runRank(best, target)} · ${clean === undefined ? 'Mastery' : 'Clean'} ${
+        timeLabel(clean ?? target)}${clean === undefined ? ' clean' : ` · Target ${timeLabel(target)}`}`;
       body.append(title, subtitle);
       const arrow = document.createElement('span'); arrow.textContent = best ? '✓' : '↗';
       button.append(number, body, arrow); list.append(button);
     });
   }
   function overlay() {
+    const target = MASTERY_TARGETS[level.id], ranked = !testing && target !== undefined;
     element('overlay').hidden = menu.open || mode === 'edit' || started && !paused && !state.won;
     element('finish-stats').hidden = !state.won;
     element('finish-comparison').hidden = !state.won || testing;
+    element('finish-mastery').hidden = !state.won || !ranked;
+    element('mastery-target').hidden = state.won || !ranked || mode === 'edit';
+    if (ranked) text('mastery-target', `Mastery: ${timeLabel(target)} or faster, with zero retries.`);
     element('intro-audio').hidden = started || mode === 'edit';
     element('retry-course').hidden = !started || mode === 'edit';
     if (mode === 'edit') return;
@@ -169,13 +175,18 @@ function boot(scene: Scene) {
       text('overlay-kicker', testing ? 'PLAYTEST COMPLETE' : state.deaths === 0 ? 'CLEAN RUN · ZERO RETRIES' : 'NICE FINISH');
       text('overlay-title', complete ? 'Campaign complete.' : 'Level clear.');
       text('overlay-copy', testing ? 'Back to the editor, or give it another run.'
-        : complete ? `All ${LEVELS.length} levels cleared. Go again and chase your best times.`
+        : complete ? `All ${LEVELS.length} encounters cleared. Chase the mastery targets.`
         : next !== null ? `Up next: ${LEVELS[next].name}.` : 'Choose another route to master.');
       text('finish-time', timeLabel(state.tick));
       text('finish-retries', String(state.deaths));
-      text('finish-best', testing ? 'PLAYTEST' : timeLabel(progress[level.id]?.ticks ?? state.tick));
+      const clean = bestClean(progress[level.id]);
+      text('finish-best', testing ? 'PLAYTEST' : clean === undefined ? '—' : timeLabel(clean));
+      if (ranked) text('finish-mastery', state.deaths > 0 ? `Assisted clear · Clean target ${timeLabel(target)}.`
+        : state.tick <= target ? `Mastered · Target ${timeLabel(target)}.`
+        : `Clean · Mastery target ${timeLabel(target)}.`);
       const delta = result ? (Math.abs(result.deltaTicks) * DT).toFixed(2) : '0.00';
-      text('finish-comparison', !result || result.kind === 'first' ? 'First clear. Your next run is a new challenge.'
+      text('finish-comparison', !result || result.kind === 'first' ? state.deaths === 0
+        ? 'First clear. Your next run is a new challenge.' : 'Assisted clear. Go again without retries for a clean record.'
         : result.kind === 'best' ? result.deltaTicks < 0 ? `Personal best! ${delta}s faster.` : `Personal best! ${result.fewerRetries} fewer retries.`
         : result.kind === 'equal' ? 'Matched your personal best.'
         : result.deltaTicks > 0 ? `${delta}s from your best. Find your next clean line.` : 'Matched your best time. Try fewer retries.');
@@ -191,7 +202,7 @@ function boot(scene: Scene) {
       const continuing = LEVELS.some(course => progress[course.id]);
       text('overlay-kicker', 'READ THE RHYTHM. MAKE YOUR MOVE.');
       text('overlay-title', continuing ? 'Find your next flow.' : 'Small tracks. Big flow.');
-      text('overlay-copy', 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Checkpoints catch your next attempt.');
+      text('overlay-copy', 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Each retry repeats the pattern; R resets the run.');
       text('primary-action', continuing ? 'Continue →' : 'Play →');
       text('overlay-foot', 'NO LIVES. NO RUSH. ONE MORE TRY.');
     }
@@ -214,7 +225,7 @@ function boot(scene: Scene) {
   }
   function updateLayout() {
     text('course-title', mode === 'edit' ? 'Level editor' : level.name);
-    text('course-number', mode === 'edit' || testing ? 'YOUR LEVEL' : `LEVEL ${selectedCourse + 1} / ${LEVELS.length}`);
+    text('course-number', mode === 'edit' || testing ? 'YOUR LEVEL' : `AFTERSHOCK ${selectedCourse + 1} / ${LEVELS.length}`);
     document.querySelector('.workspace')!.classList.toggle('editing', mode === 'edit');
     element('editor-panel').hidden = mode !== 'edit';
     element('test-badge').hidden = !testing || mode === 'edit';
@@ -299,10 +310,10 @@ function boot(scene: Scene) {
     syncRendering();
   }
   function tick(input: Point) {
-    const previousTick = state.tick;
+    const previousTick = hazardTick(state);
     state = step(level, state, input);
-    if (level.hazards.some(hazard => hazard.kind === 'pulse'
-      && !hazardSample(hazard, previousTick).active && hazardSample(hazard, state.tick).active)) audio.play('blast');
+    if (hazardTick(state) === previousTick + 1 && level.hazards.some(hazard => hazard.kind === 'pulse'
+      && !hazardSample(hazard, previousTick).active && hazardSample(hazard, hazardTick(state)).active)) audio.play('blast');
     if (state.event !== 'none') audio.play(state.event);
     if (state.event === 'death' && state.deathCause) {
       lastDeath = deathMessage(state.deathCause);

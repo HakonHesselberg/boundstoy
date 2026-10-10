@@ -14,7 +14,45 @@ automation package is required. The default `evaluate` suite remains independent
 of Chromium. See [BROWSER_CHECKS.md](BROWSER_CHECKS.md) for prerequisites, failure
 fixtures, evidence and cleanup checks.
 
-## Current Relay campaign: simulation and curriculum
+## Current Aftershock gameplay gate
+
+`tests/aftershock.test.ts` measures all six exact ordinary/mastery witnesses,
+intentional pulse/void failures, non-removable observation waits, temporary
+refuge recovery, geometric shortcut advantage and complete launch-phase sets.
+`tests/aftershock-integration.test.ts` verifies the actual playable registry,
+retired-record isolation and real death -> respawn -> unchanged witness recovery.
+
+| Encounter | Clear | Mastery | Target | Mastery launch window around tick zero |
+| --- | --- | --- | --- | --- |
+| Slipstream | 1664 ticks | 1401 | 1500 | -6 through +6 ticks |
+| Borrowed Ground | 1912 | 1672 | 1780 | -6 through +4 ticks |
+| The Cut | 1587 | 1231 | 1400 | -8 through +14 ticks |
+
+Targets require zero retries. Other legal phases exist; the tests exhaust full
+cycles, including all 1980 phases of The Cut's combined schedule. Its outside
+route never waits and travels 47.61 tiles versus 35.73 for the shortcut.
+No claim is made that these witnesses are optimal or prove fun.
+
+`npm run test:aftershock` verifies that only the three new levels appear in the
+production selector, runs all six witnesses, checks clean/mastery outcomes and
+persistence, causes actual deaths and replays unchanged after pattern reset,
+and captures desktop/mobile boards/results under `artifacts/aftershock/`.
+The general production runner also verifies real keyboard/touch, every new
+ordinary witness, editor, offline use, saving and scene resource disposal.
+
+The integrated `npm run release:check` passes **222/222 portable tests** plus
+production gameplay, player journey, explosion/retry, Aftershock and real-pixel
+readability checks. Evidence: `artifacts/aftershock/release-check.log`; browser
+runs `run-IQTSDz`, `run-aIqvC1`, `run-baGJ5d`, `run-vCTrqH`, `run-k0Ja2g`.
+This is implementation acceptance for three encounters; BT-024 remains open
+for player feedback and the rest of the world.
+
+## Retired Relay: movement and recovery regressions
+
+The following campaign is now test-only data under `tests/fixtures/`.
+Its detailed movement tests remain in `tests/relay-courses.test.ts`, while the
+old continuing-clock checkpoint tests remain in `tests/recovery.test.ts`.
+Neither file describes the playable level selector.
 
 The suite covers walking/release, constant-speed soft-ice steering and U-turns,
 no-input gliding, speed-preserving wall bounces, hard-ice locks, mud speed,
@@ -37,10 +75,10 @@ checkpoint in order, has zero retries, and wins on the final recorded tick:
 | 7 | Last light relay / chase, slow riser and saw | 3 | 2641 ticks / 22.0083 seconds |
 
 These are witness solutions, not target times for a new player or an exhaustive
-solver. Run `npm run inspect -- N --replay` for any index 0-7 to print the ASCII
-board and final state. Inspecting an invalid index reports the actual valid range.
+solver. `npm run inspect -- N --replay` now inspects the active Aftershock
+registry (indices 0-2), not these retired fixtures.
 
-The eight new IDs are disjoint from all nine prototype IDs. Canonical terrain
+The eight retired Relay IDs are disjoint from all nine prototype IDs. Canonical terrain
 fingerprints reject reuse even after translation, rotation or reflection;
 this guards exact reuse, not the subjective originality of a minor alteration.
 Route compositions and the actual diff still require design review.
@@ -99,8 +137,11 @@ riser. Non-occlusion also checks the finale's observation pads and positions
 12/24 ticks before and after each closest crossing. This caught a locator
 covering a signal at spawn and on departure; open-pad placement now points
 away from nearby signals without changing narrow-lane placement.
-The real-pixel check samples all eight spawns plus seven chase/riser
-positions at four viewport/DPR combinations (60 cases). Route signs remain
+The real-pixel check now samples all three Aftershock spawns plus three in-route
+positions per encounter at four viewport/DPR combinations (48 cases).
+The pointer remains opaque but uses the transparent render queue to stay above
+lingering effects; Slipstream's first crossing caught an 11px color footprint
+when explosions could paint over it. Route signs remain
 18 CSS pixels or larger, on screen and non-overlapping; desktop camera and
 body/collider sizes are unchanged.
 
@@ -177,7 +218,7 @@ integrated tree; content/replay and readability checks are independently runnabl
 
 The following 0.4.x results describe earlier releases, not current campaign
 acceptance or preservation requirements. Their old layouts and timing tables
-must not constrain the Relay campaign. Consult the named task evidence for the
+must not constrain the Aftershock encounters. Consult the named task evidence for the
 old witness inputs; current witnesses and margins are above.
 
 ### Playtest tuning (0.4.2)

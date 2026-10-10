@@ -11,16 +11,17 @@ import type { BrowserContext } from './scenarios.ts';
 export async function checkExplosions({ page, origin, signal, log }: BrowserContext) {
   const artifacts = resolve('artifacts/explosions');
   await mkdir(artifacts, { recursive: true });
-  const fixture = (spawnX: number) => ({
+  const fixture = (spawnX: number, resetPatternOnRetry = false) => ({
     version: 1, id: 'explosion-check', name: 'Explosion check', description: 'One detonation, harmless aftermath.',
+    resetPatternOnRetry,
     tiles: ['########', '#......#', '#......#', '#......#', '#......#', '########'],
     spawn: { x: spawnX, y: 3 }, goal: { x: 6, y: 1 }, checkpoints: [],
     hazards: [{ kind: 'pulse', x: 3, y: 3, period: 240, on: 90, phase: 195 }],
   });
-  const prepare = async (spawnX = 1) => {
+  const prepare = async (spawnX = 1, resetPatternOnRetry = false) => {
     const result = await page.evaluate<{ on: number; notice: string }>(`(() => {
       document.getElementById('editor-tab').click();
-      document.getElementById('level-json').value = ${JSON.stringify(JSON.stringify(fixture(spawnX)))};
+      document.getElementById('level-json').value = ${JSON.stringify(JSON.stringify(fixture(spawnX, resetPatternOnRetry)))};
       document.getElementById('import').click();
       const notice = document.getElementById('notice-text').textContent;
       document.getElementById('playtest').click();
@@ -93,6 +94,18 @@ export async function checkExplosions({ page, origin, signal, log }: BrowserCont
     await advance(49, 1);
     await screenshot(`${prefix}-skipped-ignition-t49`);
     assert.equal((await advance(0)).deaths, 0);
+    await prepare(2, true);
+    assert.equal((await advance(45, 1)).deaths, 1);
+    const respawn = await advance(54);
+    assert.equal(respawn.tick, 99);
+    assert.equal(respawn.patternOffset, 99);
+    assert.equal((await advance(44, 1)).deaths, 1);
+    await screenshot(`${prefix}-retry-warning-t143`);
+    const repeated = await advance(1, 1);
+    assert.equal(repeated.tick, 144, 'the elapsed timer includes the failed attempt');
+    assert.equal(repeated.deaths, 2);
+    assert.equal(repeated.tick - repeated.patternOffset, 45, 'same action hits the same ignition after retry');
+    await screenshot(`${prefix}-retry-detonation-t144`);
     log(`PASS: ${prefix} motion: exact collision, next-tick entry, skipped ignition render, paused pixels and bounded resources.`);
   }
 

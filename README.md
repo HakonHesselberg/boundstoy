@@ -1,9 +1,11 @@
 # Boundstoy
 
-A small, static browser game about movement and timing, with an original
-eight-course Relay campaign and a minimal player-facing interface.
-Walk, steer a constant-speed glide across soft ice, commit to a hard-ice slide, and learn
-when to cross moving hazards. A secondary level editor lets you build more.
+A static browser game about precise movement through instantaneous explosions.
+The playable **Aftershock** set contains three new encounters: **Slipstream**,
+**Borrowed Ground** and **The Cut**. Each has a normal clear and a faster clean
+mastery route. These are the first gameplay gate for a planned eight-stage world,
+not a claim that the finished world has shipped. A secondary editor retains all
+four movement surfaces.
 
 Started from a copy of [ai-game-template](https://github.com/HakonHesselberg/ai-game-template).
 Its headless-first structure is retained. There is no game engine code in the
@@ -25,15 +27,19 @@ Selecting a level, **Next level** and **Retry level** start playing
 directly—there are no per-level tutorial popups. Hints stay below the board;
 full level instructions are available in **Menu → How to play**.
 **Space** pauses, **R** restarts, and **Escape** opens the menu.
-Checkpoints save your position after a fall.
+These short encounters retry from the start with the same explosion pattern.
+Elapsed run time and retries remain; **R** starts a fresh clean attempt.
+Imported/editor levels can still use checkpoints.
 Pause, restart and level changes clear held controls; release and press again
 to move after those transitions.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
 selection, sound, fullscreen, help and the editor. Sound starts muted on the
 first visit; the optional intro sound toggle and menu volume preference are
 remembered thereafter. Restored sound waits for an explicit play/level-choice gesture.
-Results distinguish a first clear, personal best, matched best and time/retry
-comparison. **Next level** chooses the next uncleared course cyclically.
+Results distinguish Clear, Clean and Mastered. Mastery requires a zero-retry
+finish at or below the displayed target. Best clean time is kept independently
+of faster assisted clears; result comparisons compare like-for-like.
+**Next level** chooses the next uncleared encounter cyclically.
 Clearing the final missing course celebrates completion regardless of play order;
 **Choose a level** opens the menu rather than restarting the campaign.
 
@@ -48,7 +54,7 @@ not part of the normal play screen.
 
 - Normal ground, steerable soft ice, direction-locked hard ice, and mud.
 - Void, low striped barriers, metal spike clusters, telegraphed explosions, and moving saws.
-- Eight original levels, unlimited retries, checkpoints, local best times.
+- Three new Aftershock encounters, repeatable retries, local clean records and mastery targets.
 - Adaptive route signs and a hollow small-screen player locator, checkpoint-aware lessons, cause-specific retry
   feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
@@ -63,42 +69,35 @@ After the initial page
 and assets load, play and editing need no network. Offline **reload** is not
 guaranteed: there is intentionally no service worker.
 
-## The Relay campaign
+## Aftershock: first encounters
 
-| Level | Focus |
-| --- | --- |
-| Relay courtyard | Two balcony corners teach walking, stopping and reading the floor |
-| Reservoir hairpin | One continuous soft-ice U around a reservoir, with two broad steering arcs |
-| Spillway locks | Align, descend, stop, launch left, then descend from a second curb |
-| Signal stairs | Two independently observed pulse gates on a rising dogleg |
-| Patrol looms | Cross two perpendicular saw patrols from safe platforms |
-| Silt terraces | Two slow mud crossings; fresh pulse windows matter |
-| High interchange | A soft-ice hook, dry transfer, locked curb launch and high pulse bridge |
-| Last light relay | Two travelling-pulse elbows, a slow riser and a final saw crossing |
+| Level | Decision | Mastery target |
+| --- | --- | --- |
+| Slipstream | Follow three-tile detonation fields through four bends; change cadence before the next crossing | 12.50 s, zero retries |
+| Borrowed Ground | Transfer off temporary refuge before its blast; recover a missed transfer by retreating onto spent ground | 14.83 s, zero retries |
+| The Cut | Take the outside rail or cross two exposed diagonal fields, then read the shared exit | 11.66 s, zero retries |
 
-This is a wholly new campaign, not renamed or retuned prototype maps. The arc
-borrows design principles—not layouts—from bounds and escape games: observe
-from safe ground, commit to a readable movement phrase, then recover at a
-checkpoint. Introductory timed crossings tolerate 200 ms launch errors.
-Later routes combine taught ideas and reward continuous movement; no new
-systems or assets are introduced. All eight courses remain freely selectable.
+The ordinary witnesses take 13.87, 15.93 and 13.23 simulated seconds.
+Their mastery witnesses take 11.68, 13.93 and 10.26 seconds respectively.
+The Cut's shortcut removes 11.88 tiles of travel and saves 22.4% against an
+outside route that never waits. Borrowed Ground's ordinary route includes a
+real retreat/recovery; Slipstream rewards catching earlier crossings rather
+than simply walking the same route faster. These are authored witnesses,
+not global speedrun records or predicted first-clear times.
 
-**Last light relay is a chase, not a hiding-pocket puzzle.** Pulses travel at
-33 ticks per tile, close to walking cadence, along two differently oriented
-elbows. Keep ahead of the returning blasts and rest on the dry platforms.
-Camping on any of the nineteen wave vents fails. Mud then changes the pace
-before one last saw-timed crossing. Every reference checkpoint segment takes
-less than ten seconds; these are clean execution times, not beginner targets.
+The retired Relay layouts are **not in the playable selector or game bundle**.
+They remain only as movement/recovery regression fixtures under `tests/fixtures/`.
+Aftershock uses new IDs, so retired records remain stored without counting as
+new clears. Human feedback on challenge and replay value is still required
+before building the rest of the world.
 
 The collision radius remains 0.20 tiles and all four movement rules are unchanged.
 Explosions now kill for one simulation tick only. Editor pads detonate every
 three seconds; imported JSON/drafts retain their periods and phases, but legacy
 `on` durations are converted to `1`.
 
-Relay IDs keep earlier prototype scores separate; pulse courses use `-v2` to
-separate instantaneous-explosion records from earlier sustained-flame runs.
-Existing drafts and older records are preserved, but old clears do not complete changed courses or
-affect Continue. Choose **Remix level** in the editor to copy a current layout.
+Existing drafts and older records are preserved, but old clears do not affect
+Continue. Choose **Remix level** in the editor to copy a current layout.
 
 Explosion pads are dark when safe, charge in amber, then erupt into bright
 fireballs, shock rings and sparks. The outlined square is the danger footprint.
@@ -106,9 +105,7 @@ The tile is safe immediately after detonation, even while the burst dissipates
 for 300 ms. Fading debris is harmless, not continuous fire. Optional audio
 includes a low detonation thump.
 
-The approved **Aftershock** replacement world is in development, not included
-yet. Its first gate is proving three challenging, replayable encounters with
-these instantaneous explosions; the Relay campaign is not accepted as that world.
+The remainder of the approved eight-stage world is still in development.
 
 ## Build / deploy
 
@@ -235,7 +232,7 @@ prepared. Normal level selection, Next and Retry still start live play on a
 `?debug` page; call `load(index)` before each exact input-only witness.
 `advance` runs the same collision, hazards, checkpoint and win logic as keyboard
 play; it does not teleport or disable hazards. The reference inputs in
-`data/replays.ts` reach all eight exits with no falls. This is evidence of
+`data/replays.ts` reach all three new exits with no falls. This is evidence of
 solvability, **not** an exhaustive BFS proof, and it cannot decide whether the
 game feels fun. Use real browser screenshots and human play alongside the tests.
 The debug API is absent without `?debug`.

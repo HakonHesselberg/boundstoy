@@ -5,8 +5,9 @@ The template's useful ideas are kept without introducing a framework:
 | Location | Responsibility |
 | --- | --- |
 | `data/terrain.ts` | Frozen terrain registry and balance constants |
-| `data/levels.ts` | Eight frozen, validated Relay campaign levels and checkpoint hints |
-| `data/replays.ts` | Successful, deterministic input sequences |
+| `data/levels.ts`, `data/aftershock.ts` | Three frozen, validated playable encounters, hints and mastery targets |
+| `data/replays.ts`, `data/aftershock-replays.ts` | Exact ordinary/mastery keyboard witnesses |
+| `tests/fixtures/relay-*.ts` | Retired campaign data for movement/recovery regressions, not game content |
 | `core/level.ts` | Typed level format, strict import validation, coordinates |
 | `core/simulation.ts` | Pure `createState`, `step`, hazard sampling and ASCII view |
 | `core/editor.ts` | Pure paint/place/blank-level transformations |
@@ -24,14 +25,12 @@ The core never imports the DOM, Three.js, storage or the presentation layer.
 `step(level, prior, input)` returns a new state. Level arrays/definitions are
 frozen and shared between steps; snapshots never depend on rendering.
 
-The Relay campaign is entirely new data, not an extension or transformation of
-the retired prototype. Its later courses combine previously taught surfaces;
-travelling blasts use ordinary pulse phase offsets. Every timed map shares one
-hazard period so recovery tests can construct a legal continuation from every
-phase. There is no course-specific branch in physics or rendering.
-Stable Relay IDs separate current progress from retained prototype records.
-Pulse courses use `-v2` after the instantaneous-explosion change; earlier
-sustained-flame times are retained but do not count as current clears.
+The active registry re-exports only Aftershock. The three encounters use ordinary
+pulse phase offsets and normal ground; there is no course-specific branch in
+physics or rendering. Mixed periods are allowed: The Cut's combined pattern has
+an LCM of 1980 ticks. New `aftershock-*-v1` IDs separate records from retired Relay.
+Retired data remains in test fixtures to preserve ice/mud/saw/recovery coverage
+without shipping unwanted levels.
 
 Soft ice rotates a fixed-length velocity vector towards input. It has no
 acceleration/drag path; releasing input and reversing never reduce its speed.
@@ -43,6 +42,10 @@ elapsed time, caps a hitch at 100 ms, and executes complete steps. This avoids
 unbounded catch-up after a stall. A slow device can therefore run in slow motion;
 records measure simulated time, not a competitive wall-clock timer. Hiding the
 tab or losing window focus pauses the game and clears held inputs.
+State retains elapsed `tick` plus `patternOffset`; `hazardTick(state)` is their
+difference. Opted-in retries set the offset on respawn without erasing run time
+or deaths. Collision, ASCII inspection, rendering and detonation audio all use
+this same pattern clock. Old imported levels leave the offset at zero.
 The frame loop and tests share fixed-step partitioning with a tiny tick-boundary
 rounding tolerance, preventing a lost tick at particular refresh rates while
 retaining real partial ticks. Keyboard auto-repeat cannot re-add a direction
@@ -83,6 +86,9 @@ actions load directly into play; debug loads use an explicit paused entry mode
 so witness checks cannot race live ticks. Focus moves to the game before the
 activating control is hidden. The debug API remains opt-in and has no permanent
 developer-facing UI in ordinary play.
+Progress retains `cleanTicks` only when the overall fastest clear is assisted;
+otherwise its zero-death `ticks` is already the best clean time. Old v1 saves
+still load. Result comparisons never pit a clean finish against an assisted one.
 
 The render loop owns at most one pending RAF. Static paused scenes sleep until
 invalidated; hidden pages cancel pending work. `Scene.resize` and highlight

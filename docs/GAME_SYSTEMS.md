@@ -57,15 +57,41 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   per run; the latest one becomes the respawn point.
 - Death: 54-tick animation, then respawn at the last checkpoint with no momentum.
   Hazards and run time continue. Unlimited attempts; no lives counter.
+  Levels with `resetPatternOnRetry: true` reset the hazard pattern to tick zero
+  when respawning; elapsed run time and deaths are never erased. The default
+  is false for old imports. This supports repeatable whole-encounter practice.
   Soft ice resumes its full-speed glide on the next live tick. The state records
   whether the cause was void, spikes, a pulse or a saw, for specific retry feedback.
 - Exit: touch within 0.42 tiles to finish; hazards take precedence if both collide
   on the same tick. The finish tick is frozen.
 
-All eight levels are always available. Best runs compare time first, then retries to
-break equal-time ties. Restart clears checkpoints, falls and time.
+All shipped levels are always available. Best clears compare time first, then
+retries to break equal-time ties. A separate best clean time survives a faster
+assisted clear. Results compare clean runs only with clean runs, not assisted
+times. Restart clears checkpoints, falls and time.
 
-## Course design
+## Active encounter design: Aftershock
+
+The playable registry contains only Slipstream, Borrowed Ground and The Cut.
+They use normal ground, walls, void and instantaneous pulses. No checkpoints:
+each compact encounter is a complete repeatable attempt, with opt-in pattern
+reset on respawn. The eight-stage world is not yet complete.
+
+| Encounter | Clear / mastery witness ticks | Clean target | Distinct technique |
+| --- | --- | --- | --- |
+| Slipstream | 1664 / 1401 | 1500 | Carry the sequence through bends and three cadence corrections |
+| Borrowed Ground | 1912 / 1672 | 1780 | Transfer before the downstream flash rather than retreat/recover |
+| The Cut | 1587 / 1231 | 1400 | Exposed diagonal cuts remove 11.88 tiles compared with the no-wait outside rail |
+
+Three-tile synchronous fields make discrete blasts matter: crossing their
+expanded footprint takes roughly 109 walking ticks. This creates a real entry
+window without continuous damage. Borrowed Ground's interior has no permanent
+safe rest tile; the first refuge expires at tick 175. The Cut trades a longer,
+more forgiving outside route for diagonal timing and a readjustment at the seam.
+These measurements prove specific legal strategies and intentional failures,
+not human replay-value acceptance or globally optimal routes.
+
+## Retired Relay regression fixtures
 
 The eight-course Relay campaign replaces every prototype layout, ID and witness.
 It teaches before combining, then uses existing movement and hazards in longer

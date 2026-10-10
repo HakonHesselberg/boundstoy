@@ -77,10 +77,16 @@ Automated solvability and visual approval are not proof that the world is fun.
 
 ## Handoff
 
-Orchestrator-owned staged work. BT-025 is integrated and verified. The three
-greyboxes have not been authored yet; they are the next gameplay scope.
+Orchestrator-owned staged work. BT-025 is integrated and verified. BT-026 authored
+Slipstream, Borrowed Ground and The Cut; BT-027 integrates them as the only
+playable levels, with repeatable retries and independent clean/mastery records.
+All six authored witnesses finish in the production browser. The remaining five
+stages are not built. User feedback on whether at least two encounters are worth
+replaying is the next gate, not more automatic campaign expansion.
 
 ## Result
 
-The explosion prerequisite is accepted, not the world. The world is not
-complete or accepted; no new Aftershock levels ship in the BT-025 changeset.
+Three encounters are implemented, not a finished eight-stage world. Their
+measured route differences and timing windows prove legal strategies, not fun
+or a Steam reception prediction. The replay-value acceptance box stays open
+until user feedback; the BT-025 changeset alone only shipped explosions.

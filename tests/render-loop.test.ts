@@ -106,8 +106,8 @@ test('RenderLoop_FixedStepSimulation_Preserves120HzAcrossPauseAndResize', () => 
 
 for (const hz of [15, 30, 60, 120, 144]) {
   test(`RenderLoop_${hz}HzFrames_ProduceExactlyTheSameTenSecondsOfMovement`, () => {
-    const level = LEVELS.find(level => level.id === 'relay-crescendo-v2'), input = { x: 1, y: 0 };
-    assert.ok(level, 'the travelling-wave finale exercises movement, death and continuing hazard phases');
+    const level = LEVELS[0], input = { x: 1, y: 0 };
+    assert.ok(level, 'Slipstream exercises movement, death and resetting hazard phases');
     let state = createState(level), expected = state, accumulator = 0;
     for (let tick = 0; tick < 1200; tick++) expected = step(level, expected, input);
     assert.equal(expected.tick, 1200, 'the fixture must not freeze at an early win');

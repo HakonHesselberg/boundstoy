@@ -16,6 +16,9 @@
 - Do not save playtest times into built-in course records.
 - Do not hide storage/import failures behind empty success-shaped values.
 - Rebuild/dispose Three.js resources when editing; batch static markings.
+- A depth-test-free locator in the opaque pass can still be covered by later
+  transparent explosions. Queue it after effects and check actual colored pixels
+  during crossings, not only projected geometry or spawn positions.
 - Clear held controls on blur, pause, pointer cancel and focus leaving the game.
 - Never add network calls, analytics, remote fonts, or CDN imports.
 - Do not vendor a large renderer fork to save a single declared dependency.

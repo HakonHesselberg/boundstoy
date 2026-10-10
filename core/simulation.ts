@@ -5,6 +5,7 @@ export const DT = 1 / RULES.tickRate;
 export type DeathCause = 'void' | 'spikes' | 'pulse' | 'saw';
 export type State = Readonly<{
   tick: number;
+  patternOffset: number;
   position: Point;
   velocity: Point;
   checkpoint: Point;
@@ -18,8 +19,11 @@ export type State = Readonly<{
 export const STILL: Point = Object.freeze({ x: 0, y: 0 });
 
 export function createState(level: Level): State {
-  return { tick: 0, position: center(level.spawn), velocity: STILL, checkpoint: level.spawn,
+  return { tick: 0, patternOffset: 0, position: center(level.spawn), velocity: STILL, checkpoint: level.spawn,
     visited: [], deaths: 0, respawnTicks: 0, won: false, event: 'none', deathCause: null };
+}
+export function hazardTick(state: State): number {
+  return state.tick - state.patternOffset;
 }
 export function terrainAt(level: Level, position: Point): Terrain {
   const char = level.tiles[Math.floor(position.y)]?.[Math.floor(position.x)] as Tile | undefined;
@@ -75,7 +79,8 @@ export function step(level: Level, prior: State, input: Point): State {
   let state: State = { ...prior, tick: prior.tick + 1, event: 'none' };
   if (state.respawnTicks > 0) {
     const respawnTicks = state.respawnTicks - 1;
-    return { ...state, respawnTicks, position: respawnTicks === 0 ? center(state.checkpoint) : state.position };
+    return { ...state, respawnTicks, position: respawnTicks === 0 ? center(state.checkpoint) : state.position,
+      patternOffset: respawnTicks === 0 && level.resetPatternOnRetry ? state.tick : state.patternOffset };
   }
   const ground = terrainAt(level, state.position);
   const length = Math.hypot(input.x, input.y);
@@ -127,7 +132,7 @@ export function step(level: Level, prior: State, input: Point): State {
       if (!wallAt(level, yMove)) position = yMove;
       else vy = 0;
     }
-    const cause = lethalAt(level, position, state.tick);
+    const cause = lethalAt(level, position, hazardTick(state));
     if (cause) return die({ ...state, position }, cause);
   }
   state = { ...state, position, velocity: { x: vx, y: vy } };
@@ -148,7 +153,7 @@ export function ascii(level: Level, state: State): string {
   for (const point of level.checkpoints) rows[point.y][point.x] = 'C';
   rows[level.goal.y][level.goal.x] = 'G';
   for (const h of level.hazards) {
-    const sample = hazardSample(h, state.tick), p = sample.position;
+    const sample = hazardSample(h, hazardTick(state)), p = sample.position;
     rows[Math.floor(p.y)][Math.floor(p.x)] = h.kind === 'saw' ? 'X' : sample.active ? '*' : 'o';
   }
   const x = Math.floor(state.position.x), y = Math.floor(state.position.y);

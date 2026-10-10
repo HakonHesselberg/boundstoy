@@ -218,6 +218,33 @@ test('Step_PulseAftermath_CanEnterOnTheNextTickAndRemainUntilNextIgnition', () =
   assert.equal(step(level, safe, { x: 0, y: 0 }).deathCause, 'pulse');
 });
 
+test('Step_OptedInRetry_RepeatsPatternWithoutErasingElapsedTimeOrDeaths', () => {
+  for (const resetPatternOnRetry of [true, false]) {
+    const level = parseLevel({ ...room('.', [
+      { kind: 'pulse', x: 4, y: 5, period: 240, on: 1, phase: 225 },
+    ]), resetPatternOnRetry });
+    const first = run(level, createState(level), { x: 1, y: 0 }, 15);
+    assert.equal(first.deaths, 1);
+    assert.equal(first.tick, 15);
+    const respawn = run(level, first, { x: 1, y: 0 }, 54);
+    assert.equal(respawn.tick, 69);
+    assert.equal(respawn.deaths, 1);
+    assert.deepEqual(respawn.position, createState(level).position);
+    assert.equal(respawn.patternOffset, resetPatternOnRetry ? 69 : 0);
+    const repeated = run(level, respawn, { x: 1, y: 0 }, 15);
+    assert.equal(repeated.tick, 84);
+    assert.equal(repeated.deaths, resetPatternOnRetry ? 2 : 1);
+    if (resetPatternOnRetry) assert.deepEqual(repeated.position, first.position);
+  }
+});
+
+test('ParseLevel_RetryPatternFlag_IsOptionalAndRejectsNonBooleanValues', () => {
+  assert.equal(room().resetPatternOnRetry, false);
+  for (const resetPatternOnRetry of [null, 1, 'true', {}]) {
+    assert.throws(() => parseLevel({ ...room(), resetPatternOnRetry }), /resetPatternOnRetry/);
+  }
+});
+
 test('Hazard_Saw_MovesBetweenEndpoints', () => {
   const hazard = { kind: 'saw' as const, from: { x: 2, y: 3 }, to: { x: 6, y: 3 }, period: 240, phase: 0 };
   assert.equal(hazardSample(hazard, 0).position.x, 2.5);

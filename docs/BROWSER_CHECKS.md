@@ -5,7 +5,8 @@ npm ci
 npm run test:browser
 npm run test:journey
 npm run test:explosions
-# Combined release gate: portable + production browser + journey + explosions + readability
+npm run test:aftershock
+# Combined release gate: portable + game + journey + explosions + Aftershock + readability
 npm run release:check
 ```
 
@@ -60,6 +61,11 @@ Prefer the npm command for acceptance so stale assets cannot pass.
 
 ## What is checked
 
+- Aftershock checks the actual selector contains only Slipstream, Borrowed
+  Ground and The Cut, six ordinary/mastery witnesses, visible target outcomes,
+  retained clean records, repeatable real retries and desktop/mobile captures.
+  The readability runner samples each active encounter at spawn and 25/50/75%
+  of its ordinary witness, across four viewport/DPR combinations.
 - The dedicated explosion check imports a legacy pulse and verifies disclosed
   `on: 1` normalization, exact detonation collision, safe entry one tick later,
   the next distinct detonation and a render batch that skips ignition.

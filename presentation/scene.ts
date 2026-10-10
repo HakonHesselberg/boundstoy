@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
 import { RULES } from '../data/terrain.ts';
 import { center, type Level, type Point } from '../core/level.ts';
-import { hazardSample, type State } from '../core/simulation.ts';
+import { hazardSample, hazardTick, type State } from '../core/simulation.ts';
 import { createSpikes, createPulse, updatePulse, WALL_HEIGHT, type PulseView } from './hazard-visuals.ts';
 import { createPlayerLocator, placePlayerLocator, fitRouteSigns, type RouteSign } from './readability.ts';
 
@@ -392,10 +392,10 @@ export class Scene {
       (dot.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - i / this.trail.length);
     });
     this.hazards.forEach((group, index) => {
-      const hazard = this.level.hazards[index], sample = hazardSample(hazard, state.tick);
+      const hazard = this.level.hazards[index], sample = hazardSample(hazard, hazardTick(state));
       group.position.set(sample.position.x, 0, sample.position.y);
       if (hazard.kind === 'pulse') {
-        updatePulse(this.pulses.get(index)!, hazard, state.tick, this.reducedMotion);
+        updatePulse(this.pulses.get(index)!, hazard, hazardTick(state), this.reducedMotion);
       } else group.rotation.y = time * 6;
     });
     this.checkpoints.forEach((group, i) => {

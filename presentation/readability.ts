@@ -19,8 +19,9 @@ export function createPlayerLocator(): THREE.Group {
   const hole = new THREE.Path();
   hole.moveTo(0, 4); hole.lineTo(-5, 14); hole.lineTo(5, 14); hole.closePath();
   shape.holes.push(hole);
+  // Queue after translucent explosions while keeping the pointer itself opaque.
   const pointer = new THREE.Mesh(new THREE.ShapeGeometry(shape),
-    new THREE.MeshBasicMaterial({ color: 0xb0ffe4, toneMapped: false, depthTest: false, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ color: 0xb0ffe4, toneMapped: false, transparent: true, depthTest: false, depthWrite: false }));
   pointer.renderOrder = 2;
   const group = new THREE.Group(); group.add(pointer);
   return group;

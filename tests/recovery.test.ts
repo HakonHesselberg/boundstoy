@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { center, type Level, type Point } from '../core/level.ts';
 import { createState, distance, step, STILL, terrainAt, type State } from '../core/simulation.ts';
-import { LEVELS } from '../data/levels.ts';
-import { REPLAYS } from '../data/replays.ts';
+import { LEVELS } from './fixtures/relay-levels.ts';
+import { REPLAYS } from './fixtures/relay-replays.ts';
 import { RULES, TERRAIN } from '../data/terrain.ts';
 
 const DIRECTIONS: readonly Point[] = [

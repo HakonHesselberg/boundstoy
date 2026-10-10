@@ -11,6 +11,10 @@
   Derive effect age from the cycle, not just `active`, or skipped render frames
   will hide detonations. Do not reintroduce looping flames.
 - A level validation pass proves structure, not solvability. Keep witness replays.
+- A winning fresh-start witness does not prove checkpoint recovery or human
+  readability. Every completed puzzle needs a reliably collected safe checkpoint
+  and an input-driven death/continuation check. Larger triggers must not collect
+  through walls or before the puzzle's hazardous sequence is finished.
 - Imported level names are text, never `innerHTML`.
 - Preserve leading/trailing spaces in tile rows: spaces represent void.
 - Do not save playtest times into built-in course records.

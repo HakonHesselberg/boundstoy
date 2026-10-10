@@ -45,7 +45,7 @@ export async function checkJourney({ page, origin, signal, log }: BrowserContext
   const total = (index: number) => REPLAYS[index].reduce((sum, command) => sum + command.ticks, 0);
   await page.evaluate('localStorage.clear()');
   await reload();
-  assert.match(await text('overlay-copy'), /WASD.*golden EXIT.*retry repeats the pattern/);
+  assert.match(await text('overlay-copy'), /WASD.*golden EXIT.*Checkpoints save.*retries repeat the pattern/);
   assert.equal(await text('course-title'), LEVELS[0].name);
   assert.equal(await page.evaluate("document.getElementById('intro-audio').getAttribute('aria-pressed')"), 'false');
   log('PASS: first encounter exposes controls, goal, recovery and sound opt-in.');

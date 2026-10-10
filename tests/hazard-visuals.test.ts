@@ -8,6 +8,21 @@ import { hazardSample } from '../core/simulation.ts';
 
 const pulse = { kind: 'pulse' as const, x: 3, y: 3, period: 360, on: 90, phase: 0 };
 
+test('Pulse_GroundParity_RemainsVisibleInSafeAndWarningStatesWithoutChangingTheBlast', () => {
+  const light = createPulse(), dark = createPulse(), other = { ...pulse, x: 4 };
+  for (const tick of [90, 340, 1]) {
+    updatePulse(light, pulse, tick, false);
+    updatePulse(dark, other, tick, false);
+    assert.notEqual(light.plate.material.color.getHex(), dark.plate.material.color.getHex(),
+      `tile groups remain distinct at tick ${tick}, including harmless aftermath`);
+    assert.equal(light.warning.visible, dark.warning.visible);
+  }
+  updatePulse(light, pulse, 0, false);
+  updatePulse(dark, other, 0, false);
+  assert.equal(light.plate.material.color.getHex(), dark.plate.material.color.getHex(), 'same unmistakable detonation');
+  assert.equal(light.plate.geometry.parameters.width, RULES.pulseRadius * 2, 'hazard footprint does not change');
+});
+
 test('Spikes_Tile_HasTallPointedMetalTeethNotFlatDiamonds', () => {
   const spikes = createSpikes();
   const teeth: Mesh<ConeGeometry>[] = [];

@@ -17,6 +17,45 @@ function run(level: Level, state: State, input: { x: number; y: number }, ticks:
   return state;
 }
 
+test('Checkpoint_WideLanding_CollectsAcrossTheCorridorAndRespawnsAtItsCenter', () => {
+  const level = parseLevel({ ...room(), resetPatternOnRetry: true, checkpoints: [{ x: 7, y: 5, radius: 1.4 }] });
+  for (const offset of [-1.2, 0, 1.2]) {
+    const start = { ...createState(level), position: { x: 3.5, y: 5.5 + offset } };
+    const crossed = run(level, start, { x: 1, y: 0 }, 160);
+    assert.deepEqual(crossed.visited, ['7,5']);
+    assert.equal(crossed.checkpoint.x, 7);
+    const dying: State = { ...crossed, deaths: 1, respawnTicks: RULES.respawnTicks };
+    const returned = run(level, dying, { x: 0, y: 0 }, RULES.respawnTicks);
+    assert.deepEqual(returned.position, { x: 7.5, y: 5.5 });
+    assert.equal(returned.tick - returned.patternOffset, 0);
+    assert.deepEqual(returned.visited, ['7,5']);
+  }
+});
+
+test('Checkpoint_RadiusValidationAndLegacyDefaults_PreserveExistingLevelsAndGoalTrigger', () => {
+  for (const radius of [0, -1, 3.1, NaN, Infinity, '1.4', null]) {
+    assert.throws(() => parseLevel({ ...room(), checkpoints: [{ x: 7, y: 5, radius }] }), /radius/i);
+  }
+  const legacy = parseLevel({ ...room(), checkpoints: [{ x: 7, y: 5 }] });
+  const before = { ...createState(legacy), position: { x: 6.9, y: 5.5 } };
+  assert.deepEqual(step(legacy, before, { x: 0, y: 0 }).visited, []);
+  const level = parseLevel({ ...room(), checkpoints: [{ x: 7, y: 5, radius: 1.4 }] });
+  assert.deepEqual(parseLevel(JSON.parse(JSON.stringify(level))).checkpoints, level.checkpoints);
+  const nearGoal = { ...createState(level), position: { x: 13.8, y: 9.5 } };
+  assert.equal(step(level, nearGoal, { x: 0, y: 0 }).won, false);
+});
+
+test('Checkpoint_LargeTrigger_DoesNotCollectThroughWallsOrOutsideItsRadius', () => {
+  const base = room(), tiles = [...base.tiles];
+  tiles[5] = '#......#.......#';
+  const level = parseLevel({ ...base, tiles, checkpoints: [{ x: 8, y: 5, radius: 3 }] });
+  const behindWall = { ...createState(level), position: { x: 6.5, y: 5.5 } };
+  assert.deepEqual(step(level, behindWall, { x: 0, y: 0 }).visited, []);
+  const clear = parseLevel({ ...base, checkpoints: [{ x: 8, y: 5, radius: 1.4 }] });
+  const outside = { ...createState(clear), position: { x: 7.09, y: 5.5 } };
+  assert.deepEqual(step(clear, outside, { x: 0, y: 0 }).visited, []);
+});
+
 test('Step_PlayerHitbox_PointTwoRadiusAllowsCloserWallPulseAndSawClearance', () => {
   assert.equal(RULES.radius, 0.20);
   const level = room(), nearWall = { ...createState(level), position: { x: 14.76, y: 5.5 } };

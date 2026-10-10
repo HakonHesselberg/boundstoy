@@ -53,13 +53,19 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   an alternative mode. The initial state is tick 0; `step` first evaluates tick 1.
 - Saw: a 0.31-tile radius moving linearly between two cell centers and back.
   `period` is the complete out-and-back cycle. Its whole path is drawn.
-- Checkpoint: touch within 0.42 tiles to activate. Each checkpoint activates once
-  per run; the latest one becomes the respawn point.
+- Checkpoint: every completed authored puzzle ends at a safe checkpoint landing.
+  Each activates once per run; the latest becomes the respawn point. New
+  checkpoints have explicit generous `radius` values (normally 1.4 tiles),
+  shown by their ring. Collection uses the player's center and requires a clear
+  floor segment to the marker, so nearby walls/void cannot be skipped.
+  Old JSON without `radius` retains 0.42 tiles; optional radius must be finite,
+  greater than zero and at most 3. The exit's 0.42 trigger is unchanged.
 - Death: 54-tick animation, then respawn at the last checkpoint with no momentum.
   Hazards and run time continue. Unlimited attempts; no lives counter.
   Levels with `resetPatternOnRetry: true` reset the hazard pattern to tick zero
   when respawning; elapsed run time and deaths are never erased. The default
-  is false for old imports. This supports repeatable whole-encounter practice.
+  is false for old imports. This supports repeatable practice from the latest
+  puzzle checkpoint, not a requirement to replay completed sequences.
   Soft ice resumes its full-speed glide on the next live tick. The state records
   whether the cause was void, spikes, a pulse or a saw, for specific retry feedback.
 - Exit: touch within 0.42 tiles to finish; hazards take precedence if both collide
@@ -72,24 +78,32 @@ times. Restart clears checkpoints, falls and time.
 
 ## Active encounter design: Aftershock
 
-The playable registry contains only Slipstream, Borrowed Ground and The Cut.
-They use normal ground, walls, void and instantaneous pulses. No checkpoints:
-each compact encounter is a complete repeatable attempt, with opt-in pattern
-reset on respawn. The eight-stage world is not yet complete.
+The playable registry contains Borrowed Ground v2, Crosscurrent and Checkerboard.
+They use normal ground, walls and instantaneous pulses. Each map is one compact
+hazardous puzzle followed by a safe checkpoint landing and an exit. The eight-stage
+world is not yet complete. Normal ground alternates muted light/dark shades
+without changing its movement model, and pulse plates preserve those groups.
 
 | Encounter | Clear / mastery witness ticks | Clean target | Distinct technique |
 | --- | --- | --- | --- |
-| Slipstream | 1664 / 1401 | 1500 | Carry the sequence through bends and three cadence corrections |
-| Borrowed Ground | 1912 / 1672 | 1780 | Transfer before the downstream flash rather than retreat/recover |
-| The Cut | 1587 / 1231 | 1400 | Exposed diagonal cuts remove 11.88 tiles compared with the no-wait outside rail |
+| Borrowed Ground | 752 / 613 | 690 | Transfer off the expiring elbow or retreat across spent ground; moving sequences rather than repeated whole fields |
+| Crosscurrent | 620 / 561 | 590 | Change lanes within a four-lane sequential field; diagonal movement shortens the line |
+| Checkerboard | 711 / 503 | 540 | Alternate safe color groups, using diagonal travel and a cardinal color transfer |
 
-Three-tile synchronous fields make discrete blasts matter: crossing their
-expanded footprint takes roughly 109 walking ticks. This creates a real entry
-window without continuous damage. Borrowed Ground's interior has no permanent
-safe rest tile; the first refuge expires at tick 175. The Cut trades a longer,
-more forgiving outside route for diagonal timing and a readjustment at the seam.
-These measurements prove specific legal strategies and intentional failures,
-not human replay-value acceptance or globally optimal routes.
+Borrowed Ground repeats every 360 ticks: approach steps flash at 1/36/71,
+the elbow expires at 190, descent steps at 110/145/180/215, outgoing steps at
+285/320/355. Crosscurrent's four lanes use
+`(80 + 30*(x-2) + 70*(5-y)) mod 300` for ignition.
+Checkerboard fills an 8-by-6 rectangle: all light/even `(x+y)` cells flash at
+154, dark/odd at 334, repeating every 360 ticks. No tile has stacked pulses.
+
+Checkpoint radii are 1.4; their centers are at least three tiles from every
+pulse. Ordinary and mastery paths collect them off the hazard footprints.
+Each room has a safe exit after its checkpoint; recovery tests deliberately
+backtrack into the completed field to cause a death, then demonstrate return
+to the saved landing. This is not evidence of a second downstream puzzle.
+Witnesses and measured tolerances prove specific legal strategies, not human
+replay-value acceptance or globally optimal routes.
 
 ## Retired Relay regression fixtures
 

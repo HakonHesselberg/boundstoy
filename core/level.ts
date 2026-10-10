@@ -1,6 +1,7 @@
-import { TERRAIN, type Tile } from '../data/terrain.ts';
+import { TERRAIN, RULES, type Tile } from '../data/terrain.ts';
 
 export type Point = Readonly<{ x: number; y: number }>;
+export type Checkpoint = Point & Readonly<{ radius?: number }>;
 export type Pulse = Readonly<{ kind: 'pulse'; x: number; y: number; period: number; on: number; phase: number }>;
 export type Saw = Readonly<{ kind: 'saw'; from: Point; to: Point; period: number; phase: number }>;
 export type Hazard = Pulse | Saw;
@@ -12,7 +13,7 @@ export type Level = Readonly<{
   tiles: readonly string[];
   spawn: Point;
   goal: Point;
-  checkpoints: readonly Point[];
+  checkpoints: readonly Checkpoint[];
   hazards: readonly Hazard[];
   resetPatternOnRetry?: boolean;
 }>;
@@ -79,10 +80,17 @@ export function parseLevel(value: unknown): Level {
   });
   const spawn = point(raw.spawn, 'spawn', true), goal = point(raw.goal, 'goal', true);
   if (spawn.x === goal.x && spawn.y === goal.y) throw new Error('spawn and goal must be different tiles.');
+  const checkpoints = list(raw.checkpoints, 'checkpoints', 30).map((value, i): Checkpoint => {
+    const label = `checkpoint[${i}]`, position = point(value, label, true), { radius } = record(value, label);
+    if (radius === undefined) return position;
+    if (typeof radius !== 'number' || !Number.isFinite(radius) || radius <= 0 || radius > RULES.maxCheckpointRadius)
+      throw new Error(`${label}.radius must be a number greater than 0 and at most ${RULES.maxCheckpointRadius}.`);
+    return Object.freeze({ ...position, radius });
+  });
   return Object.freeze({
     version: 1, id, name: text(raw.name, 'name', 60), description: text(raw.description, 'description', 240),
     tiles: Object.freeze(tiles), spawn, goal,
-    checkpoints: Object.freeze(list(raw.checkpoints, 'checkpoints', 30).map((p, i) => point(p, `checkpoint[${i}]`, true))),
+    checkpoints: Object.freeze(checkpoints),
     hazards: Object.freeze(hazards),
     resetPatternOnRetry: raw.resetPatternOnRetry === true,
   });

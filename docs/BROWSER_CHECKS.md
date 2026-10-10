@@ -61,9 +61,12 @@ Prefer the npm command for acceptance so stale assets cannot pass.
 
 ## What is checked
 
-- Aftershock checks the actual selector contains only Slipstream, Borrowed
-  Ground and The Cut, six ordinary/mastery witnesses, visible target outcomes,
-  retained clean records, repeatable real retries and desktop/mobile captures.
+- Aftershock checks the actual selector contains only Borrowed Ground v2,
+  Crosscurrent and Checkerboard, six ordinary/mastery witnesses, visible target
+  outcomes, retained clean records and repeatable real retries. Every checkpoint
+  is collected on both routes; backtrack-death fixtures verify saved landing
+  recovery. Captures include sequential/group ignition states and checkpoint
+  landings. A real-pixel check verifies quiet checkerboard group contrast.
   The readability runner samples each active encounter at spawn and 25/50/75%
   of its ordinary witness, across four viewport/DPR combinations.
 - The dedicated explosion check imports a legacy pulse and verifies disclosed

@@ -1,5 +1,5 @@
 import { TERRAIN, RULES, type Tile, type Terrain } from '../data/terrain.ts';
-import { center, type Level, type Hazard, type Point } from './level.ts';
+import { center, type Level, type Hazard, type Point, type Checkpoint } from './level.ts';
 
 export const DT = 1 / RULES.tickRate;
 export type DeathCause = 'void' | 'spikes' | 'pulse' | 'saw';
@@ -73,6 +73,18 @@ function lethalAt(level: Level, p: Point, tick: number): DeathCause | null {
 function die(state: State, deathCause: DeathCause): State {
   return { ...state, deaths: state.deaths + 1, respawnTicks: RULES.respawnTicks, velocity: STILL, event: 'death', deathCause };
 }
+function reachesCheckpoint(level: Level, position: Point, checkpoint: Checkpoint): boolean {
+  const target = center(checkpoint), span = distance(position, target);
+  if (span >= (checkpoint.radius ?? RULES.markerRadius)) return false;
+  // A larger collection zone must not award a puzzle from the other side of a wall.
+  const steps = Math.ceil(span / RULES.radius);
+  for (let i = 1; i < steps; i++) {
+    const terrain = terrainAt(level, { x: position.x + (target.x - position.x) * i / steps,
+      y: position.y + (target.y - position.y) * i / steps });
+    if (terrain.solid || terrain.lethal) return false;
+  }
+  return true;
+}
 export function step(level: Level, prior: State, input: Point): State {
   if (!Number.isFinite(input.x) || !Number.isFinite(input.y)) throw new Error('Movement input must be finite.');
   if (prior.won) return prior;
@@ -138,7 +150,7 @@ export function step(level: Level, prior: State, input: Point): State {
   state = { ...state, position, velocity: { x: vx, y: vy } };
   for (const checkpoint of level.checkpoints) {
     const key = `${checkpoint.x},${checkpoint.y}`;
-    if (!state.visited.includes(key) && distance(position, center(checkpoint)) < RULES.markerRadius) {
+    if (!state.visited.includes(key) && reachesCheckpoint(level, position, checkpoint)) {
       state = { ...state, checkpoint, visited: [...state.visited, key], event: 'checkpoint' };
     }
   }

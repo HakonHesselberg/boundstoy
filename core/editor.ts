@@ -1,4 +1,4 @@
-import { TERRAIN, type Tile } from '../data/terrain.ts';
+import { TERRAIN, RULES, type Tile } from '../data/terrain.ts';
 import { isTile, parseLevel, type Level, type Point, type Hazard } from './level.ts';
 
 export type Brush = Tile | 'spawn' | 'goal' | 'checkpoint' | 'pulse' | 'saw' | 'erase';
@@ -24,7 +24,7 @@ export function paint(level: Level, point: Point, brush: Exclude<Brush, 'saw'>):
   } else {
     if (brush === 'spawn') spawn = point;
     else if (brush === 'goal') goal = point;
-    else checkpoints = [...checkpoints.filter(p => !sameTile(p, point)), point];
+    else checkpoints = [...checkpoints.filter(p => !sameTile(p, point)), { ...point, radius: RULES.checkpointRadius }];
     const tile = tiles[point.y][point.x] as Tile;
     if (TERRAIN[tile].solid || TERRAIN[tile].lethal) tiles[point.y][point.x] = '.';
   }

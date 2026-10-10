@@ -7,10 +7,11 @@ import { AFTERSHOCK_TARGETS } from '../../data/aftershock.ts';
 import { AFTERSHOCK_MASTERY_REPLAYS } from '../../data/aftershock-replays.ts';
 import { REPLAYS } from '../../data/replays.ts';
 import { PROGRESS_KEY } from '../../application/storage.ts';
-import { FAILURE_REPLAYS } from '../fixtures/aftershock-failures.ts';
+import { FAILURE_REPLAYS, CHECKPOINT_REPLAYS } from '../fixtures/aftershock-failures.ts';
 import { main } from '../../scripts/browser-check.ts';
 import { waitFor } from './runtime.ts';
-import type { State } from '../../core/simulation.ts';
+import { hazardSample, type State } from '../../core/simulation.ts';
+import { RULES } from '../../data/terrain.ts';
 import type { BrowserContext } from './scenarios.ts';
 
 export async function checkAftershock({ page, origin, signal, log }: BrowserContext) {
@@ -34,7 +35,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
       for (const command of ${JSON.stringify(commands)}) state = window.__BOUNDSTOY__.advance(command.ticks, command);
       return state;
     })()`);
-  assert.deepEqual(LEVELS.map(level => level.name), ['Slipstream', 'Borrowed Ground', 'The Cut']);
+  assert.deepEqual(LEVELS.map(level => level.name), ['Borrowed Ground', 'Crosscurrent', 'Checkerboard']);
   await page.call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.course-card strong')].map(node => node.textContent)"),
     LEVELS.map(level => level.name), 'only the new levels appear in the playable selector');
@@ -45,6 +46,8 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     const ordinary = await run(REPLAYS[index]);
     assert.equal(ordinary.won, true);
     assert.equal(ordinary.deaths, 0);
+    assert.deepEqual(ordinary.visited, level.checkpoints.map(point => `${point.x},${point.y}`),
+      'every completed puzzle checkpoint is collected on the ordinary line');
     assert.ok(ordinary.tick > AFTERSHOCK_TARGETS[level.id], 'ordinary route is not automatically mastered');
     assert.match(await text('finish-mastery'), /Clean.*Mastery/);
     await capture(`${level.id}-clean`);
@@ -53,6 +56,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     const master = await run(AFTERSHOCK_MASTERY_REPLAYS[index]);
     assert.equal(master.won, true);
     assert.equal(master.deaths, 0);
+    assert.deepEqual(master.visited, ordinary.visited, 'the fast line cannot miss a completed puzzle checkpoint');
     assert.ok(master.tick <= AFTERSHOCK_TARGETS[level.id]);
     assert.match(await text('finish-mastery'), /Mastered/);
     await capture(`${level.id}-mastered`);
@@ -61,7 +65,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     const died = await run(FAILURE_REPLAYS[index]);
     assert.equal(died.deaths, 1);
     assert.equal(died.event, 'death');
-    const respawn = await page.evaluate<State>('window.__BOUNDSTOY__.advance(54)');
+    const respawn = await page.evaluate<State>(`window.__BOUNDSTOY__.advance(${RULES.respawnTicks})`);
     assert.equal(respawn.tick - respawn.patternOffset, 0);
     const assisted = await run(REPLAYS[index]);
     assert.equal(assisted.deaths, 1);
@@ -74,6 +78,78 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     assert.equal(saved[level.id].deaths, 0);
     log(`PASS: ${level.name}: clear ${ordinary.tick}, mastery ${master.tick}, target ${AFTERSHOCK_TARGETS[level.id]}; real retry preserves run costs.`);
   }
+
+  assert.equal(CHECKPOINT_REPLAYS.length, LEVELS.reduce((sum, level) => sum + level.checkpoints.length, 0));
+  for (const fixture of CHECKPOINT_REPLAYS) {
+    const level = LEVELS[fixture.index], checkpoint = level.checkpoints[fixture.checkpoint];
+    await page.evaluate(`window.__BOUNDSTOY__.load(${fixture.index})`);
+    const reached = await run(fixture.approach);
+    assert.equal(reached.visited.at(-1), `${checkpoint.x},${checkpoint.y}`);
+    assert.equal(reached.won, false);
+    assert.equal(reached.deaths, 0);
+    await page.evaluate("document.getElementById('overlay').hidden = true");
+    await capture(`${level.id}-checkpoint-${fixture.checkpoint + 1}`);
+    const died = await run(fixture.failure);
+    assert.equal(died.event, 'death', 'fixture backtracks into the completed field to cause a real death');
+    const returned = await page.evaluate<State>(`window.__BOUNDSTOY__.advance(${RULES.respawnTicks})`);
+    assert.deepEqual(returned.position, { x: checkpoint.x + 0.5, y: checkpoint.y + 0.5 });
+    assert.deepEqual(returned.visited, reached.visited);
+    assert.equal(returned.tick - returned.patternOffset, 0);
+    assert.equal(returned.tick, died.tick + RULES.respawnTicks);
+    const finished = await run(fixture.recovery);
+    assert.equal(finished.won, true);
+    assert.equal(finished.deaths, 1, 'banked puzzle is not replayed after a death');
+    log(`PASS: ${level.name}: checkpoint ${fixture.checkpoint + 1} is collected, survives a backtrack death and reaches the safe exit after respawn.`);
+  }
+
+  // Watch from the safe spawn: capture the actual travel/group order, not just an empty board.
+  for (const [index, level] of LEVELS.entries()) {
+    const ignitions = [...new Set(level.hazards.map(hazard => (hazard.period - hazard.phase) % hazard.period))]
+      .sort((a, b) => a - b).slice(0, 3);
+    for (const tick of ignitions) {
+      const state = await page.evaluate<State>(`(() => {
+        window.__BOUNDSTOY__.load(${index});
+        const state = window.__BOUNDSTOY__.advance(${tick});
+        document.getElementById('overlay').hidden = true;
+        return state;
+      })()`);
+      assert.equal(state.deaths, 0, 'the player can observe the sequence from its safe starting pad');
+      await capture(`${level.id}-pattern-t${tick}`);
+    }
+  }
+  const gridIndex = LEVELS.findIndex(level => level.name === 'Checkerboard'), grid = LEVELS[gridIndex];
+  const gridPulses = grid.hazards.filter(hazard => hazard.kind === 'pulse');
+  const light = gridPulses.find(hazard => (hazard.x + hazard.y) % 2 === 0
+    && gridPulses.some(other => other.x === hazard.x + 1 && other.y === hazard.y));
+  assert.ok(light, 'checkerboard supplies adjacent light/dark group cells');
+  const quiet = Array.from({ length: gridPulses[0].period }, (_, tick) => tick).find(tick =>
+    gridPulses.every(hazard => {
+      const sample = hazardSample(hazard, tick);
+      return !sample.warning && sample.cycle >= RULES.pulseEffectTicks;
+    }));
+  assert.notEqual(quiet, undefined, 'the grid has an observable quiet state between alternating groups');
+  const shadePixels = await page.evaluate<number[][]>(`(() => {
+    window.__BOUNDSTOY__.load(${gridIndex});
+    window.__BOUNDSTOY__.advance(${quiet});
+    document.getElementById('overlay').hidden = true;
+    const canvas = document.querySelector('.viewport canvas'), rect = canvas.getBoundingClientRect();
+    const image = document.createElement('canvas'); image.width = canvas.width; image.height = canvas.height;
+    const context = image.getContext('2d'); context.drawImage(canvas, 0, 0);
+    const ratio = canvas.width / rect.width;
+    return [0, 1].map(offset => {
+      const point = window.__BOUNDSTOY__.project({ x: ${light.x} + offset + 0.32, y: ${light.y} + 0.30 });
+      const pixels = context.getImageData(Math.round((point.x - rect.left) * ratio) - 1,
+        Math.round((point.y - rect.top) * ratio) - 1, 3, 3).data;
+      return [0, 1, 2].map(channel => {
+        let sum = 0; for (let i = channel; i < pixels.length; i += 4) sum += pixels[i];
+        return sum / 9;
+      });
+    });
+  })()`);
+  const luminance = ([r, g, b]: number[]) => r * 0.2126 + g * 0.7152 + b * 0.0722;
+  assert.ok(luminance(shadePixels[0]) > luminance(shadePixels[1]) * 1.1,
+    `actual checkerboard plate pixels must preserve group contrast: ${JSON.stringify(shadePixels)}`);
+  await capture(`${grid.id}-quiet-ground-groups`);
   await reload('records');
   for (const level of LEVELS) {
     const card = await page.evaluate<string>(`[...document.querySelectorAll('.course-card')]

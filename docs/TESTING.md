@@ -16,6 +16,45 @@ fixtures, evidence and cleanup checks.
 
 ## Current Aftershock gameplay gate
 
+The current set is Borrowed Ground v2, Crosscurrent and Checkerboard. Tests must
+cover genuinely sequential explosions, lateral choices, alternating parity
+groups, all ordered checkpoint collections, and actual post-checkpoint deaths
+followed by legal continuations. A checkpoint-free winning witness is no longer
+sufficient. Failed approaches must come from input, not teleportation.
+
+`tests/ground-visuals.test.ts` checks actual instance colors, unchanged normal
+material/movement, and checkpoint ring geometry. Physics/editor tests cover
+generous trigger radii, wall separation, legacy defaults, goal-radius isolation
+and JSON/edit roundtrips. Browser evidence includes travelling and alternating
+blast phases as well as quiet-state rendered checkerboard contrast.
+
+| Encounter | Clear / mastery ticks | Target | Contiguous zero-launch window, clear / mastery |
+| --- | --- | --- | --- |
+| Borrowed Ground v2 | 752 / 613 | 690 | 45 / 44 ticks |
+| Crosscurrent | 620 / 561 | 590 | 142 / 115 ticks |
+| Checkerboard | 711 / 503 | 540 | 38 / 35 ticks |
+
+Full-period sweeps, not sampled offsets, establish those launch windows.
+Local in-field decision probes include at least 25 contiguous allowed delay
+values starting at zero. Spatial probes and failures cover the actual movement
+choices; complete executable evidence is in `tests/aftershock.test.ts`.
+Three `CHECKPOINT_REPLAYS` fixtures drive actual approach, backtrack death,
+54-tick respawn and safe-exit recovery in both headless and production checks.
+There is one hazardous phrase per room; these are not downstream-puzzle tests.
+
+The integrated short-pattern release gate passes **230/230 portable tests**,
+typecheck/build and all five production runners. Evidence:
+`artifacts/aftershock/pattern-release-check.log`; browser runs `run-2nkXIM`,
+`run-rfi6Du`, `run-R1HOij`, `run-p60kZI` and `run-x6eEl0`.
+This validates implementation and readable rendering, not player enjoyment.
+
+## Historical first Aftershock iteration (rejected by player feedback)
+
+The following measurements describe cefca79, not current gameplay acceptance.
+The player found Slipstream repetitive, Borrowed Ground too long/implausible,
+and The Cut's alternate path unhelpful. These results motivated the replacement;
+they are not constraints that should force the new maps back into that shape.
+
 `tests/aftershock.test.ts` measures all six exact ordinary/mastery witnesses,
 intentional pulse/void failures, non-removable observation waits, temporary
 refuge recovery, geometric shortcut advantage and complete launch-phase sets.

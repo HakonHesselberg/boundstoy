@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TERRAIN, type Tile } from '../data/terrain.ts';
+import { TERRAIN, GROUND_COLORS, type Tile } from '../data/terrain.ts';
 import { RULES } from '../data/terrain.ts';
 import { center, type Level, type Point } from '../core/level.ts';
 import { hazardSample, hazardTick, type State } from '../core/simulation.ts';
@@ -177,11 +177,11 @@ export class Scene {
     for (let i = 1; i < points.length; i++) batch.points.push(...points[i - 1].toArray(), ...points[i].toArray());
     this.lines.set(key, batch);
   }
-  private marker(point: Point, color: number, goal = false, label = ''): THREE.Group {
+  private marker(point: Point, color: number, goal = false, label = '', radius = goal ? 0.46 : 0.34): THREE.Group {
     const group = new THREE.Group();
     group.position.set(point.x + 0.5, 0, point.y + 0.5);
     const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.4 });
-    const ring = this.mesh(new THREE.TorusGeometry(goal ? 0.46 : 0.34, goal ? 0.055 : 0.022, 8, goal ? 6 : 32), mat);
+    const ring = this.mesh(new THREE.TorusGeometry(radius, goal ? 0.055 : 0.022, 8, goal ? 6 : 32), mat);
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.055; group.add(ring);
     if (goal) {
       const portal = this.mesh(new THREE.TorusGeometry(0.43, 0.075, 8, 6), mat);
@@ -234,7 +234,8 @@ export class Scene {
       instances.receiveShadow = true; instances.castShadow = char === '#';
       cells.forEach((point, i) => {
         matrix.position.set(point.x + 0.5, -0.38, point.y + 0.5); matrix.updateMatrix(); instances.setMatrixAt(i, matrix.matrix);
-        const tint = new THREE.Color(terrain.color).multiplyScalar(0.9 + ((point.x * 7 + point.y * 11) % 5) * 0.05);
+        const tint = char === '.' ? new THREE.Color(GROUND_COLORS[(point.x + point.y) % 2])
+          : new THREE.Color(terrain.color).multiplyScalar(0.9 + ((point.x * 7 + point.y * 11) % 5) * 0.05);
         instances.setColorAt(i, tint);
       });
       this.board.add(instances);
@@ -244,7 +245,8 @@ export class Scene {
     const spawn = this.marker(level.spawn, 0x77ecd9, false, 'START'); this.board.add(spawn);
     this.goal = this.marker(level.goal, 0xffce85, true, 'EXIT'); this.board.add(this.goal);
     this.checkpoints = level.checkpoints.map((p, index) => {
-      const marker = this.marker(p, 0x86f2dd, false, String(index + 1).padStart(2, '0')); this.board.add(marker); return marker;
+      const marker = this.marker(p, 0x86f2dd, false, String(index + 1).padStart(2, '0'), p.radius ?? RULES.markerRadius);
+      this.board.add(marker); return marker;
     });
     for (const hazard of level.hazards) {
       const group = new THREE.Group();

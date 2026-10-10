@@ -8,14 +8,18 @@ Boundstoy is a static browser playground for ice sliding and timed bounds.
 Scope: a shippable, consumer-facing game with at most ten focused levels,
 a secondary level editor, and the existing four movement surfaces. Teach each
 mechanic before combining it; build on existing mechanics only.
-The playable set is the three Aftershock encounters: Slipstream, Borrowed Ground,
-The Cut. Relay is retired to tests/fixtures only: the user rejected its low
-difficulty and replay value. The approved Aftershock world (BT-024) must receive
-gameplay feedback on these three encounters before expanding to eight stages.
-Preserve their deliberate challenge, distinct clear/mastery routes and measured
-timing margins. Do not silently apply forgiving onboarding margins.
-Retries reset the encounter pattern, not elapsed time/deaths. Clean records and
-mastery targets must never be awarded by checkpoint-assisted runs.
+The playable set is three short Aftershock variations: Borrowed Ground,
+Crosscurrent and Checkerboard. The user rejected the first Aftershock set
+(repetitive Slipstream, too-long Borrowed Ground, redundant The Cut) as well as
+Relay. Do not treat legal replays as proof of interesting or human-readable play.
+Explore travelling sequences, lateral movement and alternating grid groups,
+not repetitions of simultaneous three-tile gates.
+Every completed puzzle must have a checkpoint on a safe landing, with a trigger
+wide enough for its valid routes. Verify downstream recovery, not only a fresh
+start. New checkpoints use explicit radii; legacy imports retain their default.
+Light/dark normal-ground shades are cosmetic, never another movement surface.
+Retries reset the pattern, not elapsed time/deaths. Clean records and mastery
+targets require zero deaths. The world expansion gate remains human feedback.
 Explosions are lethal for exactly one simulation tick; lingering effects are
 harmless. Do not restore sustained flames or stack consecutive detonations to
 disguise a continuous damage window. Keep the four movement rules unchanged.

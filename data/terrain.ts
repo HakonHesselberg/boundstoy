@@ -11,6 +11,10 @@ export const TERRAIN = Object.freeze({
 export type Tile = keyof typeof TERRAIN;
 export type Terrain = (typeof TERRAIN)[Tile];
 
+// Even coordinate parity is the lighter group; both shades remain ordinary ground.
+export const GROUND_COLORS = Object.freeze([0x486578, 0x2e414f]);
+export const GROUND_WARNING_COLORS = Object.freeze([0x675039, 0x402f22]);
+
 export const RULES = Object.freeze({
   tickRate: 120,
   radius: 0.20,
@@ -21,5 +25,7 @@ export const RULES = Object.freeze({
   pulseRadius: 0.43,
   sawRadius: 0.31,
   markerRadius: 0.42,
+  checkpointRadius: 1.4,
+  maxCheckpointRadius: 3,
   collisionStep: 0.07,
 });

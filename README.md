@@ -1,9 +1,10 @@
 # Boundstoy
 
 A static browser game about precise movement through instantaneous explosions.
-The playable **Aftershock** set contains three new encounters: **Slipstream**,
-**Borrowed Ground** and **The Cut**. Each has a normal clear and a faster clean
-mastery route. These are the first gameplay gate for a planned eight-stage world,
+The playable **Aftershock** set contains three short variations: **Borrowed Ground**,
+**Crosscurrent** and **Checkerboard**. Each has a normal clear and a faster clean
+mastery route, with checkpoints after completed puzzles. This is a gameplay
+iteration for a planned eight-stage world,
 not a claim that the finished world has shipped. A secondary editor retains all
 four movement surfaces.
 
@@ -27,9 +28,9 @@ Selecting a level, **Next level** and **Retry level** start playing
 directly—there are no per-level tutorial popups. Hints stay below the board;
 full level instructions are available in **Menu → How to play**.
 **Space** pauses, **R** restarts, and **Escape** opens the menu.
-These short encounters retry from the start with the same explosion pattern.
+These short encounters retry from the latest puzzle checkpoint with the same explosion pattern.
 Elapsed run time and retries remain; **R** starts a fresh clean attempt.
-Imported/editor levels can still use checkpoints.
+Checkpoint rings show generous collection zones; you do not need to hit a tiny center marker.
 Pause, restart and level changes clear held controls; release and press again
 to move after those transitions.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
@@ -71,19 +72,26 @@ guaranteed: there is intentionally no service worker.
 
 ## Aftershock: first encounters
 
-| Level | Decision | Mastery target |
-| --- | --- | --- |
-| Slipstream | Follow three-tile detonation fields through four bends; change cadence before the next crossing | 12.50 s, zero retries |
-| Borrowed Ground | Transfer off temporary refuge before its blast; recover a missed transfer by retreating onto spent ground | 14.83 s, zero retries |
-| The Cut | Take the outside rail or cross two exposed diagonal fields, then read the shared exit | 11.66 s, zero retries |
+| Level | Pattern |
+| --- | --- |
+| Borrowed Ground | A short temporary-refuge encounter with tile-by-tile travelling explosions |
+| Crosscurrent | A wider corridor where lateral movement interacts with sequential blasts |
+| Checkerboard | A grid alternating the lighter cells, then the darker cells |
 
-The ordinary witnesses take 13.87, 15.93 and 13.23 simulated seconds.
-Their mastery witnesses take 11.68, 13.93 and 10.26 seconds respectively.
-The Cut's shortcut removes 11.88 tiles of travel and saves 22.4% against an
-outside route that never waits. Borrowed Ground's ordinary route includes a
-real retreat/recovery; Slipstream rewards catching earlier crossings rather
-than simply walking the same route faster. These are authored witnesses,
-not global speedrun records or predicted first-clear times.
+Ordinary reference clears take **6.27 / 5.17 / 5.93 seconds** respectively;
+mastery references take **5.11 / 4.68 / 4.19 seconds**. The shortened Borrowed
+Ground is less than half its predecessor's execution time. These are practiced
+routes, not promises about a player's first attempt.
+
+The light and dark floor shades are the same normal ground: identical speed,
+grip and collision. The group identity persists on explosion plates and warning
+states; the bright flash still identifies the actual single lethal tick.
+Clear/mastery targets are shown in the selector and results. Legal witness
+routes and measured tolerances are not global records or proof that a map is fun.
+
+This set replaces the rejected Slipstream / original Borrowed Ground / The Cut
+iteration. Shorter commitment, different spatial decisions and puzzle-end
+checkpoints take priority over adding more repeated gates.
 
 The retired Relay layouts are **not in the playable selector or game bundle**.
 They remain only as movement/recovery regression fixtures under `tests/fixtures/`.
@@ -99,7 +107,7 @@ three seconds; imported JSON/drafts retain their periods and phases, but legacy
 Existing drafts and older records are preserved, but old clears do not affect
 Continue. Choose **Remix level** in the editor to copy a current layout.
 
-Explosion pads are dark when safe, charge in amber, then erupt into bright
+Explosion pads retain their muted ground shade when safe, charge in amber, then erupt into bright
 fireballs, shock rings and sparks. The outlined square is the danger footprint.
 The tile is safe immediately after detonation, even while the burst dissipates
 for 300 ms. Fading debris is harmless, not continuous fire. Optional audio

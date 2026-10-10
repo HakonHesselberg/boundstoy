@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RULES } from '../data/terrain.ts';
+import { RULES, GROUND_COLORS, GROUND_WARNING_COLORS } from '../data/terrain.ts';
 import type { Pulse } from '../core/level.ts';
 import { hazardSample } from '../core/simulation.ts';
 
@@ -76,8 +76,10 @@ export function updatePulse(view: PulseView, hazard: Pulse, tick: number, reduce
   view.warning.visible = sample.warning;
   // Sample time since ignition so a rendered frame need not land on the lethal tick.
   view.burst.visible = cycle < RULES.pulseEffectTicks;
-  view.plate.material.color.setHex(sample.active ? 0xff551e : sample.warning ? 0x52321c : 0x251b2c);
-  view.plate.material.emissive.setHex(sample.active ? 0xff4114 : sample.warning ? 0xaa4313 : 0x341527);
+  const parity = (hazard.x + hazard.y) % 2;
+  view.plate.material.color.setHex(sample.active ? 0xff551e
+    : sample.warning ? GROUND_WARNING_COLORS[parity] : GROUND_COLORS[parity]);
+  view.plate.material.emissive.setHex(sample.active ? 0xff4114 : sample.warning ? 0xaa4313 : 0x000000);
   view.plate.material.emissiveIntensity = sample.active ? 1.6 : sample.warning ? 0.3 + charge * 0.4 : 0.15;
   view.outline.material.color.setHex(sample.active ? 0xffefbd : sample.warning ? 0xffc454 : 0xad617d);
   view.ring.scale.setScalar(reducedMotion ? 1 : 1 - charge * 0.6);

@@ -53,6 +53,12 @@ Build order and gates:
    The Cut (a meaningful faster, riskier route). Each needs clear/mastery
    witnesses, deliberately failing strategies, measured timing and short retries.
    Get user feedback: at least two must be worth replaying before expansion.
+   Feedback on this first set was negative: Slipstream repeats its puzzle,
+   Borrowed Ground is too long/implausible to the player, and The Cut's side
+   route feels pointless. BT-028 replaces all three with short travelling,
+   wide-corridor and checkerboard patterns; BT-029 supports readable ground and
+   guaranteed puzzle-end checkpoints. This explicit user-approved iteration
+   supersedes the original no-checkpoint greybox direction.
 3. Prove The Engine as interacting route/arrival-phase decisions, not a stitched
    sequence of lessons. Then build the early progression around the proven skills.
 4. Finish the eight-stage progression: entry opportunity, distance-to-ignition,
@@ -80,13 +86,15 @@ Automated solvability and visual approval are not proof that the world is fun.
 Orchestrator-owned staged work. BT-025 is integrated and verified. BT-026 authored
 Slipstream, Borrowed Ground and The Cut; BT-027 integrates them as the only
 playable levels, with repeatable retries and independent clean/mastery records.
-All six authored witnesses finish in the production browser. The remaining five
-stages are not built. User feedback on whether at least two encounters are worth
-replaying is the next gate, not more automatic campaign expansion.
+All six first-iteration witnesses finish in the production browser, but user
+feedback rejected that gameplay. BT-028/029 deliver the approved next iteration:
+shorter Borrowed Ground, wide sequential movement, alternating checkerboard,
+and generous checkpoints after every finished puzzle. The remaining world
+progression is not built; do not expand it before gameplay feedback.
 
 ## Result
 
-Three encounters are implemented, not a finished eight-stage world. Their
-measured route differences and timing windows prove legal strategies, not fun
-or a Steam reception prediction. The replay-value acceptance box stays open
-until user feedback; the BT-025 changeset alone only shipped explosions.
+The short replacement set and puzzle-end checkpoints are integrated and verified
+under BT-028/029, not a finished eight-stage world. Their measured route
+differences and timing windows prove legal strategies, not fun or a Steam
+reception prediction. The replay-value acceptance box stays open for user feedback.

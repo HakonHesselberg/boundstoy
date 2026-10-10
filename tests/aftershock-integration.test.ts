@@ -9,26 +9,32 @@ import { recordFinish } from '../application/storage.ts';
 import { RULES } from '../data/terrain.ts';
 import { FAILURE_REPLAYS } from './fixtures/aftershock-failures.ts';
 
-test('Aftershock_PlayableRegistry_ReplacesRelayWithTheThreeApprovedEncounters', () => {
-  assert.deepEqual(LEVELS.map(level => level.name), ['Slipstream', 'Borrowed Ground', 'The Cut']);
+test('Aftershock_PlayableRegistry_ContainsShortDistinctPatternsWithPuzzleCheckpoints', () => {
+  assert.deepEqual(LEVELS.map(level => level.name), ['Borrowed Ground', 'Crosscurrent', 'Checkerboard']);
+  assert.deepEqual(LEVELS.map(level => level.id),
+    ['aftershock-borrowed-ground-v2', 'aftershock-crosscurrent-v1', 'aftershock-checkerboard-v1']);
   assert.equal(REPLAYS.length, 3);
   assert.deepEqual(Object.keys(COURSE_LESSONS), LEVELS.map(level => level.id));
   for (const level of LEVELS) {
     assert.ok(level.id.startsWith('aftershock-'));
     assert.equal(level.resetPatternOnRetry, true);
-    assert.equal(level.checkpoints.length, 0, 'short standalone encounters retry from their start');
+    assert.ok(level.checkpoints.length > 0, 'completed puzzles save progress before the next challenge');
+    assert.ok(level.checkpoints.every(point => (point.radius ?? 0) >= RULES.checkpointRadius));
     assert.ok(level.hazards.every(hazard => hazard.kind === 'pulse' && hazard.on === 1));
     assert.ok([...level.tiles.join('')].every(tile => '.# '.includes(tile)));
     const guide = courseGuide(level, createState(level));
-    assert.equal(guide.total, 1);
+    assert.equal(guide.total, level.checkpoints.length + 1);
     assert.equal(guide.hint, COURSE_LESSONS[level.id][0].hint);
     assert.ok(guide.hint.length <= 200);
   }
 });
 
-test('Aftershock_RetiredRelayRecords_DoNotUnlockOrOverwriteNewEncounters', () => {
+test('Aftershock_RejectedAndRetiredRecords_DoNotUnlockOrOverwriteNewEncounters', () => {
   const legacy = { 'relay-courtyard-v1': { ticks: 652, deaths: 0 },
-    'relay-crescendo-v2': { ticks: 2641, deaths: 0 } };
+    'relay-crescendo-v2': { ticks: 2641, deaths: 0 },
+    'aftershock-slipstream-v1': { ticks: 1401, deaths: 0 },
+    'aftershock-borrowed-ground-v1': { ticks: 1672, deaths: 0 },
+    'aftershock-the-cut-v1': { ticks: 1231, deaths: 0 } };
   assert.equal(nextCourse(LEVELS, legacy), 0);
   const saved = recordFinish(legacy, LEVELS[0].id, 1000, 0);
   assert.equal(nextCourse(LEVELS, saved), 1);

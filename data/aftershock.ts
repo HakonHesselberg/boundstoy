@@ -1,113 +1,81 @@
 import { parseLevel, type Level, type Pulse } from '../core/level.ts';
 
 type Rect = readonly [number, number, number, number];
-
-// Inclusive rectangles keep the playable footprint and each full-width blast
-// field auditable together. Nothing depends on a renderer or a replay at load time.
-function board(width: number, height: number, ground: readonly Rect[], voids: readonly Rect[] = []) {
+function board(width: number, height: number, ground: readonly Rect[]) {
   const rows = Array.from({ length: height }, () => Array<string>(width).fill('#'));
-  for (const [rects, tile] of [[voids, ' '], [ground, '.']] as const)
-    for (const [left, top, right, bottom] of rects)
-      for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) rows[y][x] = tile;
+  for (const [left, top, right, bottom] of ground)
+    for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) rows[y][x] = '.';
   return rows.map(row => row.join(''));
 }
-
-// `flash` is an absolute tick on the repeating schedule, not a damage duration.
-function field(rect: Rect, period: number, flash: number): Pulse[] {
-  const result: Pulse[] = [], phase = (period - flash % period) % period;
-  for (let y = rect[1]; y <= rect[3]; y++) for (let x = rect[0]; x <= rect[2]; x++)
-    result.push({ kind: 'pulse', x, y, period, on: 1, phase });
-  return result;
+// A flash is one absolute tick modulo period, never a sustained damage window.
+function pulse(x: number, y: number, period: number, flash: number): Pulse {
+  return { kind: 'pulse', x, y, period, on: 1, phase: (period - flash % period) % period };
 }
 
-const slipstream = {
-  version: 1, id: 'aftershock-slipstream-v1', name: 'Slipstream',
-  description: 'Follow the flash around four bends. Chase the wave, then break cadence at three seams; the next flash will not wait for your turn.',
-  resetPatternOnRetry: true,
-  tiles: board(18, 14, [[2, 2, 14, 2], [14, 2, 14, 6], [4, 6, 14, 6], [4, 6, 4, 10], [4, 10, 14, 10]]),
-  spawn: { x: 2, y: 2 }, goal: { x: 14, y: 10 }, checkpoints: [],
-  hazards: [
-    ...field([4, 2, 6, 2], 132, 36),
-    ...field([8, 2, 10, 2], 132, 197),
-    ...field([14, 3, 14, 5], 132, 420),
-    ...field([10, 6, 12, 6], 132, 597),
-    ...field([6, 6, 8, 6], 132, 766),
-    ...field([4, 7, 4, 9], 132, 933),
-    ...field([6, 10, 8, 10], 132, 1100),
-    ...field([10, 10, 12, 10], 132, 1243),
-  ],
-};
+const borrowedPulses: Pulse[] = [];
+for (let x = 2; x <= 4; x++) for (let y = 2; y <= 3; y++)
+  borrowedPulses.push(pulse(x, y, 360, 1 + (x - 2) * 35));
+for (let x = 5; x <= 6; x++) {
+  borrowedPulses.push(pulse(x, 2, 360, 190));
+  for (let y = 3; y <= 6; y++) borrowedPulses.push(pulse(x, y, 360, 110 + (y - 3) * 35));
+}
+for (let x = 7; x <= 9; x++) for (let y = 5; y <= 6; y++)
+  borrowedPulses.push(pulse(x, y, 360, 285 + (x - 7) * 35));
 
 const borrowedGround = {
-  version: 1, id: 'aftershock-borrowed-ground-v1', name: 'Borrowed Ground',
-  description: 'Every interior landing has an expiry. Transfer before the next flash, or borrow the field behind you and return.',
+  version: 1, id: 'aftershock-borrowed-ground-v2', name: 'Borrowed Ground',
+  description: 'Follow individual flashes to the elbow. Transfer off its expiring floor, or retreat onto spent ground and return. Bank the crossing on the broad landing.',
   resetPatternOnRetry: true,
-  tiles: board(18, 21, [[2, 2, 6, 2], [6, 2, 6, 9], [6, 9, 10, 9], [10, 2, 10, 9],
-    [10, 2, 14, 2], [14, 2, 14, 13], [10, 13, 14, 13], [10, 13, 10, 17], [10, 17, 14, 17]]),
-  spawn: { x: 2, y: 2 }, goal: { x: 14, y: 17 }, checkpoints: [],
-  hazards: [
-    ...field([3, 2, 5, 2], 240, 0),
-    ...field([6, 2, 6, 2], 240, 175),
-    // Six-tile transfers expose the player for ~209 ticks of a 240-tick cycle.
-    // Unlike a short gate, the next cycle cannot be crossed early after retreating.
-    ...field([6, 3, 6, 8], 240, 155),
-    ...field([6, 9, 6, 9], 240, 415),
-    ...field([7, 9, 9, 9], 240, 385),
-    ...field([10, 9, 10, 9], 240, 565),
-    ...field([10, 3, 10, 8], 240, 530),
-    ...field([10, 2, 10, 2], 240, 805),
-    ...field([11, 2, 13, 2], 240, 765),
-    ...field([14, 2, 14, 2], 240, 950),
-    ...field([14, 3, 14, 8], 240, 900),
-    ...field([14, 9, 14, 9], 240, 1190),
-    ...field([14, 10, 14, 12], 240, 1150),
-    ...field([14, 13, 14, 13], 240, 1330),
-    ...field([11, 13, 13, 13], 240, 1285),
-    ...field([10, 13, 10, 13], 240, 1460),
-    ...field([10, 14, 10, 16], 240, 1420),
-    ...field([10, 17, 10, 17], 240, 1600),
-    ...field([11, 17, 13, 17], 240, 1552),
-  ],
+  tiles: board(17, 9, [[1, 2, 6, 3], [5, 2, 6, 6], [5, 5, 12, 6], [13, 3, 15, 7]]),
+  spawn: { x: 1, y: 2 }, goal: { x: 14, y: 3 },
+  checkpoints: [{ x: 12, y: 6, radius: 1.4 }],
+  hazards: borrowedPulses,
 };
 
-// A three-cell staircase ribbon: generous lateral room, but no invisible walls
-// over the void. The two diagonal blast fields cover ALL cells of their columns.
-const ribbon: Rect[] = [];
-for (let x = 6; x <= 16; x++) ribbon.push([x, Math.max(10, 25 - x), x, Math.min(20, 27 - x)]);
-const cut = {
-  version: 1, id: 'aftershock-the-cut-v1', name: 'The Cut',
-  description: 'The outside rail buys room to react. The diagonal cut saves real distance, but commits you to two narrow flash windows and an exposed turn.',
+const crossPulses: Pulse[] = [];
+for (let x = 2; x <= 10; x++) for (let y = 2; y <= 5; y++)
+  crossPulses.push(pulse(x, y, 300, 80 + (x - 2) * 30 + (5 - y) * 70));
+const crosscurrent = {
+  version: 1, id: 'aftershock-crosscurrent-v1', name: 'Crosscurrent',
+  description: 'A wave traverses four lanes. Move across its wake instead of waiting in its path; choose where to change lanes before reaching the safe landing.',
   resetPatternOnRetry: true,
-  tiles: board(31, 24, [[2, 20, 28, 20], [28, 1, 28, 20], [26, 1, 28, 1], [26, 1, 26, 2],
-    ...ribbon, [16, 10, 20, 10], [20, 2, 20, 10], [20, 2, 26, 2]], [[5, 3, 25, 19]]),
-  spawn: { x: 2, y: 20 }, goal: { x: 26, y: 2 }, checkpoints: [],
-  hazards: [
-    ...field([12, 20, 14, 20], 180, 300),
-    ...field([28, 8, 28, 10], 180, 1168),
-    ...ribbon.filter(r => r[0] >= 8 && r[0] <= 10).flatMap(r => field(r, 180, 190)),
-    ...ribbon.filter(r => r[0] >= 12 && r[0] <= 14).flatMap(r => field(r, 180, 395)),
-    ...field([20, 5, 20, 7], 132, 848),
-  ],
+  tiles: board(17, 8, [[1, 2, 11, 5], [12, 2, 15, 4]]),
+  spawn: { x: 1, y: 5 }, goal: { x: 15, y: 4 },
+  checkpoints: [{ x: 13, y: 3, radius: 1.4 }],
+  hazards: crossPulses,
 };
 
-export const AFTERSHOCK_LEVELS: readonly Level[] = Object.freeze([slipstream, borrowedGround, cut].map(parseLevel));
+const checkerPulses: Pulse[] = [];
+for (let y = 2; y <= 7; y++) for (let x = 2; x <= 9; x++)
+  checkerPulses.push(pulse(x, y, 360, (x + y) % 2 === 0 ? 154 : 334));
+const checkerboard = {
+  version: 1, id: 'aftershock-checkerboard-v1', name: 'Checkerboard',
+  description: 'Light tiles flash together, then dark tiles. Choose the other colour before each flash; diagonals keep your colour, straight steps change it.',
+  resetPatternOnRetry: true,
+  tiles: board(16, 10, [[1, 7, 1, 7], [2, 2, 9, 7], [10, 2, 11, 7], [12, 2, 12, 4], [13, 1, 14, 4]]),
+  spawn: { x: 1, y: 7 }, goal: { x: 14, y: 1 },
+  checkpoints: [{ x: 12, y: 3, radius: 1.4 }],
+  hazards: checkerPulses,
+};
+
+export const AFTERSHOCK_LEVELS: readonly Level[] = Object.freeze([borrowedGround, crosscurrent, checkerboard].map(parseLevel));
+function lessons(title: string, hint: string) {
+  return Object.freeze([
+    Object.freeze({ title, hint }),
+    Object.freeze({ title: 'Crossing banked', hint: 'This landing is safe. Continue to the exit; a retry returns here with the flash pattern restarted.' }),
+  ]);
+}
 export const AFTERSHOCK_LESSONS: Readonly<Record<string, readonly Readonly<{ title: string; hint: string }>[]>> = Object.freeze({
-  'aftershock-slipstream-v1': Object.freeze([Object.freeze({
-    title: 'Chase, turn, retime',
-    hint: 'Three tiles flash together. Follow their aftermath, but read the next field before each turn. The second, fifth and last crossings need a different cadence.',
-  })]),
-  'aftershock-borrowed-ground-v1': Object.freeze([Object.freeze({
-    title: 'Leave before you see it',
-    hint: 'A landing is borrowed, never safe. Begin a transfer before the next field flashes. Miss that moment? Retreat onto the spent field, then return before it fires again.',
-  })]),
-  'aftershock-the-cut-v1': Object.freeze([Object.freeze({
-    title: 'Distance has a price',
-    hint: 'Stay east for the outside rail. Turn northeast at the first fork for the shorter cut; cross one diagonal field, retime on the seam, then read the northbound exit.',
-  })]),
+  'aftershock-borrowed-ground-v2': lessons('Borrow, then transfer',
+    'The elbow expires. Turn onto the spent tiles, or back onto the approach while it flashes and return. Reach the broad landing to bank the crossing.'),
+  'aftershock-crosscurrent-v1': lessons('Use the width',
+    'The flashes travel along and across four lanes. Change lanes into the wake; standing in the same lane lets the next wave catch you.'),
+  'aftershock-checkerboard-v1': lessons('Light, then dark',
+    'Light tiles flash first, dark tiles next. Stand on dark for the light flash, then step onto light for the dark flash. Diagonal steps keep your colour.'),
 });
-// Authored clean technique targets, not claims of globally optimal paths/times.
+// Clean technique targets, not claims of global optimality.
 export const AFTERSHOCK_TARGETS: Readonly<Record<string, number>> = Object.freeze({
-  'aftershock-slipstream-v1': 1500,
-  'aftershock-borrowed-ground-v1': 1780,
-  'aftershock-the-cut-v1': 1400,
+  'aftershock-borrowed-ground-v2': 690,
+  'aftershock-crosscurrent-v1': 590,
+  'aftershock-checkerboard-v1': 540,
 });

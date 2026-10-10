@@ -27,10 +27,11 @@ frozen and shared between steps; snapshots never depend on rendering.
 
 The active registry re-exports only Aftershock. The three encounters use ordinary
 pulse phase offsets and normal ground; there is no course-specific branch in
-physics or rendering. Mixed periods are allowed: The Cut's combined pattern has
-an LCM of 1980 ticks. New `aftershock-*-v1` IDs separate records from retired Relay.
-Retired data remains in test fixtures to preserve ice/mud/saw/recovery coverage
-without shipping unwanted levels.
+physics or rendering. Its three variations are compact travelling sequences,
+a wide corridor and a two-group checkerboard. The shortened Borrowed Ground
+uses `-v2`; new encounter IDs isolate records from the rejected first iteration.
+Retired Relay data remains in test fixtures to preserve ice/mud/saw/recovery
+coverage without shipping unwanted levels.
 
 Soft ice rotates a fixed-length velocity vector towards input. It has no
 acceleration/drag path; releasing input and reversing never reduce its speed.
@@ -46,6 +47,12 @@ State retains elapsed `tick` plus `patternOffset`; `hazardTick(state)` is their
 difference. Opted-in retries set the offset on respawn without erasing run time
 or deaths. Collision, ASCII inspection, rendering and detonation audio all use
 this same pattern clock. Old imported levels leave the offset at zero.
+Checkpoints optionally specify a `radius` in tiles, validated as finite and
+greater than zero up to three. Missing radii retain the old 0.42 trigger.
+New editor markers default to 1.4 and the visible ring uses the actual radius.
+Collection requires a clear floor segment to the marker, preventing large zones
+from collecting through walls/void. Each authored completed puzzle has a safe
+checkpoint and a separately verified post-death continuation.
 The frame loop and tests share fixed-step partitioning with a tiny tick-boundary
 rounding tolerance, preventing a lost tick at particular refresh rates while
 retaining real partial ticks. Keyboard auto-repeat cannot re-add a direction
@@ -62,6 +69,10 @@ it samples ticks since ignition for a 36-tick one-shot effect, including when
 a rendered frame skips ignition. The plate signals safe ground immediately
 after the single lethal tick; remaining particles are harmless.
 
+Normal ground uses two muted coordinate-parity shades, with even `(x+y)` lighter.
+The same two groups remain visible on safe and warning pulse plates; detonation
+retains its common bright signal. This is presentation only: both colors are `.`
+with the same movement/geometry and no additional level schema.
 Tiles and spike clusters use instanced geometry. Static markings and path edges
 are batched into line segments. The locally generated environment map provides reflections
 without an HDR download. Rebuilding the board disposes old geometry/materials;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { LEVELS } from '../data/levels.ts';
 import { paint, placeSaw, blankLevel } from '../core/editor.ts';
 import { importLevel, parseLevel } from '../core/level.ts';
+import { RULES } from '../data/terrain.ts';
 
 test('Paint_Ground_ChangesOneTileWithoutMutatingLevel', () => {
   const level = blankLevel();
@@ -35,6 +36,10 @@ test('Paint_MarkerOnVoid_CreatesSafeFloor', () => {
   const edited = paint(blankLevel(), { x: 1, y: 1 }, 'checkpoint');
   assert.equal(edited.tiles[1][1], '.');
   assert.ok(edited.checkpoints.some(p => p.x === 1 && p.y === 1));
+  assert.equal(edited.checkpoints[0].radius, RULES.checkpointRadius);
+  const painted = paint(edited, { x: 5, y: 5 }, '~');
+  assert.deepEqual(importLevel(JSON.stringify(painted)).checkpoints, edited.checkpoints,
+    'remixing and exporting do not shrink checkpoint zones');
 });
 test('PlaceSaw_TwoPoints_RoundtripsThroughJSON', () => {
   const level = placeSaw(blankLevel(), { x: 5, y: 5 }, { x: 10, y: 5 });

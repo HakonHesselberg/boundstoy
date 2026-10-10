@@ -9,7 +9,7 @@ import { recordFinish } from '../application/storage.ts';
 import { RULES } from '../data/terrain.ts';
 import { FAILURE_REPLAYS } from './fixtures/aftershock-failures.ts';
 
-test('Aftershock_PlayableRegistry_ContainsShortDistinctPatternsWithPuzzleCheckpoints', () => {
+test('Aftershock_SinglePuzzleRooms_HaveNoRedundantExitCheckpoint', () => {
   assert.deepEqual(LEVELS.map(level => level.name), ['Borrowed Ground', 'Crosscurrent', 'Checkerboard']);
   assert.deepEqual(LEVELS.map(level => level.id),
     ['aftershock-borrowed-ground-v2', 'aftershock-crosscurrent-v1', 'aftershock-checkerboard-v1']);
@@ -18,8 +18,7 @@ test('Aftershock_PlayableRegistry_ContainsShortDistinctPatternsWithPuzzleCheckpo
   for (const level of LEVELS) {
     assert.ok(level.id.startsWith('aftershock-'));
     assert.equal(level.resetPatternOnRetry, true);
-    assert.ok(level.checkpoints.length > 0, 'completed puzzles save progress before the next challenge');
-    assert.ok(level.checkpoints.every(point => (point.radius ?? 0) >= RULES.checkpointRadius));
+    assert.deepEqual(level.checkpoints, [], 'the exit completes the final puzzle; no checkpoint on the safe exit walk');
     assert.ok(level.hazards.every(hazard => hazard.kind === 'pulse' && hazard.on === 1));
     assert.ok([...level.tiles.join('')].every(tile => '.# '.includes(tile)));
     const guide = courseGuide(level, createState(level));

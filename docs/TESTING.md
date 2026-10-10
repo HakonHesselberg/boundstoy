@@ -18,9 +18,10 @@ fixtures, evidence and cleanup checks.
 
 The current set is Borrowed Ground v2, Crosscurrent and Checkerboard. Tests must
 cover genuinely sequential explosions, lateral choices, alternating parity
-groups, all ordered checkpoint collections, and actual post-checkpoint deaths
-followed by legal continuations. A checkpoint-free winning witness is no longer
-sufficient. Failed approaches must come from input, not teleportation.
+groups and actual deaths followed by legal continuations. Current single-puzzle
+maps must have no checkpoints on their final landings. Future multi-puzzle maps
+must prove ordered checkpoint collection and downstream recovery. Failed
+approaches must come from input, not teleportation.
 
 `tests/ground-visuals.test.ts` checks actual instance colors, unchanged normal
 material/movement, and checkpoint ring geometry. Physics/editor tests cover
@@ -38,15 +39,28 @@ Full-period sweeps, not sampled offsets, establish those launch windows.
 Local in-field decision probes include at least 25 contiguous allowed delay
 values starting at zero. Spatial probes and failures cover the actual movement
 choices; complete executable evidence is in `tests/aftershock.test.ts`.
-Three `CHECKPOINT_REPLAYS` fixtures drive actual approach, backtrack death,
-54-tick respawn and safe-exit recovery in both headless and production checks.
-There is one hazardous phrase per room; these are not downstream-puzzle tests.
+Three `LANDING_FAILURE_REPLAYS` fixtures drive actual approach, backtrack death,
+54-tick respawn at the original start and full replay in headless/production checks.
+There is one hazardous phrase per room; its final landing must not save progress.
 
-The integrated short-pattern release gate passes **230/230 portable tests**,
+Explosion regressions require exactly 27 warning ticks (225 ms), one idle mesh,
+one warning symbol, and at most six burst meshes. Every visible mesh throughout
+the full cycle must stay inside its own projected pad at desktop, portrait and
+landscape sizes with/without reduced motion. Six clear/mastery witnesses keep
+their original timings; changing warning length must not move ignition or damage.
+
+The earlier BT-028/029 short-pattern release gate passed **230/230 portable tests**,
 typecheck/build and all five production runners. Evidence:
 `artifacts/aftershock/pattern-release-check.log`; browser runs `run-2nkXIM`,
 `run-rfi6Du`, `run-R1HOij`, `run-p60kZI` and `run-x6eEl0`.
 This validates implementation and readable rendering, not player enjoyment.
+
+BT-030's visual/checkpoint pass passes **233/233 portable tests**, typecheck/build
+and all five production runners (`artifacts/aftershock/visual-release-check.log`).
+The final unobscured dense-field captures were rerun as `run-Fh7MiQ`
+(`artifacts/aftershock/visual-captures-check.log`). Desktop/mobile full/reduced
+motion captures show separate cell effects; all six finish times above remain
+unchanged. See BT-030 for regression and review evidence.
 
 ## Historical first Aftershock iteration (rejected by player feedback)
 

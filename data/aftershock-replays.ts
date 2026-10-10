@@ -5,7 +5,7 @@ function replay(commands: readonly (readonly [number, Axis, Axis])[]) {
 
 export const AFTERSHOCK_REPLAYS = Object.freeze([
   // Reach the elbow, borrow the spent approach during its flash, then return.
-  // The final landing is banked before the safe, square exit approach.
+  // Cross the final landing before the safe, square exit approach.
   replay([[133, 1, 0], [50, -1, 0], [50, 1, 0],
     [133, 0, 1], [233, 1, 0], [67, 1, 0], [86, 0, -1]]),
   // Cross the lower lane, turn across the wave, then follow the upper lane.
@@ -16,8 +16,7 @@ export const AFTERSHOCK_REPLAYS = Object.freeze([
     [267, 1, 0], [33, 0, -1], [81, 1, -1]]),
 ]);
 export const AFTERSHOCK_MASTERY_REPLAYS = Object.freeze([
-  // Transfer immediately instead of retreating. Cut diagonally across the safe
-  // landing only AFTER banking the checkpoint.
+  // Transfer immediately instead of retreating, then cut diagonally across the safe landing.
   replay([[133, 1, 0], [133, 0, 1], [233, 1, 0], [94, 1, -1], [20, 0, -1]]),
   // Climb across the corridor early, using the wake rather than a sidepath.
   replay([[141, 1, -1], [300, 1, 0], [67, 0, 1], [53, 1, 0]]),

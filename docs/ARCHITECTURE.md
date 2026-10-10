@@ -51,8 +51,9 @@ Checkpoints optionally specify a `radius` in tiles, validated as finite and
 greater than zero up to three. Missing radii retain the old 0.42 trigger.
 New editor markers default to 1.4 and the visible ring uses the actual radius.
 Collection requires a clear floor segment to the marker, preventing large zones
-from collecting through walls/void. Each authored completed puzzle has a safe
-checkpoint and a separately verified post-death continuation.
+from collecting through walls/void. Checkpoints separate puzzles, not the final
+puzzle from its exit. The current single-puzzle maps have none; future
+multi-puzzle maps need a verified post-death continuation from each checkpoint.
 The frame loop and tests share fixed-step partitioning with a tiny tick-boundary
 rounding tolerance, preventing a lost tick at particular refresh rates while
 retaining real partial ticks. Keyboard auto-repeat cannot re-add a direction
@@ -68,6 +69,10 @@ Pulse collisions occur only at cycle tick zero. Burst visibility is independent:
 it samples ticks since ignition for a 36-tick one-shot effect, including when
 a rendered frame skips ignition. The plate signals safe ground immediately
 after the single lethal tick; remaining particles are harmless.
+Warnings last 27 ticks (225 ms). Idle pads are flat; buildup uses one ring.
+The compact flash, shock ring and four short shards stay within the pad's
+projected footprint in the real camera, including reduced motion. There is no
+raised vent or overlapping smoke shell.
 
 Normal ground uses two muted coordinate-parity shades, with even `(x+y)` lighter.
 The same two groups remain visible on safe and warning pulse plates; detonation

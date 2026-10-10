@@ -63,10 +63,13 @@ Prefer the npm command for acceptance so stale assets cannot pass.
 
 - Aftershock checks the actual selector contains only Borrowed Ground v2,
   Crosscurrent and Checkerboard, six ordinary/mastery witnesses, visible target
-  outcomes, retained clean records and repeatable real retries. Every checkpoint
-  is collected on both routes; backtrack-death fixtures verify saved landing
-  recovery. Captures include sequential/group ignition states and checkpoint
-  landings. A real-pixel check verifies quiet checkerboard group contrast.
+  outcomes, retained clean records and repeatable real retries. Final landings
+  must not save checkpoints; backtrack deaths return to the start for a full replay.
+  Captures include sequential/group ignition states and exit landings. A real-pixel
+  check verifies quiet checkerboard group contrast. Dense-grid captures at ticks
+  126/127/154/158/190 show pre-warning, 225 ms warning onset, ignition, aftermath
+  and clear ground at 1280x900 and 390x844 with full/reduced motion. Corridor
+  ticks 80/84 cover neighboring cells in different phases.
   The readability runner samples each active encounter at spawn and 25/50/75%
   of its ordinary witness, across four viewport/DPR combinations.
 - The dedicated explosion check imports a legacy pulse and verifies disclosed

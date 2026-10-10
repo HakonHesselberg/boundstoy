@@ -92,6 +92,14 @@ shorter Borrowed Ground, wide sequential movement, alternating checkerboard,
 and generous checkpoints after every finished puzzle. The remaining world
 progression is not built; do not expand it before gameplay feedback.
 
+The user subsequently clarified that checkpoints belong between puzzles,
+never next to the exit, and explicitly chose to keep these maps short rather
+than extend them. BT-030 removes their final checkpoints and misleading hints.
+The next feedback was "these levels are better"; the user requested a visual
+pass for clutter/overlap and at least halved buildup. This supports the current
+direction but does not assert a finished world or independently establish
+replay-value acceptance.
+
 ## Result
 
 The short replacement set and puzzle-end checkpoints are integrated and verified

@@ -231,7 +231,7 @@ test('Hazard_Pulse_OnlyDetonationTickIsLethalRegardlessOfLegacyDuration', () => 
       const cycle = ((tick + phase) % period + period) % period;
       const sample = hazardSample(hazard, tick);
       assert.equal(sample.active, cycle === 0, `${period}/${phase}@${tick}`);
-      assert.equal(sample.warning, cycle >= period - 54);
+      assert.equal(sample.warning, cycle >= period - 27);
     }
   }
 });

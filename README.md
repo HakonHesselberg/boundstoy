@@ -3,7 +3,8 @@
 A static browser game about precise movement through instantaneous explosions.
 The playable **Aftershock** set contains three short variations: **Borrowed Ground**,
 **Crosscurrent** and **Checkerboard**. Each has a normal clear and a faster clean
-mastery route, with checkpoints after completed puzzles. This is a gameplay
+mastery route. Each is one puzzle ending at the exit, without a redundant final
+checkpoint. This is a gameplay
 iteration for a planned eight-stage world,
 not a claim that the finished world has shipped. A secondary editor retains all
 four movement surfaces.
@@ -28,9 +29,10 @@ Selecting a level, **Next level** and **Retry level** start playing
 directly—there are no per-level tutorial popups. Hints stay below the board;
 full level instructions are available in **Menu → How to play**.
 **Space** pauses, **R** restarts, and **Escape** opens the menu.
-These short encounters retry from the latest puzzle checkpoint with the same explosion pattern.
+These short encounters retry from the start with the same explosion pattern.
 Elapsed run time and retries remain; **R** starts a fresh clean attempt.
-Checkpoint rings show generous collection zones; you do not need to hit a tiny center marker.
+In multi-puzzle custom maps, checkpoint rings show generous collection zones
+between puzzles; the final puzzle ends at the exit, not another checkpoint.
 Pause, restart and level changes clear held controls; release and press again
 to move after those transitions.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
@@ -86,12 +88,14 @@ routes, not promises about a player's first attempt.
 The light and dark floor shades are the same normal ground: identical speed,
 grip and collision. The group identity persists on explosion plates and warning
 states; the bright flash still identifies the actual single lethal tick.
+Warnings last 225 ms, followed by a compact flash and harmless 300 ms aftermath.
+Flat pads, one warning ring and low-profile effects keep neighboring cells readable.
 Clear/mastery targets are shown in the selector and results. Legal witness
 routes and measured tolerances are not global records or proof that a map is fun.
 
 This set replaces the rejected Slipstream / original Borrowed Ground / The Cut
-iteration. Shorter commitment, different spatial decisions and puzzle-end
-checkpoints take priority over adding more repeated gates.
+iteration. Shorter commitment and different spatial decisions take priority
+over adding more repeated gates.
 
 The retired Relay layouts are **not in the playable selector or game bundle**.
 They remain only as movement/recovery regression fixtures under `tests/fixtures/`.

@@ -39,13 +39,16 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
 
 - Pulse: a square danger zone, 0.43-tile half-size plus player radius.
   `(tick + phase) % period === 0` is lethal for **one 120 Hz simulation tick**
-  (about 8.33 ms), not one displayed frame. The final 54 ticks warn of detonation.
+  (about 8.33 ms), not one displayed frame. The final 27 ticks (225 ms) warn of
+  detonation, half the former 54-tick buildup. Period and ignition phase are unchanged.
   The tile is safe on the very next tick, even with visual debris over it.
   The ground plate immediately returns to its safe colour; a six-tick flash,
   expanding shock ring and non-looping debris dissipate over 36 ticks (300 ms).
   Effects sample time since ignition, so skipping the ignition render frame
   does not hide the explosion. Pause freezes the effect; reduced motion removes
   particle travel and expansion but preserves warning, flash and fade.
+  Pads are low-profile with one warning ring. A compact flash, shock ring and
+  four short shards stay inside the projected tile; no raised vent or smoke shell.
   New editor pads use period 360 / on 1 / phase 0 (one detonation every 3 seconds).
   Version-1 imports validate the old `on` field but normalize it to `1`, retaining
   geometry, period and phase. Exported JSON always uses `on: 1`. The editor
@@ -53,7 +56,8 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   an alternative mode. The initial state is tick 0; `step` first evaluates tick 1.
 - Saw: a 0.31-tile radius moving linearly between two cell centers and back.
   `period` is the complete out-and-back cycle. Its whole path is drawn.
-- Checkpoint: every completed authored puzzle ends at a safe checkpoint landing.
+- Checkpoint: place on safe landings between puzzles, never next to the exit
+  or on its safe approach. The exit completes the final puzzle.
   Each activates once per run; the latest becomes the respawn point. New
   checkpoints have explicit generous `radius` values (normally 1.4 tiles),
   shown by their ring. Collection uses the player's center and requires a clear
@@ -65,7 +69,7 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   Levels with `resetPatternOnRetry: true` reset the hazard pattern to tick zero
   when respawning; elapsed run time and deaths are never erased. The default
   is false for old imports. This supports repeatable practice from the latest
-  puzzle checkpoint, not a requirement to replay completed sequences.
+  puzzle checkpoint, or the start when none exists.
   Soft ice resumes its full-speed glide on the next live tick. The state records
   whether the cause was void, spikes, a pulse or a saw, for specific retry feedback.
 - Exit: touch within 0.42 tiles to finish; hazards take precedence if both collide
@@ -80,7 +84,7 @@ times. Restart clears checkpoints, falls and time.
 
 The playable registry contains Borrowed Ground v2, Crosscurrent and Checkerboard.
 They use normal ground, walls and instantaneous pulses. Each map is one compact
-hazardous puzzle followed by a safe checkpoint landing and an exit. The eight-stage
+hazardous puzzle followed by a safe landing and an exit, with no checkpoint. The eight-stage
 world is not yet complete. Normal ground alternates muted light/dark shades
 without changing its movement model, and pulse plates preserve those groups.
 
@@ -97,11 +101,10 @@ the elbow expires at 190, descent steps at 110/145/180/215, outgoing steps at
 Checkerboard fills an 8-by-6 rectangle: all light/even `(x+y)` cells flash at
 154, dark/odd at 334, repeating every 360 ticks. No tile has stacked pulses.
 
-Checkpoint radii are 1.4; their centers are at least three tiles from every
-pulse. Ordinary and mastery paths collect them off the hazard footprints.
-Each room has a safe exit after its checkpoint; recovery tests deliberately
-backtrack into the completed field to cause a death, then demonstrate return
-to the saved landing. This is not evidence of a second downstream puzzle.
+Recovery tests deliberately backtrack from the final landing into the completed
+field to cause a death, then demonstrate return to the start and a full legal
+clear. The final landing does not silently bank progress. Generic checkpoint
+support remains available for future multi-puzzle maps and the editor.
 Witnesses and measured tolerances prove specific legal strategies, not human
 replay-value acceptance or globally optimal routes.
 

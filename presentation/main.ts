@@ -202,7 +202,7 @@ function boot(scene: Scene) {
       const continuing = LEVELS.some(course => progress[course.id]);
       text('overlay-kicker', 'READ THE RHYTHM. MAKE YOUR MOVE.');
       text('overlay-title', continuing ? 'Find your next flow.' : 'Small tracks. Big flow.');
-      text('overlay-copy', 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Checkpoints save each puzzle; retries repeat the pattern. R resets the run.');
+      text('overlay-copy', 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Retries repeat the pattern. R resets the run.');
       text('primary-action', continuing ? 'Continue →' : 'Play →');
       text('overlay-foot', 'NO LIVES. NO RUSH. ONE MORE TRY.');
     }
@@ -364,7 +364,7 @@ function boot(scene: Scene) {
     ...Object.entries(TERRAIN).map(([id, value]) => ({ id: id as Tile, label: value.name.replace(' ground', ''), color: value.color, mark: id === ' ' ? '·' : id, help: `${value.hint} Click or drag to paint.` })),
     { id: 'spawn', label: 'Start', color: '#3c887c', mark: 'S', help: 'Place the starting point. This also creates safe floor.' },
     { id: 'goal', label: 'Exit', color: '#9e7951', mark: 'G', help: 'Place the golden exit. This also creates safe floor.' },
-    { id: 'checkpoint', label: 'Checkpoint', color: '#3c887c', mark: 'C', help: 'Place a wide checkpoint after a puzzle. Its ring is the collection zone. Erase removes it.' },
+    { id: 'checkpoint', label: 'Checkpoint', color: '#3c887c', mark: 'C', help: 'Place between puzzles, never next to the exit. Its ring is the collection zone. Erase removes it.' },
     { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'An instant explosion every 3 seconds. Fading debris is harmless. JSON changes period and phase; legacy on durations become one tick.' },
     { id: 'saw', label: 'Saw', color: '#943552', mark: 'X', help: 'Click the start, then the end of a patrol. Travels out and back every 3 seconds.' },
     { id: 'erase', label: 'Erase object', color: '#253549', mark: '×', help: 'Remove a checkpoint or hazard at its starting tile. Floor stays unchanged.' },

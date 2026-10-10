@@ -14,15 +14,18 @@ Crosscurrent and Checkerboard. The user rejected the first Aftershock set
 Relay. Do not treat legal replays as proof of interesting or human-readable play.
 Explore travelling sequences, lateral movement and alternating grid groups,
 not repetitions of simultaneous three-tile gates.
-Every completed puzzle must have a checkpoint on a safe landing, with a trigger
-wide enough for its valid routes. Verify downstream recovery, not only a fresh
-start. New checkpoints use explicit radii; legacy imports retain their default.
+Place checkpoints between puzzles, never next to the exit or on its safe approach.
+The exit completes the final puzzle; current single-puzzle maps have no checkpoints.
+Between-puzzle checkpoints need safe landings, triggers wide enough for valid routes,
+and verified downstream recovery. New markers use explicit radii; legacy imports
+retain their default.
 Light/dark normal-ground shades are cosmetic, never another movement surface.
 Retries reset the pattern, not elapsed time/deaths. Clean records and mastery
 targets require zero deaths. The world expansion gate remains human feedback.
 Explosions are lethal for exactly one simulation tick; lingering effects are
 harmless. Do not restore sustained flames or stack consecutive detonations to
-disguise a continuous damage window. Keep the four movement rules unchanged.
+disguise a continuous damage window. Warnings last 27 ticks (225 ms); keep effects
+compact and inside their projected tile footprint. Keep the four movement rules unchanged.
 Changes to routes require exact legal replays, necessity checks and measured
 input margins; these checks are not a substitute for worthwhile gameplay.
 Do not restore the obsolete six-lesson/Pocket wave preservation constraints.

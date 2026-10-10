@@ -8,6 +8,37 @@ import { hazardSample } from '../core/simulation.ts';
 
 const pulse = { kind: 'pulse' as const, x: 3, y: 3, period: 360, on: 90, phase: 0 };
 
+test('Pulse_Warning_IsExactly225MillisecondsWithoutMovingIgnitionOrExtendingDanger', () => {
+  assert.equal(RULES.pulseWarningTicks, 27);
+  assert.equal(RULES.pulseWarningTicks / RULES.tickRate, 0.225);
+  for (const tick of [305, 306, 332]) {
+    assert.equal(hazardSample(pulse, tick).warning, false, `no long buildup at ${tick}`);
+  }
+  for (let tick = 333; tick < 360; tick++) {
+    assert.equal(hazardSample(pulse, tick).warning, true);
+    assert.equal(hazardSample(pulse, tick).active, false);
+  }
+  assert.equal(hazardSample(pulse, 360).active, true);
+  assert.equal(hazardSample(pulse, 361).active, false);
+});
+
+test('Pulse_DenseFields_UseOneIdleSurfaceOneWarningCueAndAtMostSixBurstMeshes', () => {
+  const view = createPulse();
+  const meshes = () => {
+    const visible: Mesh[] = [];
+    view.group.traverseVisible(object => { if (object instanceof Mesh) visible.push(object); });
+    return visible;
+  };
+  updatePulse(view, pulse, 200, false);
+  assert.equal(meshes().length, 1, 'no raised vent on every safe tile');
+  assert.equal(meshes()[0], view.plate);
+  assert.ok(view.plate.position.y + view.plate.geometry.parameters.height / 2 <= 0.03);
+  updatePulse(view, pulse, 340, false);
+  assert.equal(meshes().length, 2, 'plate plus one clear warning symbol, not stacked bars/rings');
+  updatePulse(view, pulse, 0, false);
+  assert.ok(meshes().length <= 7, 'plate plus compact flash, wave and four shards; no overlapping shell');
+});
+
 test('Pulse_GroundParity_RemainsVisibleInSafeAndWarningStatesWithoutChangingTheBlast', () => {
   const light = createPulse(), dark = createPulse(), other = { ...pulse, x: 4 };
   for (const tick of [90, 340, 1]) {

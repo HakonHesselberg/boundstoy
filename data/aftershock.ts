@@ -24,11 +24,11 @@ for (let x = 7; x <= 9; x++) for (let y = 5; y <= 6; y++)
 
 const borrowedGround = {
   version: 1, id: 'aftershock-borrowed-ground-v2', name: 'Borrowed Ground',
-  description: 'Follow individual flashes to the elbow. Transfer off its expiring floor, or retreat onto spent ground and return. Bank the crossing on the broad landing.',
+  description: 'Follow individual flashes to the elbow. Transfer off its expiring floor, or retreat onto spent ground and return. Cross the broad landing to the exit.',
   resetPatternOnRetry: true,
   tiles: board(17, 9, [[1, 2, 6, 3], [5, 2, 6, 6], [5, 5, 12, 6], [13, 3, 15, 7]]),
   spawn: { x: 1, y: 2 }, goal: { x: 14, y: 3 },
-  checkpoints: [{ x: 12, y: 6, radius: 1.4 }],
+  checkpoints: [],
   hazards: borrowedPulses,
 };
 
@@ -41,7 +41,7 @@ const crosscurrent = {
   resetPatternOnRetry: true,
   tiles: board(17, 8, [[1, 2, 11, 5], [12, 2, 15, 4]]),
   spawn: { x: 1, y: 5 }, goal: { x: 15, y: 4 },
-  checkpoints: [{ x: 13, y: 3, radius: 1.4 }],
+  checkpoints: [],
   hazards: crossPulses,
 };
 
@@ -54,7 +54,7 @@ const checkerboard = {
   resetPatternOnRetry: true,
   tiles: board(16, 10, [[1, 7, 1, 7], [2, 2, 9, 7], [10, 2, 11, 7], [12, 2, 12, 4], [13, 1, 14, 4]]),
   spawn: { x: 1, y: 7 }, goal: { x: 14, y: 1 },
-  checkpoints: [{ x: 12, y: 3, radius: 1.4 }],
+  checkpoints: [],
   hazards: checkerPulses,
 };
 
@@ -62,12 +62,11 @@ export const AFTERSHOCK_LEVELS: readonly Level[] = Object.freeze([borrowedGround
 function lessons(title: string, hint: string) {
   return Object.freeze([
     Object.freeze({ title, hint }),
-    Object.freeze({ title: 'Crossing banked', hint: 'This landing is safe. Continue to the exit; a retry returns here with the flash pattern restarted.' }),
   ]);
 }
 export const AFTERSHOCK_LESSONS: Readonly<Record<string, readonly Readonly<{ title: string; hint: string }>[]>> = Object.freeze({
   'aftershock-borrowed-ground-v2': lessons('Borrow, then transfer',
-    'The elbow expires. Turn onto the spent tiles, or back onto the approach while it flashes and return. Reach the broad landing to bank the crossing.'),
+    'The elbow expires. Turn onto the spent tiles, or back onto the approach while it flashes and return. Cross the broad landing to reach the exit.'),
   'aftershock-crosscurrent-v1': lessons('Use the width',
     'The flashes travel along and across four lanes. Change lanes into the wake; standing in the same lane lets the next wave catch you.'),
   'aftershock-checkerboard-v1': lessons('Light, then dark',

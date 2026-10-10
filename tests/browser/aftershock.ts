@@ -7,7 +7,7 @@ import { AFTERSHOCK_TARGETS } from '../../data/aftershock.ts';
 import { AFTERSHOCK_MASTERY_REPLAYS } from '../../data/aftershock-replays.ts';
 import { REPLAYS } from '../../data/replays.ts';
 import { PROGRESS_KEY } from '../../application/storage.ts';
-import { FAILURE_REPLAYS, CHECKPOINT_REPLAYS } from '../fixtures/aftershock-failures.ts';
+import { FAILURE_REPLAYS, LANDING_FAILURE_REPLAYS } from '../fixtures/aftershock-failures.ts';
 import { main } from '../../scripts/browser-check.ts';
 import { waitFor } from './runtime.ts';
 import { hazardSample, type State } from '../../core/simulation.ts';
@@ -41,13 +41,13 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     LEVELS.map(level => level.name), 'only the new levels appear in the playable selector');
 
   for (const [index, level] of LEVELS.entries()) {
+    assert.deepEqual(level.checkpoints, [], 'single-puzzle maps have no redundant exit checkpoint');
     await page.evaluate(`window.__BOUNDSTOY__.load(${index}); document.getElementById('overlay').hidden = true;`);
     await capture(`${level.id}-board`);
     const ordinary = await run(REPLAYS[index]);
     assert.equal(ordinary.won, true);
     assert.equal(ordinary.deaths, 0);
-    assert.deepEqual(ordinary.visited, level.checkpoints.map(point => `${point.x},${point.y}`),
-      'every completed puzzle checkpoint is collected on the ordinary line');
+    assert.deepEqual(ordinary.visited, [], 'the final landing does not save a checkpoint');
     assert.ok(ordinary.tick > AFTERSHOCK_TARGETS[level.id], 'ordinary route is not automatically mastered');
     assert.match(await text('finish-mastery'), /Clean.*Mastery/);
     await capture(`${level.id}-clean`);
@@ -56,7 +56,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     const master = await run(AFTERSHOCK_MASTERY_REPLAYS[index]);
     assert.equal(master.won, true);
     assert.equal(master.deaths, 0);
-    assert.deepEqual(master.visited, ordinary.visited, 'the fast line cannot miss a completed puzzle checkpoint');
+    assert.deepEqual(master.visited, []);
     assert.ok(master.tick <= AFTERSHOCK_TARGETS[level.id]);
     assert.match(await text('finish-mastery'), /Mastered/);
     await capture(`${level.id}-mastered`);
@@ -79,27 +79,27 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     log(`PASS: ${level.name}: clear ${ordinary.tick}, mastery ${master.tick}, target ${AFTERSHOCK_TARGETS[level.id]}; real retry preserves run costs.`);
   }
 
-  assert.equal(CHECKPOINT_REPLAYS.length, LEVELS.reduce((sum, level) => sum + level.checkpoints.length, 0));
-  for (const fixture of CHECKPOINT_REPLAYS) {
-    const level = LEVELS[fixture.index], checkpoint = level.checkpoints[fixture.checkpoint];
+  for (const fixture of LANDING_FAILURE_REPLAYS) {
+    const level = LEVELS[fixture.index];
     await page.evaluate(`window.__BOUNDSTOY__.load(${fixture.index})`);
     const reached = await run(fixture.approach);
-    assert.equal(reached.visited.at(-1), `${checkpoint.x},${checkpoint.y}`);
+    assert.deepEqual(reached.visited, []);
+    assert.deepEqual(reached.checkpoint, level.spawn);
     assert.equal(reached.won, false);
     assert.equal(reached.deaths, 0);
     await page.evaluate("document.getElementById('overlay').hidden = true");
-    await capture(`${level.id}-checkpoint-${fixture.checkpoint + 1}`);
+    await capture(`${level.id}-exit-landing`);
     const died = await run(fixture.failure);
     assert.equal(died.event, 'death', 'fixture backtracks into the completed field to cause a real death');
     const returned = await page.evaluate<State>(`window.__BOUNDSTOY__.advance(${RULES.respawnTicks})`);
-    assert.deepEqual(returned.position, { x: checkpoint.x + 0.5, y: checkpoint.y + 0.5 });
+    assert.deepEqual(returned.position, { x: level.spawn.x + 0.5, y: level.spawn.y + 0.5 });
     assert.deepEqual(returned.visited, reached.visited);
     assert.equal(returned.tick - returned.patternOffset, 0);
     assert.equal(returned.tick, died.tick + RULES.respawnTicks);
-    const finished = await run(fixture.recovery);
+    const finished = await run(REPLAYS[fixture.index]);
     assert.equal(finished.won, true);
-    assert.equal(finished.deaths, 1, 'banked puzzle is not replayed after a death');
-    log(`PASS: ${level.name}: checkpoint ${fixture.checkpoint + 1} is collected, survives a backtrack death and reaches the safe exit after respawn.`);
+    assert.equal(finished.deaths, 1);
+    log(`PASS: ${level.name}: final landing saves no checkpoint; backtrack death restarts the short puzzle.`);
   }
 
   // Watch from the safe spawn: capture the actual travel/group order, not just an empty board.
@@ -150,6 +150,33 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
   assert.ok(luminance(shadePixels[0]) > luminance(shadePixels[1]) * 1.1,
     `actual checkerboard plate pixels must preserve group contrast: ${JSON.stringify(shadePixels)}`);
   await capture(`${grid.id}-quiet-ground-groups`);
+  for (const [width, height] of [[1280, 900], [390, 844]]) for (const reduced of [false, true]) {
+    const suffix = `${width}x${height}-${reduced ? 'reduced' : 'full'}`;
+    await page.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    await page.call('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: reduced ? 'reduce' : 'no-preference' }],
+    });
+    await reload(`visual-${suffix}`);
+    for (const tick of [126, 127, 154, 158, 190]) {
+      const state = await page.evaluate<State>(`(() => {
+        window.__BOUNDSTOY__.load(${gridIndex});
+        const state = window.__BOUNDSTOY__.advance(${tick});
+        document.getElementById('overlay').hidden = true;
+        return state;
+      })()`);
+      assert.equal(state.deaths, 0);
+      await capture(`visual-grid-${suffix}-t${tick}`);
+    }
+    const corridorIndex = LEVELS.findIndex(level => level.name === 'Crosscurrent');
+    for (const tick of [80, 84]) {
+      await page.evaluate(`window.__BOUNDSTOY__.load(${corridorIndex});
+        window.__BOUNDSTOY__.advance(${tick}); document.getElementById('overlay').hidden = true;`);
+      await capture(`visual-corridor-${suffix}-t${tick}`);
+    }
+  }
+  await page.call('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  });
   await reload('records');
   for (const level of LEVELS) {
     const card = await page.evaluate<string>(`[...document.querySelectorAll('.course-card')]

@@ -7,7 +7,7 @@ import { LEVELS as RELAY_LEVELS } from './fixtures/relay-levels.ts';
 import { REPLAYS as RELAY_REPLAYS } from './fixtures/relay-replays.ts';
 import { createState, step } from '../core/simulation.ts';
 import { Scene } from '../presentation/scene.ts';
-import { createPulse } from '../presentation/hazard-visuals.ts';
+import { createPulse, updatePulse } from '../presentation/hazard-visuals.ts';
 import { createPlayerLocator, placePlayerLocator, fitRouteSigns, type RouteSign } from '../presentation/readability.ts';
 
 const layouts = [
@@ -48,6 +48,25 @@ test('PlayerLocator_ActualOpaqueGeometry_IsAtLeastTwelveCssPixelsWithoutScalingT
     assert.ok(bounds.width >= 12 - 1e-6 && bounds.height >= 12 - 1e-6,
       `${layout.name}/${level.id}: actual colored mesh ${bounds.width}x${bounds.height}, not a halo or nominal radius`);
     assert.equal(locator.visible, true);
+  }
+});
+
+test('Pulse_EveryAnimationTick_StaysInsideItsProjectedTileWithoutNeighborOverlap', () => {
+  for (const layout of layouts) for (const reducedMotion of [false, true]) {
+    const camera = cameraFor(0, layout), view = createPulse();
+    const hazard = { kind: 'pulse' as const, x: 0, y: 0, on: 1, phase: 0, period: 360 };
+    const footprint = projectedGeometry(view.plate, camera, layout).box;
+    for (let tick = 0; tick < hazard.period; tick++) {
+      updatePulse(view, hazard, tick, reducedMotion);
+      view.group.updateMatrixWorld(true);
+      view.group.traverseVisible(object => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const { box } = projectedGeometry(object, camera, layout);
+        assert.ok(box.min.x >= footprint.min.x - 1e-6 && box.max.x <= footprint.max.x + 1e-6
+          && box.min.y >= footprint.min.y - 1e-6 && box.max.y <= footprint.max.y + 1e-6,
+        `${layout.name}/reduced=${reducedMotion}/tick=${tick}: blast or warning spills outside its own footprint`);
+      });
+    }
   }
 });
 

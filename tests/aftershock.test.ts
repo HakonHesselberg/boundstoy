@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AFTERSHOCK_LEVELS, AFTERSHOCK_LESSONS, AFTERSHOCK_TARGETS } from '../data/aftershock.ts';
 import { AFTERSHOCK_REPLAYS, AFTERSHOCK_MASTERY_REPLAYS } from '../data/aftershock-replays.ts';
-import { FAILURE_REPLAYS, CHECKPOINT_REPLAYS } from './fixtures/aftershock-failures.ts';
+import { FAILURE_REPLAYS, LANDING_FAILURE_REPLAYS } from './fixtures/aftershock-failures.ts';
 import { createState, step, hazardTick, hazardSample, type State } from '../core/simulation.ts';
 import { type Level } from '../core/level.ts';
 import { RULES } from '../data/terrain.ts';
@@ -48,8 +48,7 @@ test('BT-028 replaces the three rooms, with compact immutable ground-only contra
     assert.match(level.tiles.join(''), /^[.# ]+$/);
     assert.ok(level.tiles.length <= 14 && level.tiles[0].length <= 18);
     assert.equal(level.resetPatternOnRetry, true);
-    assert.equal(level.checkpoints.length, 1);
-    assert.equal(level.checkpoints[0].radius, 1.4);
+    assert.equal(level.checkpoints.length, 0, 'single-puzzle maps end at the exit, not a redundant checkpoint');
     const sites = new Set<string>();
     for (const h of level.hazards) {
       assert.equal(h.kind, 'pulse');
@@ -150,36 +149,16 @@ test('Targets reward real movement savings, not manufactured idle comparators', 
   });
 });
 
-test('Bank every phrase only after leaving ALL pulse footprints; checkpoint retries legally reach GOAL', t => {
-  assert.deepEqual(CHECKPOINT_REPLAYS.map(f => [f.index, f.checkpoint]),
-    AFTERSHOCK_LEVELS.flatMap((l, i) => l.checkpoints.map((_, j) => [i, j])));
-  for (const [i, level] of AFTERSHOCK_LEVELS.entries()) {
-    for (const cp of level.checkpoints) {
-      assert.ok(cp.x !== level.goal.x || cp.y !== level.goal.y);
-      for (const h of level.hazards) if (h.kind === 'pulse')
-        assert.ok(Math.hypot(cp.x - h.x, cp.y - h.y) >= 3, 'pad center beyond the finished field');
-    }
-    for (const collection of [AFTERSHOCK_REPLAYS, AFTERSHOCK_MASTERY_REPLAYS]) {
-      const states = trace(level, collection[i]);
-      const events = states.filter(s => s.event === 'checkpoint');
-      assert.equal(events.length, level.checkpoints.length);
-      for (const s of events) for (const h of level.hazards) {
-        if (h.kind !== 'pulse') continue;
-        const dx = Math.max(Math.abs(s.position.x - h.x - 0.5) - RULES.pulseRadius, 0);
-        const dy = Math.max(Math.abs(s.position.y - h.y - 0.5) - RULES.pulseRadius, 0);
-        assert.ok(dx * dx + dy * dy >= RULES.radius ** 2,
-          `${level.name}: must finish the hazard before banking it, even if currently spent`);
-      }
-    }
-  }
-  for (const fixture of CHECKPOINT_REPLAYS) {
-    const level = AFTERSHOCK_LEVELS[fixture.index], cp = level.checkpoints[fixture.checkpoint];
+test('Final landing is not a checkpoint: backtracking deaths restart the short puzzle', t => {
+  assert.deepEqual(LANDING_FAILURE_REPLAYS.map(f => f.index), [0, 1, 2]);
+  for (const fixture of LANDING_FAILURE_REPLAYS) {
+    const level = AFTERSHOCK_LEVELS[fixture.index];
     let state = finish(level, fixture.approach);
     assert.equal(state.tick, duration(fixture.approach));
     assert.equal(state.won, false);
     assert.equal(state.deaths, 0);
-    assert.deepEqual(state.checkpoint, cp);
-    assert.deepEqual(state.visited, level.checkpoints.slice(0, fixture.checkpoint + 1).map(p => `${p.x},${p.y}`));
+    assert.deepEqual(state.checkpoint, level.spawn);
+    assert.deepEqual(state.visited, []);
     for (const c of fixture.failure) for (let n = 0; n < c.ticks; n++) {
       assert.equal(state.deaths, 0, 'failure must end at its FIRST death');
       state = step(level, state, c);
@@ -187,35 +166,28 @@ test('Bank every phrase only after leaving ALL pulse footprints; checkpoint retr
     assert.equal(state.deaths, 1);
     assert.equal(state.deathCause, 'pulse');
     const deathTick = state.tick;
-    for (let n = 0; n < 54; n++) state = step(level, state, command(1));
-    assert.equal(state.tick, deathTick + 54);
+    for (let n = 0; n < RULES.respawnTicks; n++) state = step(level, state, command(1));
+    assert.equal(state.tick, deathTick + RULES.respawnTicks);
     assert.equal(hazardTick(state), 0);
-    assert.deepEqual(state.position, { x: cp.x + 0.5, y: cp.y + 0.5 });
-    for (const c of fixture.recovery) for (let n = 0; n < c.ticks; n++) {
+    assert.deepEqual(state.position, createState(level).position);
+    const recovery = AFTERSHOCK_REPLAYS[fixture.index];
+    for (const c of recovery) for (let n = 0; n < c.ticks; n++) {
       assert.equal(state.won, false, 'recovery also ends exactly on win');
       state = step(level, state, c);
       assert.equal(state.deaths, 1);
     }
     assert.equal(state.won, true);
-    assert.equal(state.tick, deathTick + 54 + duration(fixture.recovery));
-    assert.deepEqual([deathTick, duration(fixture.recovery)], [[715, 114], [530, 67], [514, 81]][fixture.index]);
-    t.diagnostic(`${level.name}: intentional BACKTRACK death ${deathTick}; respawn ${deathTick + 54}; `
-      + `safe recovery to GOAL in ${duration(fixture.recovery)} ticks`);
+    assert.equal(state.tick, deathTick + RULES.respawnTicks + duration(recovery));
+    assert.equal(deathTick, [715, 530, 514][fixture.index]);
+    t.diagnostic(`${level.name}: backtrack death ${deathTick}; full puzzle replay ${duration(recovery)} ticks`);
   }
 });
 
-test('Safe landing funnels put the checkpoint trigger across the exit route, not on an optional side pad', () => {
-  for (const level of AFTERSHOCK_LEVELS) for (const cp of level.checkpoints) {
-    const pending = [level.spawn], seen = new Set<string>();
-    while (pending.length) {
-      const p = pending.pop()!, key = `${p.x},${p.y}`;
-      if (seen.has(key) || level.tiles[p.y]?.[p.x] !== '.'
-        || Math.hypot(p.x - cp.x, p.y - cp.y) < cp.radius!) continue;
-      seen.add(key);
-      assert.notDeepEqual(p, level.goal, `${level.name}: tile-center bypass of bank trigger`);
-      for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1])
-        if (x || y) pending.push({ x: p.x + x, y: p.y + y });
-    }
+test('Final-puzzle guidance never promises a checkpoint on the exit walk', () => {
+  for (const level of AFTERSHOCK_LEVELS) {
+    assert.equal(AFTERSHOCK_LESSONS[level.id].length, 1);
+    assert.doesNotMatch(level.description, /bank|checkpoint/i);
+    assert.doesNotMatch(AFTERSHOCK_LESSONS[level.id][0].hint, /bank|checkpoint/i);
   }
 });
 
@@ -278,7 +250,7 @@ test('Checkerboard: both group flashes matter; ordinary observations and mastery
 });
 
 test('No hazard-free bypass or single-direction win; damage remains one tick with harmless aftermath', () => {
-  assert.equal(RULES.pulseWarningTicks, 54);
+  assert.equal(RULES.pulseWarningTicks, 27);
   for (const level of AFTERSHOCK_LEVELS) {
     for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1])
       assert.equal(finish(level, [command(1600, x, y)]).won, false, `${level.name}: ${x},${y}`);
@@ -294,7 +266,7 @@ test('No hazard-free bypass or single-direction win; damage remains one tick wit
     }
     for (const h of level.hazards) {
       const flash = h.period - h.phase;
-      assert.equal(hazardSample(h, flash - 54).warning, true);
+      assert.equal(hazardSample(h, flash - RULES.pulseWarningTicks).warning, true);
       assert.equal(hazardSample(h, flash).active, true);
       for (let tick = 1; tick <= 36; tick++) assert.equal(hazardSample(h, flash + tick).active, false);
     }

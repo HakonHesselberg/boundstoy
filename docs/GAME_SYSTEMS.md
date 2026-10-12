@@ -19,57 +19,55 @@ the pattern without erasing elapsed time or deaths. In-session Resume preserves
 live position and phase. Best total time
 and an independent deathless completion replace the prototypes' mastery targets.
 
-## Experimental benchmark collection
+## Explosion puzzle playtest
 
-Open **Menu > Benchmarks** to select one of six original puzzle families, then
-normal ground, soft ice, hard ice or mud: **24 trials**, separate from Aftershock.
-Each family holds geometry, hazard phases/periods, spawn/exit and camera fixed.
-Only marked puzzle floor changes surface; staging and exit landings stay normal.
-These are game-native mechanical studies, not exact StarCraft map ports.
+Open **Menu > Explosion puzzles** for six normal-ground levels, separate from
+Aftershock. These replace the surface-comparison menu; no ice, mud or saws are
+used. The underlying movement rules and archived benchmark definitions remain
+unchanged. All levels use 27-tick warnings and one-tick pulse blasts.
 
-| Family | Comparison question | Verified reference surfaces |
+| Level / stable ID | Pattern | Deathless reference ticks |
 | --- | --- | --- |
-| Travelling wave | Can you follow the wake of successive columns? | Normal, soft, hard |
-| Alternating bands | Can you transfer between groups without braking? | All four |
-| Side refuges | Can you leave and rejoin a pulsing spine? | Normal |
-| Checker grid | Do diagonals or short colour changes feel readable? | All four |
-| Inward rings | Can you time a crossing through a shrinking pattern? | All four |
-| Wall slalom | Do two wall-guided turns help or fight momentum? | All four |
+| Follow the wave / `puzzle-wave` | Easy travelling columns, based on accepted benchmark 1 | 542 |
+| Alternating bands / `puzzle-bands` | Move, wait and transfer, based on accepted benchmark 5 | 613 |
+| Changing refuges / `puzzle-refuges` | Spine bursts at tick 210 of 360; both pockets burst at tick 30 | 796 |
+| Checker crossing / `puzzle-checker` | Alternating 2x2 groups; exit requires crossing and moving upward | 616 |
+| Crossing waves / `puzzle-crossing` | Column wave along the entry, then row wave up the exit leg | 757 |
+| Wave into checker / `puzzle-combination` | Short wave, safe checkpoint, then alternating grid | 1015 |
 
-Every normal baseline and 14 other variants have input-only deathless reference
-routes. Travelling-wave mud and side-refuges soft/hard/mud currently have **no
-verified route**. Bounded route searches did not establish solutions, but do
-not prove impossibility. They remain playable for comparison; do not silently
-slow their hazards, widen their lanes or change their movement rules.
+All IDs are revision 1. Single puzzles have no checkpoints. The combination's
+1.4-tile-radius checkpoint spans the three-tile approach and sits before the
+final puzzle, not by the exit. Its grid starts only when that checkpoint is
+collected; the completed wave stops. Restart after a downstream death is
+verified to finish in another 605 ticks without adding a death.
 
-Each trial shows its stable `bench-<family>-<surface>` ID and revision 1.
-Verified means an included reference replay finishes without deaths, not that
-the level is fun, optimal or human-approved. Minimum measured late-input
-tolerances range from 7 to at least 24 ticks. For each command boundary,
-independently extend the previous input by 1..24 ticks (or wait at spawn for
-the first input) and replay the remaining inputs. Record consecutive successful
-delays until the first failure; `24+` means the search cap, not an upper bound.
-These are one-sided, independent perturbations, not combined-error guarantees.
-The final held command may have unused slack after the actual win; times use
-the frozen finish tick, not summed command durations. Six failure probes remove
-timing adjustments and die; the same inputs finish when hazards are removed.
+Selection reveals the whole first puzzle, unobstructed and stationary.
+**Start trial** starts the clock; the initial landing is safe. The combination
+reveals the entire next puzzle after the checkpoint camera pan. Ordinary
+death preserves the current rhythm. **R** returns to the start or checkpoint
+and resets the pattern, retaining elapsed time and retries. After finishing,
+**New trial** starts fresh; **Choose a puzzle** returns to the six-level menu.
+The menu shows the last completed trial per level for this session only.
 
-Selection reveals the whole puzzle, unobstructed and stationary. **Start trial**
-starts its clock; standing on the initial landing is safe. Ordinary death keeps
-the pattern running. **R** returns to the start and resets the pattern without
-erasing elapsed time or retries. After finishing, **New trial** starts fresh,
-while **Compare surfaces** opens the same family. The menu shows the most recent
-completed trial per variant for this session only.
+Puzzle play never overwrites the Aftershock run, its records or the editor
+draft. Return through the world menu to its parked live state. Reload resumes
+normal production checkpoint persistence, not a saved puzzle trial.
 
-Benchmark selection, failure, completion and restart do not overwrite the
-Aftershock run, its records or the editor draft. Choose Aftershock in the normal
-menu to return to its parked live state. Reload returns to the production
-checkpoint save, not a saved benchmark. Human review should compare readability,
-control, waiting, frustration and replay interest using the displayed IDs; legal
-replays alone do not decide which experiments belong in the released game.
+All six have exact input-only deathless witnesses and failure probes that
+finish when hazards are removed. Changing refuges additionally rejects a
+straight dash at every initial phase and its witness visits both pockets.
+Minimum measured late-input tolerances range from 13 to at least 24 ticks.
+At each command boundary independently extend the previous input by 1..24 ticks
+(or wait at spawn for the first input), then replay the remaining inputs.
+`24+` is a measurement cap. These one-sided independent tolerances do not
+guarantee combined-error robustness, optimality or enjoyable human play.
+Finish ticks stop at victory; final held inputs may include unused slack.
 
-Evidence commands: `node --test tests/benchmarks.test.ts` and, after a build,
-`node tests/browser/benchmarks.ts --browser /absolute/path/to/chromium`.
+Evidence: `node --test tests/explosion-puzzles.test.ts` and, after a build,
+`node tests/browser/explosion-puzzles.ts --browser /absolute/path/to/chromium`.
+The old 24 surface comparisons remain in `data/benchmarks.ts` with their
+original evidence and `tests/benchmarks.test.ts`, but are not in the menu or
+runtime bundle. Human feedback for all 24 is recorded in BT-069.
 
 ## Movement
 

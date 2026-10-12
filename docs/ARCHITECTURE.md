@@ -7,7 +7,8 @@ The template's useful ideas are kept without introducing a framework:
 | `data/terrain.ts` | Frozen terrain registry and balance constants |
 | `data/levels.ts`, `data/aftershock-world.ts` | One frozen, validated eight-section world and section hints |
 | `data/replays.ts`, `data/aftershock-world-replays.ts` | Exact ordinary/faster continuous-world keyboard witnesses |
-| `data/benchmarks.ts`, `data/benchmark-replays.ts` | Separate 24-trial surface comparison registry and verified reference inputs |
+| `data/explosion-puzzles.ts`, `data/explosion-replays.ts` | Six isolated normal-ground explosion playtests, hints and exact reference inputs |
+| `data/benchmarks.ts`, `data/benchmark-replays.ts` | Archived 24-trial surface comparison registry and reference inputs, not in the menu |
 | `data/aftershock.ts`, `data/aftershock-replays.ts` | Retired V1 prototypes and compatibility witnesses, not selector entries |
 | `tests/fixtures/relay-*.ts` | Retired campaign data for movement/recovery regressions, not game content |
 | `core/level.ts` | Typed level format, strict import validation, coordinates |
@@ -46,24 +47,27 @@ pulses in the position-selected section/connector view.
 Retired Relay data remains in test fixtures to preserve ice/mud/saw/recovery
 coverage without shipping unwanted levels.
 
-`BENCHMARKS` is a separate frozen registry, not an addition to `LEVELS`, world
-record resolution or production progression. Six original templates generate
-four surface variants each; safe normal staging/exit areas are unchanged.
-All use the existing single-section V2 checkpoint clock, collision and camera.
-The presentation layer loads them through the existing playtest save-suppression
-path, with an explicit benchmark identity to distinguish them from editor
-playtests. No benchmark load/finish/restart writes a world snapshot, production
-record or draft. The parked exact in-memory world run remains available;
-reload uses its normal durable checkpoint snapshot. Session trial summaries
-are a bounded in-memory map of the 24 IDs, not a new persistence format.
+`EXPLOSION_PUZZLES` is a separate frozen registry, not an addition to `LEVELS`,
+world record resolution or production progression. Six normal-ground layouts
+use only pulse hazards and the existing V2 checkpoint clock, collision and
+camera. Five are single puzzles; the sixth has two sections and one safe
+between-puzzle checkpoint. Hints are data-owned and follow the active section.
+The archived 24 surface comparisons remain unchanged but are not imported by
+the application (only their erased replay types are reused).
 
-Reference witnesses are authored inputs, not a browser solver. The UI derives
-verified/unverified labels from their presence; tests replay every published
-witness and independently remeasure each late-input tolerance. Unverified
-variants remain selectable and are never labelled impossible. A family selector
-shows four surface cards at a time. The ready reveal has no covering intro
-card; Start trial sits outside the canvas so the full puzzle is inspectable
-before its simulation starts.
+The presentation layer uses the existing playtest save-suppression path, with
+an explicit puzzle identity distinct from editor playtests. No puzzle
+load/finish/restart writes a world snapshot, production record or draft.
+The parked exact in-memory world remains available; reload uses its normal
+durable checkpoint snapshot. Session trial summaries are bounded by the six
+IDs, not a new persistence format. Trial checkpoint feedback says reached,
+not saved.
+
+Reference witnesses are authored inputs, not a browser solver. Tests replay
+each witness and remeasure independent late-input tolerances, plus necessity
+and checkpoint-recovery probes. The six-card menu replaces the surface
+selector. The ready reveal has no covering intro card; Start trial sits outside
+the canvas. Legal completion is not human gameplay acceptance.
 
 Soft ice rotates a fixed-length velocity vector towards input. It has no
 acceleration/drag path; releasing input and reversing never reduce its speed.

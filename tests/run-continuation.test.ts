@@ -143,7 +143,7 @@ test('Continuation_PresentationWiringSeparatesCheckpointRestartAndConfirmedNewRu
   assert.match(main, /shouldSave\(before, state, level\)/);
   assert.match(main, /continuation\.save\(createCheckpointSnapshot\(level, currentRunId, state\)\)/);
   assert.match(main, /state = restartCheckpoint\(level, state\)/);
-  assert.match(main, /text\('retry-course', benchmark && state\.won \? 'New trial ↻' : checkpointPuzzles\(level\) && !state\.won \? 'Restart puzzle ↻'/);
+  assert.match(main, /text\('retry-course', puzzle && state\.won \? 'New trial ↻' : checkpointPuzzles\(level\) && !state\.won \? 'Restart puzzle ↻'/);
   assert.match(main, /level\.version === 2 && \(!testing \|\| checkpointPuzzles\(level\)\) \? 'New run ↻'/);
   assert.match(main, /course\.id === 'aftershock' && checkpointPuzzles\(course\) && course\.revision === 2/);
   assert.match(main, /element\('new-run'\)\.addEventListener\('click'/);

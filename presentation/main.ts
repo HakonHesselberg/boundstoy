@@ -1,7 +1,7 @@
 import './style.css';
 import { LEVELS, MASTERY_TARGETS } from '../data/levels.ts';
-import { BENCHMARKS, BENCHMARK_FAMILIES, BENCHMARK_SURFACES, type Benchmark } from '../data/benchmarks.ts';
-import { BENCHMARK_REPLAYS } from '../data/benchmark-replays.ts';
+import { EXPLOSION_PUZZLES, type ExplosionPuzzle } from '../data/explosion-puzzles.ts';
+import { EXPLOSION_REPLAYS } from '../data/explosion-replays.ts';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
 import { createState, restartCheckpoint, step, hazardTick, ascii, DT, STILL } from '../core/simulation.ts';
 import { importLevel, parseLevel, type Level, type Point } from '../core/level.ts';
@@ -70,8 +70,8 @@ function boot(scene: Scene) {
   let history: Level[] = [], brush: Brush = '.', sawStart: Point | null = null;
   let editorSection = 0;
   let painting = false, lastPaint = '', testing = false, started = false, paused = true;
-  let benchmark: Benchmark | null = null, benchmarkFamily = BENCHMARK_FAMILIES[0].id;
-  const benchmarkTrials = new Map<string, Readonly<{ ticks: number; deaths: number }>>();
+  let puzzle: ExplosionPuzzle | null = null;
+  const puzzleTrials = new Map<string, Readonly<{ ticks: number; deaths: number }>>();
   let paintingPointer: number | null = null;
   let accumulator = 0, visualTime = 0;
   // Debug stepping pins idle/victory animation to explicit animate() calls until play resumes.
@@ -218,7 +218,7 @@ function boot(scene: Scene) {
     const index = LEVELS.findIndex(course => course.version === 2 && course.id === snapshot.worldId
       && course.revision === snapshot.revision);
     if (index < 0) { storageFailure('The saved world revision is unavailable.'); return; }
-    selectedCourse = index; mode = 'play'; testing = false; benchmark = null;
+    selectedCourse = index; mode = 'play'; testing = false; puzzle = null;
     load(LEVELS[index], 'paused');
     currentRunId = snapshot.runId; state = snapshot.state;
     visualTime = state.tick * DT; manualClock = true;
@@ -244,7 +244,7 @@ function boot(scene: Scene) {
       }
       progress = legacy.value.progress; legacyDraft = legacy.value.draft;
       worldRecords = acquired.value.initial.records; activeRun = acquired.value.initial.active;
-      if (memoryOnly) { started = false; testing = false; mode = 'play'; benchmark = null; }
+      if (memoryOnly) { started = false; testing = false; mode = 'play'; puzzle = null; }
       currentRunId = null;
       persistenceReady = true; memoryOnly = false;
       text('save-retry', 'Retry saving');
@@ -270,7 +270,7 @@ function boot(scene: Scene) {
     if (!canPlay() || next.version !== 2) return;
     const begin = () => {
       if (!canPlay()) return;
-      selectedCourse = index; mode = 'play'; testing = false; benchmark = null; load(next, 'paused');
+      selectedCourse = index; mode = 'play'; testing = false; puzzle = null; load(next, 'paused');
       currentRunId = crypto.randomUUID();
       const snapshot = createRunSnapshot(next, currentRunId, state);
       activeRun = snapshot;
@@ -361,30 +361,26 @@ function boot(scene: Scene) {
       button.append(number, body, arrow); list.append(button);
     });
   }
-  function benchmarkLabel(item: Benchmark) {
-    const witness = BENCHMARK_REPLAYS[item.level.id];
+  function puzzleLabel(item: ExplosionPuzzle) {
+    const witness = EXPLOSION_REPLAYS[item.level.id];
     if (!witness) return 'No verified route';
     const margin = Math.min(...witness.lateMargins);
     return `Verified route · min margin ${margin}${margin === 24 ? '+' : ''} ticks`;
   }
-  function benchmarkCards() {
-    const family = BENCHMARK_FAMILIES.find(f => f.id === benchmarkFamily);
-    if (!family) throw new Error('Unknown benchmark family.');
-    text('benchmark-question', family.question);
-    element<HTMLSelectElement>('benchmark-family').value = family.id;
-    const list = element('benchmark-list'); list.replaceChildren();
-    for (const item of BENCHMARKS.filter(b => b.familyId === family.id)) {
+  function puzzleCards() {
+    const list = element('puzzle-list'); list.replaceChildren();
+    for (const item of EXPLOSION_PUZZLES) {
       const button = document.createElement('button'), body = document.createElement('span');
-      button.className = `course-card${benchmark === item ? ' selected' : ''}`;
-      button.id = `choose-${item.level.id}`; button.dataset.benchmark = item.level.id;
-      button.setAttribute('aria-pressed', String(benchmark === item));
+      button.className = `course-card${puzzle === item ? ' selected' : ''}`;
+      button.id = `choose-${item.level.id}`; button.dataset.puzzle = item.level.id;
+      button.setAttribute('aria-pressed', String(puzzle === item));
       const number = document.createElement('span'); number.className = 'course-number';
-      number.textContent = String(BENCHMARKS.indexOf(item) + 1).padStart(2, '0');
+      number.textContent = String(EXPLOSION_PUZZLES.indexOf(item) + 1).padStart(2, '0');
       const title = document.createElement('strong'), status = document.createElement('small'), id = document.createElement('code');
-      title.textContent = BENCHMARK_SURFACES.find(s => s.id === item.surfaceId)!.name;
-      status.textContent = benchmarkLabel(item); id.textContent = `${item.level.id} · r${item.level.revision}`;
+      title.textContent = item.level.name;
+      status.textContent = item.question; id.textContent = `${item.level.id} · r${item.level.revision}`;
       body.append(title, status, id);
-      const trial = benchmarkTrials.get(item.level.id);
+      const trial = puzzleTrials.get(item.level.id);
       if (trial) {
         const result = document.createElement('small');
         result.textContent = `This session: ${timeLabel(trial.ticks)} · ${trial.deaths} retries`;
@@ -394,21 +390,21 @@ function boot(scene: Scene) {
       button.append(number, body, arrow); list.append(button);
     }
   }
-  function openBenchmarks() {
+  function openPuzzles() {
     if (!canPlay()) return;
     if (!menu.open) openMenu();
-    if (benchmark) benchmarkFamily = benchmark.familyId;
-    showHelp(false); element('menu-home').hidden = true; element('benchmark-panel').hidden = false;
-    text('menu-title', 'Benchmarks · 24');
-    benchmarkCards(); menu.scrollTop = 0; element('benchmark-family').focus({ preventScroll: true });
+    showHelp(false); element('menu-home').hidden = true; element('puzzle-panel').hidden = false;
+    text('menu-title', 'Explosion puzzles');
+    puzzleCards(); menu.scrollTop = 0;
+    element(`choose-${puzzle?.level.id ?? EXPLOSION_PUZZLES[0].level.id}`).focus({ preventScroll: true });
   }
-  function loadBenchmark(id: string) {
+  function loadExplosionPuzzle(id: string) {
     if (!canPlay()) return;
-    const next = BENCHMARKS.find(b => b.level.id === id);
-    if (!next) throw new Error('Unknown benchmark.');
+    const next = EXPLOSION_PUZZLES.find(b => b.level.id === id);
+    if (!next) throw new Error('Unknown puzzle.');
     saveCurrent();
-    benchmark = next; benchmarkFamily = next.familyId; testing = true; mode = 'play';
-    closeMenu(); load(next.level); element('benchmark-start').focus({ preventScroll: true });
+    puzzle = next; testing = true; mode = 'play';
+    closeMenu(); load(next.level); element('puzzle-start').focus({ preventScroll: true });
   }
   function overlay() {
     element('restart').setAttribute('aria-label', checkpointPuzzles(level) && !state.won ? 'Restart puzzle'
@@ -428,7 +424,7 @@ function boot(scene: Scene) {
       return;
     }
     const target = MASTERY_TARGETS[level.id], ranked = level.version === 1 && !testing && typeof target === 'number';
-    element('overlay').hidden = menu.open || mode === 'edit' || Boolean(benchmark && !started) || started && !paused && !state.won;
+    element('overlay').hidden = menu.open || mode === 'edit' || Boolean(puzzle && !started) || started && !paused && !state.won;
     element('overlay').classList.toggle('won', state.won);
     element('finish-stats').hidden = !state.won;
     element('finish-comparison').hidden = !state.won || testing;
@@ -437,7 +433,7 @@ function boot(scene: Scene) {
     if (ranked) text('mastery-target', `Mastery: ${timeLabel(target)} or faster, with zero retries.`);
     element('intro-audio').hidden = started || mode === 'edit';
     element('retry-course').hidden = !started || mode === 'edit';
-    text('retry-course', benchmark && state.won ? 'New trial ↻' : checkpointPuzzles(level) && !state.won ? 'Restart puzzle ↻'
+    text('retry-course', puzzle && state.won ? 'New trial ↻' : checkpointPuzzles(level) && !state.won ? 'Restart puzzle ↻'
       : level.version === 2 && (!testing || checkpointPuzzles(level)) ? 'New run ↻' : 'Retry level ↻');
     if (mode === 'edit') return;
     if (state.won) {
@@ -490,32 +486,32 @@ function boot(scene: Scene) {
       text('primary-action', level.version === 2 && !testing ? continuing ? 'New run →' : 'Start →' : continuing ? 'Continue →' : 'Play →');
       text('overlay-foot', 'NO LIVES. NO RUSH. ONE MORE TRY.');
     }
-    if (benchmark) {
-      text('overlay-kicker', state.won ? 'BENCHMARK COMPLETE' : 'CONTROLLED SURFACE COMPARISON');
+    if (puzzle) {
+      text('overlay-kicker', state.won ? 'PUZZLE COMPLETE' : 'READ THE EXPLOSIONS');
       if (state.won) {
         text('overlay-title', 'Trial complete.');
-        text('overlay-copy', 'Compare another surface with the same layout and timing, or start a fresh trial.');
-        text('primary-action', 'Compare surfaces →');
+        text('overlay-copy', 'Choose another explosion puzzle, or start a fresh trial.');
+        text('primary-action', 'Choose a puzzle →');
         element('finish-best').previousElementSibling!.textContent = 'Reference route';
-        const witness = BENCHMARK_REPLAYS[level.id];
+        const witness = EXPLOSION_REPLAYS[level.id];
         text('finish-best', witness ? timeLabel(witness.ticks) : 'Unverified');
       } else if (!started) {
         text('overlay-title', level.name);
-        text('overlay-copy', benchmark.question);
+        text('overlay-copy', puzzle.question);
         text('primary-action', 'Start trial →');
       }
-      text('overlay-foot', `${benchmarkLabel(benchmark)} · ${benchmark.level.id}`);
+      text('overlay-foot', `${puzzleLabel(puzzle)} · ${puzzle.level.id}`);
     }
   }
   function hud() {
-    element('benchmark-start').hidden = !benchmark || started;
-    element('pause').hidden = Boolean(benchmark && !started);
+    element('puzzle-start').hidden = !puzzle || started;
+    element('pause').hidden = Boolean(puzzle && !started);
     text('timer', timeLabel(state.tick)); text('deaths', String(state.deaths).padStart(2, '0'));
     text('run-status', mode === 'edit' ? 'Click or drag to paint' : state.won ? 'Complete' : !started ? 'Ready' : paused ? 'Paused' : '');
     const guide = courseGuide(level, state);
     if (level.version === 2 && mode === 'play' && !testing)
       text('course-number', `SECTION ${guide.index + 1} / ${guide.total} · ${guide.title}`);
-    text('route-hint', benchmark ? benchmark.question
+    text('route-hint', puzzle ? puzzle.hints[guide.index]
       : state.won ? 'A clean line. A better time. Your next challenge is yours.' : guide.hint);
     const hint = element('route-hint'), feedback = element('game-feedback'), pause = element<HTMLButtonElement>('pause');
     if (hint.title !== guide.title) hint.title = guide.title;
@@ -530,33 +526,33 @@ function boot(scene: Scene) {
   }
   function updateLayout() {
     text('course-title', mode === 'edit' ? 'Level editor' : level.name);
-    text('course-number', benchmark ? `BENCHMARK ${BENCHMARKS.indexOf(benchmark) + 1} / ${BENCHMARKS.length} · r${level.version === 2 ? level.revision : 1}`
+    text('course-number', puzzle ? `PUZZLE ${EXPLOSION_PUZZLES.indexOf(puzzle) + 1} / ${EXPLOSION_PUZZLES.length} · r${level.version === 2 ? level.revision : 1}`
       : mode === 'edit' || testing ? 'YOUR LEVEL' : `AFTERSHOCK ${selectedCourse + 1} / ${LEVELS.length}`);
     text('play-tab', level.version === 2 ? 'Back to world' : 'Restart game level');
     element('new-run').hidden = level.version !== 2 || testing || mode === 'edit';
     text('help-restart-label', checkpointPuzzles(level) ? 'Restart puzzle' : level.version === 2 && !testing ? 'New run' : 'Restart level');
-    text('help-restart-note', benchmark ? ' (returns to the start and resets the pattern, keeping time and retries)'
+    text('help-restart-note', puzzle ? ' (returns to the start or checkpoint and resets the pattern, keeping time and retries)'
       : checkpointPuzzles(level)
       ? ' (returns to checkpoint and resets its pattern, keeping time and retries; use New run to start over)'
       : level.version === 2 && !testing ? ' (asks before replacing an unfinished world run)' : ' (resets the level)');
     document.querySelector('.workspace')!.classList.toggle('editing', mode === 'edit');
     element('editor-panel').hidden = mode !== 'edit';
     element('test-badge').hidden = !testing || mode === 'edit';
-    text('test-badge', benchmark ? 'BENCHMARK' : 'PLAYTEST');
-    element('benchmark-return').hidden = !benchmark;
-    element('benchmark-info').hidden = !benchmark;
-    element('save-status').hidden = Boolean(benchmark);
-    if (benchmark) {
-      text('benchmark-id', `${level.id} · r${benchmark.level.revision}`);
-      text('benchmark-status', benchmarkLabel(benchmark));
+    text('test-badge', puzzle ? 'PUZZLE' : 'PLAYTEST');
+    element('puzzle-return').hidden = !puzzle;
+    element('puzzle-info').hidden = !puzzle;
+    element('save-status').hidden = Boolean(puzzle);
+    if (puzzle) {
+      text('puzzle-id', `${level.id} · r${puzzle.level.revision}`);
+      text('puzzle-status', puzzleLabel(puzzle));
     }
     element('editor-coordinates').hidden = mode !== 'edit';
     element('touch-controls').hidden = mode === 'edit';
     element('route-hint').hidden = mode === 'edit';
-    element('editor-return').hidden = !testing || Boolean(benchmark);
+    element('editor-return').hidden = !testing || Boolean(puzzle);
     element<HTMLButtonElement>('restart').disabled = mode === 'edit';
     text('controls-note', mode === 'edit' ? 'Choose a brush, then click or drag on the board. Control or Command Z undoes a change. Escape opens the menu.'
-      : benchmark ? 'WASD or arrows to move. Space pauses. R restarts the trial pattern at the start, keeping time and retries. Benchmarks chooses another surface or puzzle. Escape opens the menu.'
+      : puzzle ? 'WASD or arrows to move. Space pauses. R restarts at the start or checkpoint, keeping time and retries. Puzzles chooses another explosion puzzle. Escape opens the menu.'
       : checkpointPuzzles(level)
       ? 'WASD or arrow keys to move. Space pauses and resumes. R restarts the current puzzle at its checkpoint, keeping time and retries. New run in the menu starts the world over. Escape opens the menu. On touch screens, hold the direction buttons to move.'
       : level.version === 2 && !testing
@@ -591,7 +587,7 @@ function boot(scene: Scene) {
       } else beginWorld(index, entry);
       return;
     }
-    selectedCourse = index; mode = 'play'; testing = false; benchmark = null; load(LEVELS[index], entry);
+    selectedCourse = index; mode = 'play'; testing = false; puzzle = null; load(LEVELS[index], entry);
     if (entry === 'paused') element('primary-action').focus({ preventScroll: true });
   }
   function play() {
@@ -603,7 +599,7 @@ function boot(scene: Scene) {
     graphics.resume();
     activateSound();
     if (state.won) {
-      if (benchmark) { openBenchmarks(); return; }
+      if (puzzle) { openPuzzles(); return; }
       if (testing) { enterEditor(); return; }
       const next = nextCourse(LEVELS, campaignProgress(), selectedCourse);
       if (next === null) openMenu();
@@ -628,7 +624,7 @@ function boot(scene: Scene) {
   }
   function showHelp(show: boolean) {
     element('menu-home').hidden = show; element('help-panel').hidden = !show;
-    element('benchmark-panel').hidden = true;
+    element('puzzle-panel').hidden = true;
     text('menu-title', show ? 'How to play' : 'Take a breather.');
     menu.scrollTop = 0;
   }
@@ -677,13 +673,13 @@ function boot(scene: Scene) {
       feedbackUntil = state.tick + 240;
     }
     if (state.event === 'checkpoint') {
-      text('game-feedback', `Checkpoint ${String(state.visited.length).padStart(2, '0')} saved. Next attempt starts here.`);
+      text('game-feedback', `Checkpoint ${String(state.visited.length).padStart(2, '0')} ${testing ? 'reached' : 'saved'}. Next attempt starts here.`);
       element('game-feedback').classList.remove('hit');
       feedbackUntil = state.tick + 180;
     }
     if (state.event === 'win') {
       clearInput();
-      if (benchmark) benchmarkTrials.set(level.id, { ticks: state.tick, deaths: state.deaths });
+      if (puzzle) puzzleTrials.set(level.id, { ticks: state.tick, deaths: state.deaths });
       if (!testing) {
         progressSaved = false;
         if (level.version === 2) {
@@ -754,7 +750,7 @@ function boot(scene: Scene) {
     if (!canPlay()) return;
     saveCurrent();
     if (!testing) history = [];
-    mode = 'edit'; testing = false; benchmark = null; sawStart = null;
+    mode = 'edit'; testing = false; puzzle = null; sawStart = null;
     if (!draft) {
       try {
         const saved = legacyDraft;
@@ -886,7 +882,7 @@ function boot(scene: Scene) {
     return source;
   }
   element('primary-action').addEventListener('click', play, options);
-  element('benchmark-start').addEventListener('click', play, options);
+  element('puzzle-start').addEventListener('click', play, options);
   element('retry-course').addEventListener('click', restartRun, options);
   element('pause').addEventListener('click', () => {
     setPaused(true); element('primary-action').focus({ preventScroll: true });
@@ -935,25 +931,13 @@ function boot(scene: Scene) {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-level]');
     if (button) { closeMenu(); loadCourse(Number(button.dataset.level)); }
   }, options);
-  for (const family of BENCHMARK_FAMILIES) {
-    const option = document.createElement('option'); option.value = family.id; option.textContent = family.name;
-    element('benchmark-family').append(option);
-  }
-  for (const id of ['benchmarks-open', 'benchmark-return']) element(id).addEventListener('click', openBenchmarks, options);
-  element('benchmarks-back').addEventListener('click', () => {
-    showHelp(false); element('benchmarks-open').focus({ preventScroll: true });
+  for (const id of ['puzzles-open', 'puzzle-return']) element(id).addEventListener('click', openPuzzles, options);
+  element('puzzles-back').addEventListener('click', () => {
+    showHelp(false); element('puzzles-open').focus({ preventScroll: true });
   }, options);
-  element('benchmark-family').addEventListener('change', () => {
-    const id = element<HTMLSelectElement>('benchmark-family').value;
-    if (!BENCHMARK_FAMILIES.some(f => f.id === id)) {
-      element<HTMLSelectElement>('benchmark-family').value = benchmarkFamily;
-      notify('Select an existing benchmark family.', true); return;
-    }
-    benchmarkFamily = id; benchmarkCards();
-  }, options);
-  element('benchmark-list').addEventListener('click', event => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-benchmark]');
-    if (button?.dataset.benchmark) loadBenchmark(button.dataset.benchmark);
+  element('puzzle-list').addEventListener('click', event => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-puzzle]');
+    if (button?.dataset.puzzle) loadExplosionPuzzle(button.dataset.puzzle);
   }, options);
   for (const id of ['audio', 'intro-audio']) element(id).addEventListener('click', () => { void setSound(!preferences.sound); }, options);
   element('sound-volume').addEventListener('input', () => {
@@ -1080,7 +1064,7 @@ function boot(scene: Scene) {
       await releaseForRecovery();
       const answer = await storage.value.resetRecovery();
       if (answer.status !== 'ok') { storageFailure(answer.reason); return; }
-      activeRun = null; currentRunId = null; started = false; testing = false; benchmark = null; mode = 'play';
+      activeRun = null; currentRunId = null; started = false; testing = false; puzzle = null; mode = 'play';
     } finally { storageBusy = false; }
     await connectStorage();
   }, options);

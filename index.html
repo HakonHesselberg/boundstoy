@@ -18,19 +18,19 @@
         <div class="level-heading"><span id="course-number" class="eyebrow"></span><h1 id="course-title">Boundstoy</h1></div>
         <span class="test-badge" id="test-badge" hidden>PLAYTEST</span>
         <button id="editor-return" hidden>Back to editor</button>
-        <button id="benchmark-return" hidden>Benchmarks</button>
+        <button id="puzzle-return" hidden>Puzzles</button>
         <button id="menu-toggle" aria-haspopup="dialog" aria-controls="game-menu" aria-expanded="false">Menu <span aria-hidden="true">☰</span></button>
       </header>
 
       <main class="workspace">
         <section class="game-column" aria-label="Game">
-          <div id="benchmark-info" class="benchmark-info" hidden>
-            <code id="benchmark-id"></code><span id="benchmark-status"></span>
+          <div id="puzzle-info" class="puzzle-info" hidden>
+            <code id="puzzle-id"></code><span id="puzzle-status"></span>
           </div>
           <div class="play-bar">
             <div class="counters"><span><small>Time</small><b id="timer">00:00.00</b></span><span><small>Retries</small><b id="deaths">00</b></span></div>
             <span id="run-status" class="run-status">Ready</span>
-            <div class="run-actions"><button id="restart" title="Restart level (R)" aria-label="Restart level">↻</button><button id="benchmark-start" hidden>Start trial →</button><button id="pause" title="Pause game (Space)">Pause <span aria-hidden="true">Ⅱ</span></button></div>
+            <div class="run-actions"><button id="restart" title="Restart level (R)" aria-label="Restart level">↻</button><button id="puzzle-start" hidden>Start trial →</button><button id="pause" title="Pause game (Space)">Pause <span aria-hidden="true">Ⅱ</span></button></div>
           </div>
           <div id="viewport" class="viewport" tabindex="0" role="application" aria-label="Boundstoy level. Use WASD or arrow keys to move. R to restart, Space to pause." aria-describedby="controls-note">
             <div id="overlay" class="overlay">
@@ -94,18 +94,14 @@
           <div class="menu-settings"><button id="audio" aria-label="Enable sound" aria-pressed="false">Sound off</button><button id="fullscreen" aria-label="Enter fullscreen">Fullscreen ⛶</button><button id="help">How to play</button></div>
           <label class="field-label" id="sound-volume-label" for="sound-volume">Volume 50%</label>
           <input id="sound-volume" type="range" min="0" max="100" step="1" value="50" />
-          <button id="benchmarks-open" class="secondary-action">Benchmarks · 24 experiments</button>
+          <button id="puzzles-open" class="secondary-action">Explosion puzzles · 6 levels</button>
           <button id="editor-tab" class="secondary-action">Level editor ↗</button>
         </div>
-        <section id="benchmark-panel" aria-label="Benchmark collection" hidden>
-          <p>Six puzzle families, four surfaces each. Layout and timing stay fixed. Only the puzzle floor changes; start and exit landings stay normal.</p>
-          <label class="field-label" for="benchmark-family">Puzzle family</label>
-          <select id="benchmark-family" aria-describedby="benchmark-question"></select>
-          <p id="benchmark-question"></p>
-          <div id="benchmark-list" class="course-list" aria-label="Choose a surface"></div>
-          <p class="benchmark-note">Verified routes are deathless input replays, not verdicts on fun. Margins measure late inputs in simulation ticks, capped at 24 (200 ms). No verified route does not mean impossible.</p>
-          <p class="benchmark-note">Trial results last for this session. Your Aftershock run and editor draft are kept separate.</p>
-          <button id="benchmarks-back" class="secondary-action">Back to menu</button>
+        <section id="puzzle-panel" aria-label="Explosion puzzle collection" hidden>
+          <p>Six short explosion puzzles. Read the pattern, choose your moment and reach the exit. The final level has a checkpoint between its two puzzles.</p>
+          <div id="puzzle-list" class="course-list" aria-label="Choose an explosion puzzle"></div>
+          <p class="puzzle-note">Trial results last for this session. Your Aftershock run and editor draft are kept separate.</p>
+          <button id="puzzles-back" class="secondary-action">Back to menu</button>
         </section>
         <section id="help-panel" aria-label="How to play" hidden>
           <p>Reach the golden exit. Numbered checkpoints save your place if you fall or hit a hazard.</p>

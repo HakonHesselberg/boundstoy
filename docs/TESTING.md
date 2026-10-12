@@ -16,7 +16,67 @@ fixtures, evidence and cleanup checks.
 
 ## Current Aftershock gameplay gate
 
-The current set is Borrowed Ground v2, Crosscurrent and Checkerboard. Tests must
+`tests/aftershock-world.test.ts` checks the actual single-world registry,
+guidance and absent preset mastery targets; `tests/world-records.test.ts`
+covers time-first revision-isolated records.
+`tests/aftershock-world-sections.test.ts` retains every content batch's exact
+routes, necessity checks, actual-arrival margins, checkpoint disk safety and
+exhaustive local recovery phases for the historical global-clock fixtures.
+`tests/checkpoint-production.test.ts` covers current revision-2 ownership,
+active phases, necessity, delay margins and all seven live-death/restart/reload
+recoveries. Current ordinary/faster finishes are 5752/5648 ticks (historical
+global witnesses remain 5752/5038); all seven markers are reached in order. These are executable
+input-only witnesses, not a substitute for the BT-053 human full-map playtest.
+
+`test:browser` exercises production Start/Continue/Restart/New run,
+keyboard/touch, checkpoint reload, same-ID restart, ordinary/faster records,
+native write counts proving no periodic saves, and offline play.
+`test:journey` adds opt-in audio, held/repeated keys, focus and native hidden-tab
+behavior, bounded catch-up under CPU throttling, editor isolation/resources,
+and live death/respawn clocks plus checkpoint reload/downstream continuation
+at all seven checkpoints.
+`test:aftershock` captures every section transition/checkpoint and mixed hazards
+at desktop/portrait/landscape sizes, then builds an isolated legacy registry and
+runs the retained V1 general/journey/Aftershock suites. No fixture replaces the
+production bundle. Capture-only pause suppression uses CSS visibility so
+asynchronous save HUD updates cannot silently cover the world with a pause card.
+
+The real-pixel runner samples these same legal positions, including the final
+pre-win tick, at four viewport/DPR combinations. It requires the actual
+fixed-scale camera rectangle to fit, rather than incorrectly demanding every remote
+world marker. Whenever the body requires a locator, its actual opaque pixels
+must span at least 12 CSS pixels in both dimensions. Readable signals, acceptable
+wall treatment and a worthwhile finale still require human evaluation.
+
+`node tests/browser/checkpoint-camera.ts --timeout 600000` additionally measures
+the complete authored puzzle, threatening hazard sweeps and incoming landing
+at all seven reveals, including full/reduced-motion portrait and landscape.
+Halfway captures verify center-only movement, frozen pause and player visibility.
+`node tests/browser/world-camera.ts --timeout 600000` retains native held-input
+forward/backtracking, global picking, resize, hidden-tab and resource checks.
+Portable camera tests exercise every tick of both complete-world legal routes.
+
+## Wall hierarchy
+
+`tests/wall-visuals.test.ts` verifies exact cap area and exposed-side area for
+solid blocks, holes, corners, separate islands and outer edges. It checks face
+normals, matte/non-reflective material values, an empty-board allocation case,
+and production Scene integration/disposal without old per-tile decoration.
+Existing physics tests retain both ice wall-contact rules.
+
+After building, `node tests/browser/walls.ts --timeout 600000` captures the
+production opening, shelters, arc corners and finale at desktop, portrait and
+landscape sizes. Each capture follows legal inputs at fixed replay ticks and
+settles only the presentation camera. Real rendered wall-cap luminance must be
+below 45% of the sampled playable-floor/pulse-pad luminance. Nine samples per
+tile avoid confusing a dark hatch stroke with a quiet overall wall.
+`--baseline` records measurements without asserting the new threshold for a
+before-build comparison; it is not an acceptance pass. Evidence lives in
+`artifacts/walls/before-*` and `after-*`.
+
+## Retired short Aftershock prototype evidence
+
+The former set was Borrowed Ground v2, Crosscurrent and Checkerboard. Tests still
 cover genuinely sequential explosions, lateral choices, alternating parity
 groups and actual deaths followed by legal continuations. Current single-puzzle
 maps must have no checkpoints on their final landings. Future multi-puzzle maps
@@ -28,6 +88,14 @@ material/movement, and checkpoint ring geometry. Physics/editor tests cover
 generous trigger radii, wall separation, legacy defaults, goal-radius isolation
 and JSON/edit roundtrips. Browser evidence includes travelling and alternating
 blast phases as well as quiet-state rendered checkerboard contrast.
+
+`tests/hazard-visuals.test.ts` checks pulse readability: idle pilot/outline
+contrast on both ground shades, a fuse and glow whose salience rises every
+warning tick, a full-footprint flash on every frame of the flash window, cool
+subdued aftermath, and unchanged 27-tick warning and one-tick lethality.
+`tests/motion.test.ts` checks presentation-only motion: refresh-rate-independent
+damping, interpolation that snaps over deaths/respawns, impact classification,
+tick-timed cues and bit-identical `step` results. See `docs/ANIMATION.md`.
 
 | Encounter | Clear / mastery ticks | Target | Contiguous zero-launch window, clear / mastery |
 | --- | --- | --- | --- |
@@ -86,8 +154,8 @@ cycles, including all 1980 phases of The Cut's combined schedule. Its outside
 route never waits and travels 47.61 tiles versus 35.73 for the shortcut.
 No claim is made that these witnesses are optimal or prove fun.
 
-`npm run test:aftershock` verifies that only the three new levels appear in the
-production selector, runs all six witnesses, checks clean/mastery outcomes and
+The historical `npm run test:aftershock` verified three levels in the
+then-production selector, ran all six witnesses, checked clean/mastery outcomes and
 persistence, causes actual deaths and replays unchanged after pattern reset,
 and captures desktop/mobile boards/results under `artifacts/aftershock/`.
 The general production runner also verifies real keyboard/touch, every new
@@ -190,8 +258,9 @@ riser. Non-occlusion also checks the finale's observation pads and positions
 12/24 ticks before and after each closest crossing. This caught a locator
 covering a signal at spawn and on departure; open-pad placement now points
 away from nearby signals without changing narrow-lane placement.
-The real-pixel check now samples all three Aftershock spawns plus three in-route
-positions per encounter at four viewport/DPR combinations (48 cases).
+The former real-pixel check sampled all three short Aftershock spawns plus three
+in-route positions per encounter at four viewport/DPR combinations (48 cases).
+The current world coverage is described above.
 The pointer remains opaque but uses the transparent render queue to stay above
 lingering effects; Slipstream's first crossing caught an 11px color footprint
 when explosions could paint over it. Route signs remain

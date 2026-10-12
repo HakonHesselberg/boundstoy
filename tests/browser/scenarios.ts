@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { LEVELS } from '../../data/levels.ts';
-import { REPLAYS } from '../../data/replays.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../../data/aftershock.ts';
+import { AFTERSHOCK_REPLAYS as REPLAYS } from '../../data/aftershock-replays.ts';
+import { checkRoughGame } from './rough-world.ts';
 import { TERRAIN } from '../../data/terrain.ts';
 import { parseLevel, type Level } from '../../core/level.ts';
 import type { State } from '../../core/simulation.ts';
 import { PROGRESS_KEY, DRAFT_KEY } from '../../application/storage.ts';
 import { Cdp, waitFor } from './runtime.ts';
+import { readStored } from './persistence.ts';
 
 export type BrowserContext = {
   page: Cdp; origin: string; signal: AbortSignal; requests: string[]; log: (message: string) => void;
@@ -23,12 +25,14 @@ function room(tile: '.' | '~', id = 'browser-input-room'): Level {
 }
 
 export async function checkGame({ page, origin, signal, requests, log }: BrowserContext) {
+  if (await page.evaluate('window.__BOUNDSTOY__.snapshot().level.version === 2'))
+    return checkRoughGame({ page, origin, signal, requests, log });
   let loadEvents = 0;
   page.on('Page.loadEventFired', () => { loadEvents++; });
   const evaluate = <T>(source: string) => page.evaluate<T>(source);
   const snapshot = () => evaluate<Snapshot>(`${debug}.snapshot()`);
   const text = (id: string) => evaluate<string>(`document.getElementById(${JSON.stringify(id)}).textContent`);
-  const saved = () => evaluate<string | null>(`localStorage.getItem(${JSON.stringify(PROGRESS_KEY)})`);
+  const saved = () => readStored(page, PROGRESS_KEY, signal);
   const pause = (ms: number) => delay(ms, undefined, { signal });
   const until = <T>(label: string, probe: () => Promise<T | false | null>) => waitFor(label, probe, 5000, signal);
   const keyCodes: Record<string, [string, number]> = {
@@ -53,8 +57,13 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
       const rect = node.getBoundingClientRect(), x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
       if (rect.left < 0 || rect.top < 0 || rect.right > innerWidth || rect.bottom > innerHeight)
         throw new Error('Clipped control: ' + ${JSON.stringify(selector)});
-      if (rect.width < ${targetSize} || rect.height < ${targetSize})
-        throw new Error('Small touch target: ' + ${JSON.stringify(selector)});
+      // Compositor translations can leave ~0.00003 CSSpx of DOMRect rounding.
+      if (rect.width + 0.001 < ${targetSize} || rect.height + 0.001 < ${targetSize})
+        throw new Error('Small touch target: ' + ${JSON.stringify(selector)} + ' ' + JSON.stringify({
+          width: rect.width, height: rect.height, active: node.matches(':active'),
+          transform: getComputedStyle(node).transform,
+          animations: node.getAnimations().map(a => ({ state: a.playState, time: a.currentTime }))
+        }));
       if (!node.contains(document.elementFromPoint(x, y))) throw new Error('Obscured control: ' + ${JSON.stringify(selector)});
       return {x, y};
     })()`);
@@ -267,10 +276,10 @@ export async function checkGame({ page, origin, signal, requests, log }: Browser
   assert.deepEqual(JSON.parse(exported), ice, 'Export preserves full draft');
   await click('#new-course'); await inputJSON(exported); await click('#import'); await click('#export');
   assert.deepEqual(JSON.parse(await evaluate<string>("document.getElementById('level-json').value")), ice, 'Export/import roundtrip');
-  const draftBefore = await evaluate(`localStorage.getItem(${JSON.stringify(DRAFT_KEY)})`);
+  const draftBefore = await readStored(page, DRAFT_KEY, signal);
   await inputJSON('{"version":'); await click('#import');
   assert.deepEqual((await snapshot()).level, ice, 'Invalid JSON preserves the live draft');
-  assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(DRAFT_KEY)})`), draftBefore, 'Invalid JSON preserves saved draft');
+  assert.equal(await readStored(page, DRAFT_KEY, signal), draftBefore, 'Invalid JSON preserves saved draft');
   assert.equal(await evaluate("!document.getElementById('notice').hidden && document.getElementById('notice').classList.contains('error')"), true);
   assert.match(await text('notice-text'), /Import rejected/i);
   await click('#dismiss-notice');

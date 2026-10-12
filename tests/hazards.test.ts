@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS } from '../data/levels.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../data/aftershock.ts';
 import { RULES } from '../data/terrain.ts';
 import { hazardSample } from '../core/simulation.ts';
 import { createPulse, updatePulse } from '../presentation/hazard-visuals.ts';

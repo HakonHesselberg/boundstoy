@@ -2,11 +2,24 @@ import * as THREE from 'three';
 import { TERRAIN, GROUND_COLORS, type Tile } from '../data/terrain.ts';
 import { RULES } from '../data/terrain.ts';
 import { center, type Level, type Point } from '../core/level.ts';
-import { hazardSample, hazardTick, type State } from '../core/simulation.ts';
-import { createSpikes, createPulse, updatePulse, WALL_HEIGHT, type PulseView } from './hazard-visuals.ts';
-import { createPlayerLocator, placePlayerLocator, fitRouteSigns, type RouteSign } from './readability.ts';
+import { hazardEnabled, hazardSample, hazardTick, type State } from '../core/simulation.ts';
+import { createSpikes, createPulse, updatePulse, createPulseField, pulseFieldMode, createSawBlade, createSawPath, SAW_HALO_SIZE,
+  type PulseView, type PulseField } from './hazard-visuals.ts';
+import { createStrokeGeometry } from './stroke-visuals.ts';
+import { createWalls, createContactShadeGeometry } from './wall-visuals.ts';
+import { createPlayerLocator, placePlayerLocator, fitRouteSigns, createRouteSign, type RouteSign } from './readability.ts';
+import { MOTION, PlayerMotion, clamp01, damp, dampAngle, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic } from './motion.ts';
+import { createCheckpointZoneGeometry, createZoneTexture } from './marker-visuals.ts';
+import { createMudPebbles, createFloorTexture } from './terrain-visuals.ts';
+import { createPlayerModel, playerDetailsVisible } from './player-visuals.ts';
+import { CheckpointCamera, selectWorldView, fitWorldFrame, type WorldView } from './world-camera.ts';
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** Default terrain-glyph stroke: about 1 px at desktop world scale, wider when closer. */
+const STROKE_WIDTH = 0.03;
+/** Only the player, spikes and saws cast shadows now; walls use baked contact shading. */
+export const SHADOW_MAP_SIZE = 1024;
+const GEM_GEOMETRY = new THREE.OctahedronGeometry(0.15);
 
 export class Scene {
   readonly renderer: THREE.WebGLRenderer;
@@ -14,25 +27,45 @@ export class Scene {
   private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.OrthographicCamera(-12, 12, 10, -10, 0.1, 100);
+  private key = new THREE.DirectionalLight(0xe7faff, 2.8);
   private board = new THREE.Group();
   private decorations = new THREE.Group();
   private player = new THREE.Group();
+  /** Body parts that squash, stretch and lean; the footprint ring stays rigid. */
+  private rig!: THREE.Group;
+  private antenna!: THREE.Mesh;
+  private playerDetails!: THREE.Group;
+  private motion = new PlayerMotion();
+  private lastVisualTime = 0;
+  private turnRate = 0;
+  private winStart: number | null = null;
   private playerLocator = createPlayerLocator();
   private routeSigns: RouteSign[] = [];
-  private headingArrow = new THREE.Group();
+  private headingArrow!: THREE.Group;
   private deathRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   private trail: THREE.Mesh[] = [];
   private trailPoints: THREE.Vector3[] = [];
   private hazards: THREE.Group[] = [];
   private pulses = new Map<number, PulseView>();
+  /** Idle pads share three batched draws; live pads switch to their own view. */
+  private pulseField: PulseField | null = null;
+  private pulseFieldIndex = new Map<number, number>();
   private checkpoints: THREE.Group[] = [];
   private goal = new THREE.Group();
   private hover: THREE.Mesh;
   private level!: Level;
+  private worldView: WorldView | null = null;
+  private checkpointCamera: CheckpointCamera | null = null;
+  private cameraNeedsSnap = true;
+  private levelBuilds = 0;
+  private viewWidth = 0;
+  private viewHeight = 0;
   private observer: ResizeObserver;
   private raycaster = new THREE.Raycaster();
   private plane = new THREE.Plane(UP, 0);
   private glow: THREE.CanvasTexture;
+  private zoneTexture: THREE.CanvasTexture;
+  private floorTexture: THREE.CanvasTexture;
   private environment: THREE.WebGLRenderTarget;
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private geometries = new Set<THREE.BufferGeometry>();
@@ -40,7 +73,10 @@ export class Scene {
   private boardGeometries = new Set<THREE.BufferGeometry>();
   private boardMaterials = new Set<THREE.Material>();
   private boardTextures = new Set<THREE.Texture>();
-  private lines = new Map<string, { points: number[]; color: number; opacity: number }>();
+  private lines = new Map<string, { points: number[]; color: number; opacity: number; width: number; vertical: boolean }>();
+  private grid: THREE.GridHelper | null = null;
+  /** One emissive material per marker colour for the current level. */
+  private markerMaterials = new Map<number, THREE.MeshStandardMaterial>();
   private container: HTMLElement;
 
   constructor(container: HTMLElement) {
@@ -55,25 +91,17 @@ export class Scene {
     this.renderer.domElement.setAttribute('aria-hidden', 'true');
     container.prepend(this.renderer.domElement);
     this.scene.add(new THREE.HemisphereLight(0xb8dfff, 0x172b42, 1.3));
-    const key = new THREE.DirectionalLight(0xe7faff, 2.8);
+    const key = this.key;
     key.position.set(3, 20, 7);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 65 });
     key.shadow.bias = -0.001;
-    this.scene.add(key);
+    this.scene.add(key, key.target);
     const rim = new THREE.DirectionalLight(0x6277ff, 1.3);
     rim.position.set(20, 6, -6); this.scene.add(rim);
-    const studio = new THREE.Scene();
-    studio.background = new THREE.Color(0x25394b);
-    const lightGeometry = new THREE.PlaneGeometry(16, 12);
-    const lightMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 1.6, 2), side: THREE.DoubleSide });
-    const panel = new THREE.Mesh(lightGeometry, lightMaterial);
-    panel.position.set(-4, 8, 3); panel.lookAt(0, 0, 0); studio.add(panel);
-    const generator = new THREE.PMREMGenerator(this.renderer);
-    this.environment = generator.fromScene(studio, 0.04);
+    this.environment = this.createEnvironment();
     this.scene.environment = this.environment.texture;
-    generator.dispose(); lightGeometry.dispose(); lightMaterial.dispose();
     this.scene.add(this.board, this.decorations, this.player, this.playerLocator);
     this.playerLocator.traverse(object => {
       if (object instanceof THREE.Mesh) {
@@ -90,32 +118,19 @@ export class Scene {
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
     context.fillStyle = gradient; context.fillRect(0, 0, 64, 64);
     this.glow = new THREE.CanvasTexture(canvas);
+    this.zoneTexture = createZoneTexture();
+    this.floorTexture = createFloorTexture();
 
-    const body = this.mesh(new THREE.CapsuleGeometry(0.23, 0.12, 5, 12),
-      new THREE.MeshStandardMaterial({ color: 0xecfaff, roughness: 0.22, metalness: 0.25 }), false);
-    body.position.y = 0.37; body.castShadow = true; this.player.add(body);
-    const visor = this.mesh(new THREE.BoxGeometry(0.34, 0.12, 0.085),
-      new THREE.MeshStandardMaterial({ color: 0x081a29, roughness: 0.2 }), false);
-    visor.position.set(0, 0.41, 0.2); this.player.add(visor);
-    for (const x of [-0.09, 0.09]) {
-      const eye = this.mesh(new THREE.SphereGeometry(0.031, 8, 6),
-        new THREE.MeshBasicMaterial({ color: 0x6bffe0 }), false);
-      eye.position.set(x, 0.415, 0.25); this.player.add(eye);
-    }
-    const antenna = this.mesh(new THREE.SphereGeometry(0.07, 10, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffd28e }), false);
-    antenna.position.set(0, 0.72, 0); this.player.add(antenna);
+    const model = createPlayerModel();
+    this.rig = model.rig; this.antenna = model.antenna; this.playerDetails = model.details;
+    this.headingArrow = model.headingArrow;
+    for (const part of [model.rig, model.ring, model.headingArrow]) part.traverse(object => {
+      if (object instanceof THREE.Mesh) { this.geometries.add(object.geometry); this.materials.add(object.material); }
+    });
+    this.player.add(this.rig);
     this.player.add(this.halo(0x58f3dc, 1.2, false));
-    const ring = this.mesh(new THREE.TorusGeometry(0.32, 0.024, 6, 32),
-      new THREE.MeshBasicMaterial({ color: 0x79ffe4 }), false);
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.07; this.player.add(ring);
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(-0.12, 0); arrowShape.lineTo(0, -0.24); arrowShape.lineTo(0.12, 0); arrowShape.closePath();
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape); arrowGeometry.rotateX(-Math.PI / 2);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xb0ffe4, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
-    const tip = this.mesh(arrowGeometry, arrowMaterial, false); tip.position.z = 0.62; this.headingArrow.add(tip);
-    const stem = this.mesh(new THREE.BoxGeometry(0.04, 0.014, 0.24), arrowMaterial, false);
-    stem.position.z = 0.52; this.headingArrow.add(stem); this.scene.add(this.headingArrow);
+    this.player.add(model.ring);
+    this.scene.add(this.headingArrow);
     const deathGeometry = new THREE.TorusGeometry(0.32, 0.025, 6, 32);
     const deathMaterial = new THREE.MeshBasicMaterial({ color: 0xff7b99, transparent: true, opacity: 0.7, depthWrite: false });
     this.geometries.add(deathGeometry); this.materials.add(deathMaterial);
@@ -133,6 +148,38 @@ export class Scene {
     this.observer.observe(container);
   }
 
+  private createEnvironment() {
+    const studio = new THREE.Scene();
+    studio.background = new THREE.Color(0x25394b);
+    const geometry = new THREE.PlaneGeometry(16, 12);
+    const material = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 1.6, 2), side: THREE.DoubleSide });
+    const panel = new THREE.Mesh(geometry, material);
+    panel.position.set(-4, 8, 3); panel.lookAt(0, 0, 0); studio.add(panel);
+    const generator = new THREE.PMREMGenerator(this.renderer);
+    try { return generator.fromScene(studio, 0.04); }
+    finally { generator.dispose(); geometry.dispose(); material.dispose(); }
+  }
+  releaseGraphics() {
+    // Dispose while the context is lost, before Three replaces its caches.
+    // This also removes old target disposal listeners holding stale GL objects.
+    this.environment.dispose();
+    this.key.shadow.map?.dispose();
+    this.key.shadow.map = null;
+  }
+  /** Rebuild GPU-only targets after Three resets its caches; CPU-backed assets
+   * upload natively, without a level rebuild or a second renderer.
+   */
+  restoreGraphics() {
+    if (this.disposed || this.renderer.getContext().isContextLost()) throw new Error('Graphics are still unavailable.');
+    this.environment = this.createEnvironment();
+    this.scene.environment = this.environment.texture;
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+  verifyGraphics() {
+    const gl = this.renderer.getContext();
+    const error = gl.getError();
+    if (gl.isContextLost() || error !== gl.NO_ERROR) throw new Error(`Graphics resources could not be drawn (${error}).`);
+  }
   private mesh(geometry: THREE.BufferGeometry, material: THREE.Material, board = true) {
     (board ? this.boardGeometries : this.geometries).add(geometry);
     (board ? this.boardMaterials : this.materials).add(material);
@@ -171,67 +218,81 @@ export class Scene {
     const sprite = new THREE.Sprite(material); sprite.scale.set(size, size, 1); sprite.position.y = 0.25;
     return sprite;
   }
-  private line(points: THREE.Vector3[], color: number, opacity = 1) {
-    const key = `${color}/${opacity}`;
-    const batch = this.lines.get(key) ?? { points: [], color, opacity };
+  /** Batched world-unit strokes (see stroke-visuals); `vertical` strokes sit on side faces. */
+  private line(points: THREE.Vector3[], color: number, opacity = 1, width = STROKE_WIDTH, vertical = false) {
+    const key = `${color}/${opacity}/${width}/${vertical}`;
+    const batch = this.lines.get(key) ?? { points: [], color, opacity, width, vertical };
     for (let i = 1; i < points.length; i++) batch.points.push(...points[i - 1].toArray(), ...points[i].toArray());
     this.lines.set(key, batch);
   }
-  private marker(point: Point, color: number, goal = false, label = '', radius = goal ? 0.46 : 0.34): THREE.Group {
+  private marker(point: Point, color: number, goal = false, label = '', radius = goal ? 0.46 : 0.34,
+    zone?: THREE.BufferGeometry): THREE.Group {
     const group = new THREE.Group();
     group.position.set(point.x + 0.5, 0, point.y + 0.5);
-    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.4 });
-    const ring = this.mesh(new THREE.TorusGeometry(radius, goal ? 0.055 : 0.022, 8, goal ? 6 : 32), mat);
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.055; group.add(ring);
+    const mat = this.markerMaterial(color);
+    if (zone) {
+      // Collection area painted on reachable floor only; walls can no longer cut it into arcs.
+      const area = this.mesh(zone, new THREE.MeshBasicMaterial({ color, map: this.zoneTexture, transparent: true,
+        depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1 }));
+      area.position.y = 0.004; group.add(area);
+    } else {
+      const ring = this.mesh(new THREE.TorusGeometry(radius, goal ? 0.055 : 0.022, 8, goal ? 6 : 32), mat);
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.055; group.add(ring);
+    }
     if (goal) {
       const portal = this.mesh(new THREE.TorusGeometry(0.43, 0.075, 8, 6), mat);
       portal.position.y = 0.62; group.add(portal);
       group.add(this.halo(color, 2));
     } else {
-      const gem = this.mesh(new THREE.OctahedronGeometry(0.15), mat);
+      const gem = this.mesh(GEM_GEOMETRY, mat);
       gem.position.y = 0.4; group.add(gem);
     }
     if (label) {
-      const canvas = document.createElement('canvas'); canvas.width = label.length > 2 ? 192 : 96; canvas.height = 64;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Canvas 2D is required for route markers.');
-      context.fillStyle = '#0d1925'; context.fillRect(2, 4, canvas.width - 4, 56);
-      context.strokeStyle = `#${new THREE.Color(color).getHexString()}`; context.lineWidth = 3; context.strokeRect(2, 4, canvas.width - 4, 56);
-      context.fillStyle = context.strokeStyle; context.font = '600 40px monospace'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.fillText(label, canvas.width / 2, 33);
-      const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; this.boardTextures.add(texture);
-      const material = new THREE.SpriteMaterial({ map: texture, depthWrite: false });
-      this.boardMaterials.add(material);
-      const sign = new THREE.Sprite(material); sign.position.y = 1.05;
-      sign.scale.set(label.length > 2 ? 1.7 : 0.95, 0.45, 1); group.add(sign);
-      this.routeSigns.push({ sprite: sign, label });
+      const { sprite, material, texture } = createRouteSign(label, color);
+      this.boardTextures.add(texture); this.boardMaterials.add(material);
+      group.add(sprite);
+      this.routeSigns.push({ sprite, label });
     }
     return group;
   }
+  private markerMaterial(color: number) {
+    let material = this.markerMaterials.get(color);
+    if (!material) {
+      material = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.4 });
+      this.markerMaterials.set(color, material);
+    }
+    return material;
+  }
   setLevel(level: Level) {
+    this.levelBuilds++;
+    if (this.worldView && level.version === 1) {
+      this.key.position.set(3, 20, 7); this.key.target.position.set(0, 0, 0);
+    }
+    this.checkpointCamera = level.version === 2 ? new CheckpointCamera(level) : null;
+    this.cameraNeedsSnap = true;
+    this.worldView = this.checkpointCamera?.update(center(level.spawn), [], 0, true) ?? null;
     this.board.clear(); this.decorations.clear();
     for (const g of this.boardGeometries) g.dispose();
     for (const m of this.boardMaterials) m.dispose();
     for (const texture of this.boardTextures) texture.dispose();
-    this.boardGeometries.clear(); this.boardMaterials.clear(); this.boardTextures.clear();
-    this.pulses.clear();
+    this.boardGeometries.clear(); this.boardMaterials.clear(); this.boardTextures.clear(); this.markerMaterials = new Map();
+    this.pulses.clear(); this.motion.reset(); this.winStart = null;
     this.level = level; this.hazards = []; this.checkpoints = []; this.routeSigns = []; this.trailPoints = []; this.lines.clear();
     const matrix = new THREE.Object3D();
     for (const [char, terrain] of Object.entries(TERRAIN)) {
-      if (char === ' ') continue;
+      if (char === ' ' || char === '#') continue;
       const cells: Point[] = [];
       level.tiles.forEach((row, y) => [...row].forEach((tile, x) => { if (tile === char) cells.push({ x, y }); }));
       if (!cells.length) continue;
-      const shape = new THREE.Shape();
-      shape.moveTo(-0.43, -0.43); shape.lineTo(0.43, -0.43); shape.lineTo(0.43, 0.43); shape.lineTo(-0.43, 0.43); shape.closePath();
-      const geometry = new THREE.ExtrudeGeometry(shape, { depth: char === '#' ? 0.345 + WALL_HEIGHT : 0.34,
-        bevelEnabled: true, bevelSegments: 1, steps: 1, bevelSize: 0.045, bevelThickness: 0.035 });
-      geometry.rotateX(-Math.PI / 2);
+      // Gapless slab from the wall base to the y = 0 play plane; the hairline texture draws the cells.
+      const geometry = new THREE.BoxGeometry(1, 0.38, 1).translate(0, 0.19, 0);
       const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: char === '~' || char === '=' ? 0.17 : 0.65,
-        metalness: char === '~' || char === '=' ? 0.35 : 0.15, envMapIntensity: 0.5 });
+        metalness: char === '~' || char === '=' ? 0.35 : 0.15, envMapIntensity: 0.5,
+        // Headless test views have no canvas texture.
+        ...(this.floorTexture ? { map: this.floorTexture } : {}) });
       this.boardGeometries.add(geometry); this.boardMaterials.add(material);
       const instances = new THREE.InstancedMesh(geometry, material, cells.length);
-      instances.receiveShadow = true; instances.castShadow = char === '#';
+      instances.receiveShadow = true;
       cells.forEach((point, i) => {
         matrix.position.set(point.x + 0.5, -0.38, point.y + 0.5); matrix.updateMatrix(); instances.setMatrixAt(i, matrix.matrix);
         const tint = char === '.' ? new THREE.Color(GROUND_COLORS[(point.x + point.y) % 2])
@@ -240,12 +301,21 @@ export class Scene {
       });
       this.board.add(instances);
       if (char === '!') this.addSpikes(cells);
+      if (char === ':') this.board.add(this.track(new THREE.Group().add(createMudPebbles(cells))));
       for (const cell of cells) this.tileDetails(cell, char as Tile);
+    }
+    if (level.tiles.some(row => row.includes('#'))) {
+      this.board.add(this.track(createWalls(level.tiles)));
+      const shade = this.mesh(createContactShadeGeometry(level.tiles), new THREE.MeshBasicMaterial({ color: 0x000000,
+        vertexColors: true, transparent: true, depthWrite: false }));
+      shade.name = 'contact-shade'; this.board.add(shade);
     }
     const spawn = this.marker(level.spawn, 0x77ecd9, false, 'START'); this.board.add(spawn);
     this.goal = this.marker(level.goal, 0xffce85, true, 'EXIT'); this.board.add(this.goal);
     this.checkpoints = level.checkpoints.map((p, index) => {
-      const marker = this.marker(p, 0x86f2dd, false, String(index + 1).padStart(2, '0'), p.radius ?? RULES.markerRadius);
+      const radius = p.radius ?? RULES.markerRadius;
+      const marker = this.marker(p, 0x86f2dd, false, String(index + 1).padStart(2, '0'), radius,
+        createCheckpointZoneGeometry(level.tiles, p, radius));
       this.board.add(marker); return marker;
     });
     for (const hazard of level.hazards) {
@@ -255,30 +325,26 @@ export class Scene {
         group.add(this.track(view.group));
         this.pulses.set(this.hazards.length, view);
       } else {
-        const blade = this.mesh(new THREE.CylinderGeometry(RULES.sawRadius, RULES.sawRadius, 0.14, 12),
-          new THREE.MeshStandardMaterial({ color: 0xff80a0, emissive: 0xe63764, emissiveIntensity: 1, metalness: 0.6, roughness: 0.25 }));
-        blade.position.y = 0.24; group.add(blade);
-        for (let i = 0; i < 8; i++) {
-          const tooth = this.mesh(new THREE.ConeGeometry(0.11, 0.22, 3), blade.material);
-          const angle = i * Math.PI / 4;
-          tooth.position.set(Math.cos(angle) * 0.31, 0.24, Math.sin(angle) * 0.31);
-          tooth.rotation.set(0, -angle, Math.PI / 2); group.add(tooth);
-        }
-        const a = center(hazard.from), b = center(hazard.to);
-        this.line([new THREE.Vector3(a.x, 0.06, a.y), new THREE.Vector3(b.x, 0.06, b.y)], 0xfa7298, 0.7);
+        group.add(this.track(createSawBlade()));
+        this.board.add(this.track(createSawPath(hazard.from, hazard.to)));
       }
-      if (hazard.kind === 'saw') group.add(this.halo(0xff4477, 1.7));
+      if (hazard.kind === 'saw') group.add(this.halo(0xff4477, SAW_HALO_SIZE));
       this.board.add(group); this.hazards.push(group);
     }
+    const pads = level.hazards.flatMap((hazard, index) => hazard.kind === 'pulse' ? [{ hazard, index }] : []);
+    this.pulseFieldIndex = new Map(pads.map(({ index }, fieldIndex) => [index, fieldIndex]));
+    this.pulseField = pads.length ? createPulseField(pads.map(({ hazard }) => hazard)) : null;
+    if (this.pulseField) this.board.add(this.track(this.pulseField.group));
     for (const batch of this.lines.values()) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.points, 3));
-      const material = new THREE.LineBasicMaterial({ color: batch.color, transparent: true, opacity: batch.opacity });
-      this.boardGeometries.add(geometry); this.boardMaterials.add(material);
-      this.board.add(new THREE.LineSegments(geometry, material));
+      const strokes = this.mesh(createStrokeGeometry(batch.points, batch.width, batch.vertical),
+        new THREE.MeshBasicMaterial({ color: batch.color, transparent: true, opacity: batch.opacity,
+          depthWrite: false, side: THREE.DoubleSide }));
+      strokes.name = 'strokes';
+      this.board.add(strokes);
     }
-    // The faint workshop grid also makes empty cells targetable in the editor.
+    // Editor-only workshop grid: shows empty cells while painting, hidden in play.
     const grid = new THREE.GridHelper(level.tiles[0].length, level.tiles[0].length, 0x1c3852, 0x122239);
+    grid.name = 'editor-grid'; this.grid = grid;
     grid.position.set(level.tiles[0].length / 2, -0.48, level.tiles.length / 2);
     this.boardGeometries.add(grid.geometry);
     const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
@@ -297,49 +363,58 @@ export class Scene {
       }
       this.line(lines, 0x9effee, 0.45);
     } else if (tile === '=') {
-      for (let i = -1; i <= 1; i++) {
-        this.line([new THREE.Vector3(x - 0.23, 0.012, z + i * 0.17),
-          new THREE.Vector3(x + 0.23, 0.012, z + i * 0.17)], 0xc6e3ff, 0.55);
-      }
-    } else if (tile === ':') {
-      this.line([new THREE.Vector3(x - 0.15, 0.015, z - 0.13), new THREE.Vector3(x + 0.08, 0.015, z + 0.02),
-        new THREE.Vector3(x - 0.02, 0.015, z + 0.19)], 0xdfb584, 0.55);
-    } else if (tile === '#') {
-      const y = WALL_HEIGHT + 0.004;
-      this.line([new THREE.Vector3(x - 0.4, y, z - 0.4), new THREE.Vector3(x + 0.4, y, z - 0.4),
-        new THREE.Vector3(x + 0.4, y, z + 0.4), new THREE.Vector3(x - 0.4, y, z + 0.4),
-        new THREE.Vector3(x - 0.4, y, z - 0.4)], 0xffd684);
-      for (const offset of [-0.21, 0, 0.21]) {
-        this.line([new THREE.Vector3(x + offset - 0.09, y, z - 0.23),
-          new THREE.Vector3(x + offset + 0.09, y, z + 0.23)], 0x20252d);
+      // Scored, diagonal streaks: frozen and locked, unlike the waves of soft ice.
+      for (const offset of [-0.14, 0.14]) {
+        this.line([new THREE.Vector3(x - 0.2 + offset, 0.012, z + 0.2), new THREE.Vector3(x + 0.08 + offset, 0.012, z - 0.2)],
+          0x5f7fa8, 0.7);
       }
     }
     if (tile !== '#') {
       for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
         if (this.level.tiles[point.y + dy]?.[point.x + dx] !== ' ' && this.level.tiles[point.y + dy]?.[point.x + dx] !== undefined) continue;
         const horizontal = dy !== 0;
-        const a = new THREE.Vector3(x + dx * 0.47 - (horizontal ? 0.4 : 0), -0.12, z + dy * 0.47 - (horizontal ? 0 : 0.4));
-        const b = new THREE.Vector3(x + dx * 0.47 + (horizontal ? 0.4 : 0), -0.12, z + dy * 0.47 + (horizontal ? 0 : 0.4));
-        this.line([a, b], 0x5798b9, 0.6);
+        // Lip along the tile's exposed side, just proud of the face so it is never z-fighting.
+        const a = new THREE.Vector3(x + dx * 0.502 - (horizontal ? 0.45 : 0), -0.12, z + dy * 0.502 - (horizontal ? 0 : 0.45));
+        const b = new THREE.Vector3(x + dx * 0.502 + (horizontal ? 0.45 : 0), -0.12, z + dy * 0.502 + (horizontal ? 0 : 0.45));
+        this.line([a, b], 0x5798b9, 0.6, 0.035, true);
       }
     }
   }
 
-  resize() {
+  /** Editing aids that must never appear behind play. */
+  private syncEditorAids(editing: boolean) {
+    if (this.grid) this.grid.visible = editing;
+  }
+
+  resize(updateRenderer = true) {
     if (this.disposed || !this.level) return;
     const width = this.container.clientWidth, height = this.container.clientHeight;
     if (!width || !height) return;
-    this.renderer.setSize(width, height);
+    // View switches happen inside draw: do not resize the canvas or enqueue
+    // another RAF merely because a follow/connector frame changed.
+    if (updateRenderer || width !== this.viewWidth || height !== this.viewHeight) {
+      this.renderer.setSize(width, height);
+      this.viewWidth = width; this.viewHeight = height;
+    }
     const aspect = width / height;
-    const extent = Math.max(this.level.tiles.length * 0.85 + 3, (this.level.tiles[0].length + 2) / aspect);
+    const fit = this.level.version === 2 && this.worldView ? fitWorldFrame(this.worldView.frame, aspect) : null;
+    const extent = fit?.extent ?? Math.max(this.level.tiles.length * 0.85 + 3, (this.level.tiles[0].length + 2) / aspect);
     this.camera.left = -extent * aspect / 2; this.camera.right = extent * aspect / 2;
     this.camera.top = extent / 2; this.camera.bottom = -extent / 2;
-    const x = this.level.tiles[0].length / 2, z = this.level.tiles.length / 2;
-    this.camera.position.set(x, 25, z + 17);
+    const x = fit?.x ?? this.level.tiles[0].length / 2, z = fit?.z ?? this.level.tiles.length / 2;
+    // A very long connector can fit in x/y yet cross the near plane. Pull
+    // back along the same viewing angle; orthographic scale remains unchanged.
+    const elevation = fit && this.worldView ? Math.max(25, this.worldView.frame.height / 2) : 25;
+    this.camera.far = Math.max(100, elevation * 3);
+    this.camera.position.set(x, elevation, z + elevation * 17 / 25);
     this.camera.lookAt(x, 0, z); this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld();
+    if (fit) {
+      this.key.position.set(x + 3, 20, z + 7);
+      this.key.target.position.set(x, 0, z);
+    }
     this.scene.updateMatrixWorld(true);
     fitRouteSigns(this.routeSigns, this.camera, height);
-    this.onInvalidate?.();
+    if (updateRenderer) this.onInvalidate?.();
   }
 
   pick(clientX: number, clientY: number): Point | null {
@@ -362,54 +437,134 @@ export class Scene {
     if (point) this.hover.position.set(point.x + 0.5, 0.04, point.y + 0.5);
     if (changed) this.onInvalidate?.();
   }
-  draw(state: State, visualTime: number, editing: boolean) {
-    const time = this.reducedMotion ? 0 : visualTime;
+  /** Observe one simulation step for presentation-only motion cues. */
+  record(before: State, after: State, input: Point) {
+    this.motion.record(before, after, input);
+  }
+  /**
+   * `alpha` is the fraction of a tick elapsed since the latest step (1 = exactly
+   * the current state). Movement is interpolated from the previous tick, which
+   * delays the drawn position by at most one 8.3 ms tick and never affects input.
+   */
+  draw(state: State, visualTime: number, editing: boolean, alpha = 1) {
+    const reduced = this.reducedMotion;
+    const time = reduced ? 0 : visualTime;
+    const dt = Math.min(Math.max(visualTime - this.lastVisualTime, 0), 0.1);
+    this.lastVisualTime = visualTime;
+    this.syncEditorAids(editing);
     const dead = state.respawnTicks > 0;
     const deathProgress = 1 - state.respawnTicks / RULES.respawnTicks;
-    this.player.position.set(state.position.x, dead && state.deathCause === 'void' ? -0.7 * deathProgress : Math.sin(time * 3) * 0.025, state.position.y);
-    this.player.scale.setScalar(dead && state.deathCause !== 'void' ? Math.max(0, 1 - deathProgress * 2) : 1);
-    this.player.visible = !editing && (!dead || state.respawnTicks > 12);
-    placePlayerLocator(this.playerLocator, this.camera, this.container.clientHeight, this.level, state.position);
+    const position = editing ? state.position : this.motion.position(state, alpha);
+    if (this.level.version === 2) {
+      const next = editing ? selectWorldView(this.level, position)
+        : this.checkpointCamera!.update(position, state.visited, visualTime, reduced || this.cameraNeedsSnap);
+      if (!editing) this.cameraNeedsSnap = false;
+      const before = this.worldView?.frame;
+      this.worldView = next;
+      if (!before || before.x !== next.frame.x || before.y !== next.frame.y
+        || before.width !== next.frame.width || before.height !== next.frame.height
+        || this.viewWidth !== this.container.clientWidth || this.viewHeight !== this.container.clientHeight) this.resize(false);
+    }
+    const speed = Math.hypot(state.velocity.x, state.velocity.y);
+    const speedShare = Math.min(speed / MOTION.maxSpeed, 1);
+
+    if (state.won && !editing) this.winStart ??= visualTime; else this.winStart = null;
+    const win = this.winStart === null || reduced ? 0 : clamp01((visualTime - this.winStart) / MOTION.winSeconds);
+    const winLift = clamp01((win - 0.15) / 0.85);
+    const winSquash = win > 0 && win < 0.2 ? Math.sin(Math.PI * win / 0.2) * 0.7 : 0;
+
+    let x = position.x, z = position.y, y = Math.sin(time * 3) * 0.025 + Math.sin(Math.PI * winLift) * 0.55, scale = 1;
+    if (dead && state.deathCause === 'void') {
+      // Arc: keep the pre-death drift while gravity accelerates the fall.
+      y = -0.9 * deathProgress ** 2;
+      if (!reduced) { x += this.motion.fall.x * 0.12 * deathProgress; z += this.motion.fall.y * 0.12 * deathProgress; }
+    } else if (dead) scale = Math.max(0, 1 - easeInCubic(Math.min(deathProgress * 2, 1)));
+    const pop = reduced ? 1 : 0.35 + 0.65 * easeOutBack(this.motion.spawn(state, alpha));
+    scale *= 1 - easeInCubic(clamp01((win - 0.45) / 0.55));
+    this.player.position.set(x, y, z);
+    this.player.scale.setScalar(scale);
+    this.player.visible = !editing && (!dead || state.respawnTicks > 12) && scale > 0.001;
+
+    let turn = 0;
+    if (speed > 0.1 && !dead) {
+      const target = Math.atan2(state.velocity.x, state.velocity.y), before = this.player.rotation.y;
+      this.player.rotation.y = reduced ? target : dampAngle(before, target, MOTION.yawRate, dt);
+      if (dt > 0) turn = (this.player.rotation.y - before) / dt;
+    }
+    this.turnRate = damp(this.turnRate, turn, 10, dt);
+    const squash = reduced ? 0 : this.motion.squash(state, alpha) + winSquash;
+    const motionShare = reduced ? 0 : speedShare;
+    this.rig.scale.set(1 + 0.14 * squash - 0.03 * motionShare, 1 - 0.24 * squash - 0.04 * motionShare,
+      1 + 0.12 * motionShare + 0.08 * squash).multiplyScalar(pop);
+    this.rig.rotation.set(0.08 * motionShare, reduced ? 0 : easeInOutCubic(winLift) * Math.PI * 2,
+      reduced ? 0 : Math.max(-0.22, Math.min(0.22, -this.turnRate * 0.045)));
+    // Follow-through: the antenna trails motion and whips forward on impact.
+    this.antenna.position.set(0, 0.72 - 0.05 * squash, -0.06 * motionShare + 0.08 * squash);
+
+    this.playerDetails.visible = playerDetailsVisible(this.container.clientHeight / (this.camera.top - this.camera.bottom));
+    placePlayerLocator(this.playerLocator, this.camera, this.container.clientHeight, this.level, position);
     this.playerLocator.visible &&= !editing && !dead && !state.won;
     this.deathRing.visible = dead && !editing;
     this.deathRing.position.set(state.position.x, 0.06, state.position.y);
-    this.deathRing.scale.setScalar(this.reducedMotion ? 1 : 1 + deathProgress * 2);
-    this.deathRing.material.opacity = (1 - deathProgress) * 0.7;
-    this.headingArrow.visible = !editing && !dead && !state.won && Math.hypot(state.velocity.x, state.velocity.y) > 0.1;
-    this.headingArrow.position.set(state.position.x, 0.05, state.position.y);
+    this.deathRing.scale.setScalar(reduced ? 1 : 1 + easeOutCubic(deathProgress) * 2);
+    this.deathRing.material.opacity = (1 - deathProgress) ** 1.5 * 0.75;
+    this.headingArrow.visible = !editing && !dead && !state.won && speed > 0.1;
+    this.headingArrow.position.set(position.x, 0.05, position.y);
     this.headingArrow.rotation.y = Math.atan2(state.velocity.x, state.velocity.y);
-    if (Math.hypot(state.velocity.x, state.velocity.y) > 0.1) {
-      const target = Math.atan2(state.velocity.x, state.velocity.y);
-      this.player.rotation.y += Math.atan2(Math.sin(target - this.player.rotation.y), Math.cos(target - this.player.rotation.y)) * 0.18;
-    }
     const tail = this.trailPoints[0];
-    if (!tail || Math.hypot(tail.x - state.position.x, tail.z - state.position.y) > 0.09) {
-      this.trailPoints.unshift(new THREE.Vector3(state.position.x, 0.08, state.position.y));
+    if (!tail || Math.hypot(tail.x - position.x, tail.z - position.y) > 0.09) {
+      this.trailPoints.unshift(new THREE.Vector3(position.x, 0.08, position.y));
       this.trailPoints.length = Math.min(this.trailPoints.length, this.trail.length);
     }
     if (dead || editing || state.event === 'checkpoint') this.trailPoints = [];
     this.trail.forEach((dot, i) => {
-      dot.visible = !this.reducedMotion && !!this.trailPoints[i] && Math.hypot(state.velocity.x, state.velocity.y) > 0.2;
+      dot.visible = !reduced && !!this.trailPoints[i] && speed > 0.2;
       if (this.trailPoints[i]) dot.position.copy(this.trailPoints[i]);
       (dot.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - i / this.trail.length);
     });
+    // Saws share the player's interpolated moment; pulses stay on exact ticks.
+    const sawTick = hazardTick(state) - (this.motion.previous?.patternOffset === state.patternOffset
+      && !dead && !editing ? 1 - Math.min(alpha, 1) : 0);
     this.hazards.forEach((group, index) => {
-      const hazard = this.level.hazards[index], sample = hazardSample(hazard, hazardTick(state));
-      group.position.set(sample.position.x, 0, sample.position.y);
+      const hazard = this.level.hazards[index];
+      const enabled = editing || hazardEnabled(this.level, hazard, state);
+      group.userData.enabled = enabled;
       if (hazard.kind === 'pulse') {
-        updatePulse(this.pulses.get(index)!, hazard, hazardTick(state), this.reducedMotion);
-      } else group.rotation.y = time * 6;
+        const sample = hazardSample(hazard, hazardTick(state)), view = this.pulses.get(index)!;
+        group.position.set(sample.position.x, 0, sample.position.y);
+        updatePulse(view, hazard, hazardTick(state), reduced, enabled);
+        const mode = pulseFieldMode(sample, enabled);
+        view.group.visible = mode === 'hidden' || !this.pulseField;
+        this.pulseField?.setMode(this.pulseFieldIndex.get(index)!, mode);
+      } else {
+        group.visible = enabled;
+        const sample = hazardSample(hazard, enabled ? sawTick : 0);
+        group.position.set(sample.position.x, 0, sample.position.y);
+        group.rotation.y = enabled ? time * 6 : 0;
+      }
     });
     this.checkpoints.forEach((group, i) => {
       const p = this.level.checkpoints[i];
       const visited = state.visited.includes(`${p.x},${p.y}`);
-      group.children[1].position.y = 0.4 + Math.sin(time * 2 + i) * 0.09;
-      group.children[1].rotation.y = time;
-      group.children[1].visible = !visited;
-      const ring = group.children[0] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshStandardMaterial>;
-      ring.material.emissiveIntensity = visited ? 0.2 : 0.7;
+      const collect = reduced ? 1 : this.motion.collect(`${p.x},${p.y}`, state);
+      const gem = group.children[1];
+      if (visited && collect < 1) {
+        // Collected: pop up and out instead of vanishing.
+        gem.visible = true;
+        gem.position.y = 0.4 + easeOutCubic(collect) * 0.35;
+        gem.scale.setScalar(collect < 0.4 ? 1 + 0.5 * easeOutCubic(collect / 0.4) : 1.5 * (1 - easeInCubic((collect - 0.4) / 0.6)));
+      } else {
+        gem.visible = !visited; gem.scale.setScalar(1);
+        gem.position.y = 0.4 + Math.sin(time * 2 + i) * 0.09;
+      }
+      gem.rotation.y = time;
+      const area = group.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+      // On collection the zone fades from full strength to a faint trace.
+      area.material.opacity = visited ? 0.3 + 0.7 * (1 - collect) : 1;
     });
     this.goal.children[1].rotation.z = Math.sin(time * 0.7) * 0.08;
+    this.goal.children[1].scale.setScalar(1 + 0.3 * Math.sin(Math.PI * win));
+    this.goal.children[2].scale.setScalar(2 + 0.6 * Math.sin(Math.PI * win));
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
@@ -418,6 +573,21 @@ export class Scene {
     for (const g of [...this.geometries, ...this.boardGeometries]) g.dispose();
     for (const m of [...this.materials, ...this.boardMaterials]) m.dispose();
     for (const texture of this.boardTextures) texture.dispose();
-    this.glow.dispose(); this.environment.dispose(); this.renderer.dispose(); this.renderer.domElement.remove();
+    this.glow.dispose(); this.zoneTexture.dispose(); this.floorTexture.dispose(); this.environment.dispose(); this.renderer.dispose(); this.renderer.domElement.remove();
+  }
+  /** Read-only observability for opt-in production browser fixtures. */
+  inspectView() {
+    return {
+      view: this.worldView, levelBuilds: this.levelBuilds,
+      extent: this.camera.top * 2,
+      player: { x: this.player.position.x, y: this.player.position.z },
+      hazards: this.hazards.map((group, index) => {
+        const pulse = this.pulses.get(index);
+        return { x: group.position.x, y: group.position.z,
+          visible: group.visible, enabled: group.userData.enabled === true,
+          warning: pulse?.warning.visible ?? false, burst: pulse?.burst.visible ?? false,
+          glow: pulse?.plate.material.emissiveIntensity ?? 0 };
+      }),
+    };
   }
 }

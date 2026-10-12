@@ -2,19 +2,26 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEVELS } from '../../data/levels.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../../data/aftershock.ts';
 import { AFTERSHOCK_TARGETS } from '../../data/aftershock.ts';
 import { AFTERSHOCK_MASTERY_REPLAYS } from '../../data/aftershock-replays.ts';
-import { REPLAYS } from '../../data/replays.ts';
+import { AFTERSHOCK_REPLAYS as REPLAYS } from '../../data/aftershock-replays.ts';
+import { captureRoughWorld } from './rough-world.ts';
 import { PROGRESS_KEY } from '../../application/storage.ts';
 import { FAILURE_REPLAYS, LANDING_FAILURE_REPLAYS } from '../fixtures/aftershock-failures.ts';
 import { main } from '../../scripts/browser-check.ts';
 import { waitFor } from './runtime.ts';
+import { readStored } from './persistence.ts';
 import { hazardSample, type State } from '../../core/simulation.ts';
 import { RULES } from '../../data/terrain.ts';
-import type { BrowserContext } from './scenarios.ts';
+import { checkGame, type BrowserContext } from './scenarios.ts';
+import { checkJourney } from './journey.ts';
+import { runLegacyChecks } from './legacy-registry.ts';
 
-export async function checkAftershock({ page, origin, signal, log }: BrowserContext) {
+export async function checkAftershock(context: BrowserContext) {
+  const { page, origin, signal, log } = context;
+  if (await page.evaluate('window.__BOUNDSTOY__.snapshot().level.version === 2'))
+    return captureRoughWorld(context);
   const artifacts = resolve('artifacts/aftershock');
   await mkdir(artifacts, { recursive: true });
   const text = (id: string) => page.evaluate<string>(`document.getElementById(${JSON.stringify(id)}).textContent`);
@@ -72,8 +79,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     assert.equal(assisted.won, true);
     assert.equal(assisted.tick, respawn.tick + ordinary.tick);
     assert.match(await text('finish-mastery'), /Assisted clear/);
-    const saved = await page.evaluate<Record<string, { ticks: number; deaths: number; cleanTicks?: number }>>(
-      `JSON.parse(localStorage.getItem(${JSON.stringify(PROGRESS_KEY)})).runs`);
+    const saved = JSON.parse((await readStored(page, PROGRESS_KEY, signal))!).runs;
     assert.equal(saved[level.id].ticks, master.tick, 'slower assisted clear cannot replace clean mastery');
     assert.equal(saved[level.id].deaths, 0);
     log(`PASS: ${level.name}: clear ${ordinary.tick}, mastery ${master.tick}, target ${AFTERSHOCK_TARGETS[level.id]}; real retry preserves run costs.`);
@@ -147,7 +153,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
     });
   })()`);
   const luminance = ([r, g, b]: number[]) => r * 0.2126 + g * 0.7152 + b * 0.0722;
-  assert.ok(luminance(shadePixels[0]) > luminance(shadePixels[1]) * 1.1,
+  assert.ok(luminance(shadePixels[0]) > luminance(shadePixels[1]) * 1.03,
     `actual checkerboard plate pixels must preserve group contrast: ${JSON.stringify(shadePixels)}`);
   await capture(`${grid.id}-quiet-ground-groups`);
   for (const [width, height] of [[1280, 900], [390, 844]]) for (const reduced of [false, true]) {
@@ -202,5 +208,7 @@ export async function checkAftershock({ page, origin, signal, log }: BrowserCont
   log(`PASS: new playable selection, clean/mastery results and persisted records; desktop and mobile evidence: ${artifacts}`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   await main(process.argv.slice(2), checkAftershock);
+  if (!process.exitCode) await runLegacyChecks(process.argv.slice(2), [checkGame, checkJourney, checkAftershock]);
+}

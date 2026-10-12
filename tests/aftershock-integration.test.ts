@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { LEVELS, COURSE_LESSONS } from '../data/levels.ts';
-import { REPLAYS } from '../data/replays.ts';
+import { AFTERSHOCK_LEVELS as LEVELS, AFTERSHOCK_LESSONS as COURSE_LESSONS } from '../data/aftershock.ts';
+import { AFTERSHOCK_REPLAYS as REPLAYS } from '../data/aftershock-replays.ts';
 import { createState, hazardTick, step, STILL } from '../core/simulation.ts';
 import { courseGuide } from '../application/guidance.ts';
 import { nextCourse } from '../application/campaign.ts';

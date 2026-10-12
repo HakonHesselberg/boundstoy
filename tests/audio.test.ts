@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Audio, MAX_AUDIO_VOICES } from '../presentation/audio.ts';
+import * as audioSelection from '../presentation/audio.ts';
+import { completeEight } from './fixtures/aftershock-world.ts';
+import { selectWorldView } from '../presentation/world-camera.ts';
 
 test('Audio_InvalidVolume_IsRejectedBeforeCreatingBrowserResources', () => {
   const audio = new Audio();
@@ -64,4 +67,21 @@ test('Audio_DenseBlasts_BoundsVoicesPrioritizesWinAndDisconnectsOnMute', async t
   assert.ok(gains.slice(1).every(gain => gain.disconnected), 'all per-voice gains disconnect');
   audio.dispose();
   assert.ok(gains[0].disconnected, 'master gain disconnects on disposal');
+});
+test('BlastAudio_UsesPositionBasedSectionAndConnectorNotGlobalDetonations', () => {
+  assert.equal(typeof audioSelection.localBlast, 'function');
+  const world = completeEight;
+  const start = { x: 1.5, y: 3.5 };
+  assert.equal(audioSelection.localBlast(world, start, 39, 40), true);
+  const remoteTick = world.hazards.filter(h => h.kind === 'pulse' && h.y > 30)
+    .map(h => (h.period - h.phase) % h.period)
+    .find(tick => !world.hazards.some(h => h.kind === 'pulse' && h.x < 19
+      && (h.period - h.phase) % h.period === tick))!;
+  assert.equal(audioSelection.localBlast(world, start, remoteTick - 1, remoteTick), false);
+  assert.equal(audioSelection.localBlast(world, start, 40, 40), false, 'pause is silent');
+  const seam = { x: 19, y: 3.5 };
+  assert.deepEqual(selectWorldView(world, seam).sections, [0, 1]);
+  assert.equal(audioSelection.localBlast(world, seam, 172, 173), true);
+  assert.equal(audioSelection.localBlast(world, { x: 1.5, y: 3.5 }, 172, 173), false,
+    'backtracking follows camera position, not highest checkpoint');
 });

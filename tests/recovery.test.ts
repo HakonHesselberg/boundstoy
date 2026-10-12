@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { center, type Level, type Point } from '../core/level.ts';
-import { createState, distance, step, STILL, terrainAt, type State } from '../core/simulation.ts';
+import { center, parseLevel, type Level, type Point } from '../core/level.ts';
+import { createState, distance, hazardSample, hazardTick, step, STILL, terrainAt, type State } from '../core/simulation.ts';
+import { worldFixture, walkTo } from './fixtures/world.ts';
 import { LEVELS } from './fixtures/relay-levels.ts';
 import { REPLAYS } from './fixtures/relay-replays.ts';
 import { RULES, TERRAIN } from '../data/terrain.ts';
@@ -11,6 +12,84 @@ const DIRECTIONS: readonly Point[] = [
   { x: -1, y: 0 }, STILL, { x: 1, y: 0 },
   { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 },
 ];
+
+test('Recovery_World_FirstDeathAndAll54RespawnTicks_KeepExactPulseAndSawClock', () => {
+  const world = worldFixture();
+  assert.equal(RULES.respawnTicks, 54);
+  for (const visitedCount of [0, 1, 2]) {
+    let state = createState(world);
+    if (visitedCount) state = walkTo(world, state, center(world.checkpoints[visitedCount - 1]));
+    const checkpoint = state.checkpoint;
+    state = walkTo(world, state, { x: state.position.x, y: 4.5 });
+    state = walkTo(world, state, { x: 4.5, y: 4.5 });
+    while (!state.deaths) state = step(world, state,
+      state.position.y < 5.48 ? { x: 0, y: 1 } : STILL);
+    const dead = state, saved = structuredClone(dead);
+    assert.equal(dead.deathCause, 'pulse');
+    assert.equal(dead.respawnTicks, 54);
+    assert.equal(dead.visited.length, visitedCount);
+    for (let tick = 0; tick <= 54; tick++) {
+      if (tick) state = step(world, state, { x: 1, y: 1 });
+      assert.equal(state.tick, dead.tick + tick);
+      assert.equal(hazardTick(state), state.tick);
+      assert.equal(state.patternOffset, 0);
+      assert.equal(state.respawnTicks, 54 - tick);
+      assert.equal(state.deaths, 1);
+      assert.deepEqual(state.visited, dead.visited);
+      assert.deepEqual(state.velocity, STILL);
+      assert.deepEqual(state.position, tick === 54 ? center(checkpoint) : dead.position);
+      const pulse = hazardSample(world.hazards[0], hazardTick(state));
+      assert.equal(pulse.cycle, tick, 'death is pulse cycle zero; no retry rewind');
+      assert.equal(pulse.active, tick === 0, 'one lethal tick only');
+      assert.equal(pulse.warning, false);
+      const saw = hazardSample(world.hazards[1], hazardTick(state));
+      const cycle = (dead.tick + tick + 30) % 240;
+      const progress = cycle <= 120 ? cycle / 120 : (240 - cycle) / 120;
+      assert.equal(saw.cycle, cycle);
+      assert.ok(Math.abs(saw.position.x - (11.5 + 2 * progress)) < 1e-12);
+      assert.equal(saw.position.y, 5.5);
+    }
+    assert.deepEqual(dead, saved, 'retained death snapshot is unchanged');
+    state = step(world, state, STILL);
+    assert.equal(state.deaths, 1);
+    assert.deepEqual(state.position, center(checkpoint));
+    for (let cycle = 56; cycle <= 120; cycle++) {
+      state = step(world, state, STILL);
+      const pulse = hazardSample(world.hazards[0], hazardTick(state));
+      assert.equal(pulse.cycle, cycle % 120);
+      assert.equal(pulse.warning, cycle >= 93 && cycle < 120, 'exact 27-tick warning');
+      assert.equal(pulse.active, cycle === 120);
+    }
+    const resumedTick = state.tick;
+    state = walkTo(world, state, { x: 21.9, y: 2.5 });
+    assert.deepEqual(state.visited, ['6,2', '14,2']);
+    assert.equal(state.deaths, 1, 'subsequent transitions retain the death count');
+    assert.ok(state.tick > resumedTick);
+    assert.equal(hazardTick(state), state.tick);
+    while (!state.won) state = step(world, state, { x: 1, y: 0 });
+    assert.equal(state.deaths, 1, 'the recovered run can finish without another death');
+  }
+});
+
+test('Recovery_LegacyExplicitRetryReset_RewindsOnlyHazardsAfter54Ticks', () => {
+  const world = worldFixture();
+  for (const resetPatternOnRetry of [true, false]) {
+    const level = parseLevel({ ...world, version: 1, resetPatternOnRetry });
+    let state = walkTo(level, createState(level), { x: 4.5, y: 2.5 });
+    while (!state.deaths) state = step(level, state,
+      state.position.y < 5.48 ? { x: 0, y: 1 } : STILL);
+    const dead = state;
+    state = advance(level, state, 53, { x: 1, y: 0 });
+    assert.equal(hazardTick(state), dead.tick + 53);
+    state = step(level, state, { x: 1, y: 0 });
+    assert.equal(state.tick, dead.tick + 54);
+    assert.equal(state.deaths, 1);
+    assert.equal(hazardTick(state), resetPatternOnRetry ? 0 : state.tick);
+    for (const hazard of level.hazards)
+      assert.deepEqual(hazardSample(hazard, hazardTick(state)),
+        hazardSample(hazard, resetPatternOnRetry ? 0 : dead.tick + 54));
+  }
+});
 
 function advance(level: Level, state: State, ticks: number, input = STILL) {
   for (let tick = 0; tick < ticks; tick++) state = step(level, state, input);

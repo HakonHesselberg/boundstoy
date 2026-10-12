@@ -1,13 +1,10 @@
 # Boundstoy
 
 A static browser game about precise movement through instantaneous explosions.
-The playable **Aftershock** set contains three short variations: **Borrowed Ground**,
-**Crosscurrent** and **Checkerboard**. Each has a normal clear and a faster clean
-mastery route. Each is one puzzle ending at the exit, without a redundant final
-checkpoint. This is a gameplay
-iteration for a planned eight-stage world,
-not a claim that the finished world has shipped. A secondary editor retains all
-four movement surfaces.
+The playable **Aftershock** candidate is one continuous eight-section world,
+with seven between-puzzle checkpoints and one final exit. This is a complete
+rough map awaiting human gameplay acceptance, not a released game or an approved
+launch candidate. A secondary editor retains all four movement surfaces.
 
 Started from a copy of [ai-game-template](https://github.com/HakonHesselberg/ai-game-template).
 Its headless-first structure is retained. There is no game engine code in the
@@ -23,28 +20,32 @@ npm run dev
 # http://127.0.0.1:4321
 ```
 
-Click the single initial **Play**, then use **WASD / arrow keys**. Returning
-players get **Continue**, starting at the first uncleared current campaign course.
-Selecting a level, **Next level** and **Retry level** start playing
-directly—there are no per-level tutorial popups. Hints stay below the board;
+Click **Start**, then use **WASD / arrow keys**. Returning players get
+**Continue** from the latest saved checkpoint, initially paused.
+There is no section selector or checkpoint skipping. Hints stay below the board;
 full level instructions are available in **Menu → How to play**.
-**Space** pauses, **R** restarts, and **Escape** opens the menu.
-These short encounters retry from the start with the same explosion pattern.
-Elapsed run time and retries remain; **R** starts a fresh clean attempt.
-In multi-puzzle custom maps, checkpoint rings show generous collection zones
-between puzzles; the final puzzle ends at the exit, not another checkpoint.
+**Space** pauses, **R** restarts the current puzzle at its checkpoint, and
+**Escape** opens the menu. **Menu → New run** starts over, with confirmation
+before replacing an unfinished run. Only the current puzzle's timed hazards
+run; completed and future puzzles are inactive. Death returns to the latest
+checkpoint without resetting elapsed time, deaths or the active hazard rhythm.
+Restart and reload reset that rhythm, but retain elapsed time and deaths.
+Resuming an in-session pause retains the current position and rhythm.
+Progress saves at checkpoints, with totals also saved on death and pause/leaving;
+there are no periodic saves. Abrupt termination can lose uncommitted totals.
+Pause, hidden tabs and closed pages do not advance either clock.
+In multi-puzzle custom maps, a tinted floor zone shows each generous collection
+area between puzzles, painted only on ground connected to the checkpoint; the final puzzle ends at the exit, not another checkpoint.
 Pause, restart and level changes clear held controls; release and press again
 to move after those transitions.
 Mobile layouts include hold-to-move direction buttons. **Menu** contains level
 selection, sound, fullscreen, help and the editor. Sound starts muted on the
 first visit; the optional intro sound toggle and menu volume preference are
 remembered thereafter. Restored sound waits for an explicit play/level-choice gesture.
-Results distinguish Clear, Clean and Mastered. Mastery requires a zero-retry
-finish at or below the displayed target. Best clean time is kept independently
-of faster assisted clears; result comparisons compare like-for-like.
-**Next level** chooses the next uncleared encounter cyclically.
-Clearing the final missing course celebrates completion regardless of play order;
-**Choose a level** opens the menu rather than restarting the campaign.
+Results compare total time first, using fewer deaths to break exact ties.
+Deathless completion is retained independently of a faster assisted best.
+There are no preset mastery targets. Records are isolated by world ID and
+content revision; old prototype clears do not complete this world.
 
 **Soft ice has no brakes.** You glide at 4.4 tiles/second even when you release
 the controls or hold reverse. Input changes your heading through a bounded turn;
@@ -56,8 +57,8 @@ not part of the normal play screen.
 ## What's included
 
 - Normal ground, steerable soft ice, direction-locked hard ice, and mud.
-- Void, low striped barriers, metal spike clusters, telegraphed explosions, and moving saws.
-- Three new Aftershock encounters, repeatable retries, local clean records and mastery targets.
+- Void, matte walls, metal spike clusters, telegraphed explosions, and moving saws.
+- One continuous Aftershock world, checkpoint continuation, time-first records and a separate deathless achievement.
 - Adaptive route signs and a hollow small-screen player locator, checkpoint-aware lessons, cause-specific retry
   feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
@@ -72,36 +73,40 @@ After the initial page
 and assets load, play and editing need no network. Offline **reload** is not
 guaranteed: there is intentionally no service worker.
 
-## Aftershock: first encounters
+## Aftershock: complete rough world
 
-| Level | Pattern |
+| Section | Pattern |
 | --- | --- |
-| Borrowed Ground | A short temporary-refuge encounter with tile-by-tile travelling explosions |
-| Crosscurrent | A wider corridor where lateral movement interacts with sequential blasts |
-| Checkerboard | A grid alternating the lighter cells, then the darker cells |
+| Following the wake | Follow a travelling blast into spent ground |
+| Passing shelter | Use lateral refuges between travelling fronts |
+| Read the patrol | Observe and cross a saw patrol |
+| Turning fan | Turn through a directional explosion sequence |
+| Conflicting appointments | Read saw and pulse timing together |
+| Take the open arc | Choose an approach through combined threats |
+| Cross the grain | Cross a patrol and a travelling front |
+| Carry the current | Transfer through a turning basin to the final exit |
 
-Ordinary reference clears take **6.27 / 5.17 / 5.93 seconds** respectively;
-mastery references take **5.11 / 4.68 / 4.19 seconds**. The shortened Borrowed
-Ground is less than half its predecessor's execution time. These are practiced
-routes, not promises about a player's first attempt.
+The ordinary and faster whole-world witnesses take **5,752 / 5,038 ticks**
+(**47.93 / 41.98 seconds**) without deaths. These are practiced routes, not
+first-attempt estimates, global records or evidence of fun. The final section
+takes about seven seconds and has deliberately not been padded to a duration target.
 
 The light and dark floor shades are the same normal ground: identical speed,
 grip and collision. The group identity persists on explosion plates and warning
 states; the bright flash still identifies the actual single lethal tick.
 Warnings last 225 ms, followed by a compact flash and harmless 300 ms aftermath.
-Flat pads, one warning ring and low-profile effects keep neighboring cells readable.
-Clear/mastery targets are shown in the selector and results. Legal witness
-routes and measured tolerances are not global records or proof that a map is fun.
+Flat pads with an amber pilot light, one perimeter fuse and low-profile effects keep neighboring cells readable.
+Legal witnesses, actual arrival-phase necessity checks and measured input margins
+do not replace the user's full-map playtest.
 
-This set replaces the rejected Slipstream / original Borrowed Ground / The Cut
-iteration. Shorter commitment and different spatial decisions take priority
-over adding more repeated gates.
+The three short Borrowed Ground / Crosscurrent / Checkerboard prototypes are
+retired from the selector. Their data and dedicated browser regressions remain
+for legacy import/record compatibility, not as the production campaign.
 
 The retired Relay layouts are **not in the playable selector or game bundle**.
 They remain only as movement/recovery regression fixtures under `tests/fixtures/`.
-Aftershock uses new IDs, so retired records remain stored without counting as
-new clears. Human feedback on challenge and replay value is still required
-before building the rest of the world.
+Retired records remain stored without counting as new clears. Human feedback
+on challenge, readable decisions, progression and the finale is still required.
 
 The collision radius remains 0.20 tiles and all four movement rules are unchanged.
 Explosions now kill for one simulation tick only. Editor pads detonate every
@@ -111,13 +116,17 @@ three seconds; imported JSON/drafts retain their periods and phases, but legacy
 Existing drafts and older records are preserved, but old clears do not affect
 Continue. Choose **Remix level** in the editor to copy a current layout.
 
-Explosion pads retain their muted ground shade when safe, charge in amber, then erupt into bright
-fireballs, shock rings and sparks. The outlined square is the danger footprint.
+Explosion pads retain their muted ground shade when safe and carry an amber pilot light; pads outside
+the running puzzle are dormant and show a neutral grey mark instead. A fuse runs
+around the pad as it charges, the pad turns white-hot, then the whole square flashes. Debris cools to
+grey-blue. The outlined square is the danger footprint.
 The tile is safe immediately after detonation, even while the burst dissipates
 for 300 ms. Fading debris is harmless, not continuous fire. Optional audio
 includes a low detonation thump.
 
-The remainder of the approved eight-stage world is still in development.
+Visual polish, broader launch-platform qualification and publication are still
+gated separately. The current wall treatment is busy, especially on small
+screens; automated locator/footprint checks do not certify perceptual clarity.
 
 ## Build / deploy
 
@@ -132,7 +141,7 @@ Use HTTP rather than opening the HTML through `file://`.
 
 Three.js is the only production dependency (no runtime transitive dependencies).
 Vite, TypeScript and type declarations are development-only. Tests use Node's
-built-in runner. The production JS is approximately 167 KB gzipped; Vite warns
+built-in runner. Vite warns
 about its uncompressed size because the WebGL renderer lives in the same bundle.
 We keep one preloaded bundle instead of adding lazy network loads during play.
 
@@ -182,12 +191,17 @@ one is rejected. Move the marker or erase the checkpoint first.
 **New blank** and **Remix level** can be undone. Up to 40 edits are kept in
 session memory. **Playtest level** starts immediately from the draft's spawn;
 return with **Back to editor** or **Menu → Level editor**. **Restart game level**
-deliberately leaves editing and restarts the selected built-in level. Playtests never
-alter built-in records.
+is called **Back to world** for this campaign and returns to its preserved run.
+Playtests never alter built-in records or active world saves. World marker and
+section metadata are edited together in validated JSON; section focus changes
+only the editor view, never the playtest spawn or progress.
 
-Drafts and records stay in `localStorage`, scoped to the hosting origin. Storage
-failures are shown in the UI; export JSON if saving is unavailable. There is no
-sync. The JSON panel also exposes pulse period/active time/phase and saw endpoints
+Drafts, records and checkpoint saves use transactional IndexedDB with one tab holding
+a Web Lock, scoped to the hosting origin. Old localStorage bytes are preserved
+as migration sources, not a second authority. Sound preferences remain separate.
+Storage failures offer explicit retry/export/recovery or unsaved play, never a
+false saved claim. Native quota exhaustion and BFCache retention still require
+launch-platform qualification. The JSON panel also exposes pulse period/active time/phase and saw endpoints
 and period. Times are integer simulation ticks, not milliseconds.
 
 ## Checks and AI inspection
@@ -197,15 +211,14 @@ npm test
 npm run typecheck
 npm run evaluate                 # tracker + tests + production build
 npm run inspect -- 0             # ASCII course and state
-npm run inspect -- 1 --replay    # deathless reference playthrough
-npm run inspect -- 7 --replay    # Last light relay; valid indices are 0-7
+npm run inspect -- 0 --replay    # complete deathless world witness; only index 0 is registered
 ```
 
 For repeatable production-browser acceptance, with an installed Chromium:
 
 ```sh
 npm run test:browser
-npm run test:journey             # Continue, out-of-order completion, PB/audio, responsive screenshots
+npm run test:journey             # real world lifecycle, editor isolation and seven checkpoint recoveries
 npm run test:readability         # actual opaque locator pixels, DPR 1/2, route visibility
 npm run release:check            # evaluate + browser + journey + readability, one build
 npm run test:astro               # real static Astro builds; isolated tooling install
@@ -221,7 +234,7 @@ See [browser checks](docs/BROWSER_CHECKS.md) for executable overrides, evidence,
 cleanup verification and platform limitations. The regular `evaluate` command
 does not require Chromium.
 The two additional commands use the same sandboxed browser primitives.
-Readability preserves the full-board camera and actual collision sizes; it
+Readability checks the fixed-scale camera rectangle and actual collision sizes; it
 measures locator pixels rather than pretending the physical robot is larger.
 The Astro check needs npm registry access for its pinned test-only installation.
 
@@ -231,20 +244,20 @@ Open `http://127.0.0.1:4321/?debug` to opt into `window.__BOUNDSTOY__`:
 const game = window.__BOUNDSTOY__;
 game.snapshot();                 // cloned state, level, mode, pause and inputs
 game.ascii();                    // text view of the current board
-game.load(0);                    // reset a built-in course paused at tick zero
+game.load(0);                    // request world selection; normal replacement confirmation still applies
 game.advance(120, { x: 1, y: 0 }); // pause real time and step one simulated second
 game.project({ x: 3, y: 5 });     // cell center in browser client coordinates
 game.metrics();                  // cumulative frames, draw calls, geometry, textures
 game.export();                   // current level JSON
 ```
 
-`load` is an explicit paused inspection reset, not normal player navigation.
-It shows the pause overlay and cannot accumulate live ticks while a witness is
-prepared. Normal level selection, Next and Retry still start live play on a
-`?debug` page; call `load(index)` before each exact input-only witness.
+For V2, `load` is not a synchronous state setter: ownership, transactions and
+replacement confirmation still apply. Before an exact witness, establish a
+committed tick-zero run paused through explicit focus loss; the browser checks'
+`worldDriver` demonstrates this without rewriting state or bypassing storage.
 `advance` runs the same collision, hazards, checkpoint and win logic as keyboard
 play; it does not teleport or disable hazards. The reference inputs in
-`data/replays.ts` reach all three new exits with no falls. This is evidence of
+`data/replays.ts` traverse all eight sections and the final exit without deaths. This is evidence of
 solvability, **not** an exhaustive BFS proof, and it cannot decide whether the
 game feels fun. Use real browser screenshots and human play alongside the tests.
 The debug API is absent without `?debug`.
@@ -255,7 +268,7 @@ does not catch up elapsed paused time. Visible initial-entry/editor/victory anim
 continues, while modal menus freeze the covered scene.
 
 See [mechanics](docs/GAME_SYSTEMS.md), [architecture](docs/ARCHITECTURE.md),
-[testing](docs/TESTING.md), and [platform](docs/PLATFORM.md).
+[animation](docs/ANIMATION.md), [testing](docs/TESTING.md), and [platform](docs/PLATFORM.md).
 
 ## Local issues and agent coordination
 

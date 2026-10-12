@@ -6,6 +6,7 @@ npm run test:browser
 npm run test:journey
 npm run test:explosions
 npm run test:aftershock
+npm run test:motion   # optional before/after animation clips
 # Combined release gate: portable + game + journey + explosions + Aftershock + readability
 npm run release:check
 ```
@@ -59,9 +60,108 @@ node scripts/browser-check.ts
 
 Prefer the npm command for acceptance so stale assets cannot pass.
 
+## Checkpoint camera reveals
+
+The production lifecycle check additionally seeds an obsolete revision-1
+active save and verifies its deletion on revision-2 boot without losing old
+records. Instrumented native IndexedDB writes prove there are no periodic
+saves and that pause/checkpoint boundaries commit. Reload and R return to the
+checkpoint, preserving totals; a separate confirmed New run replaces progress.
+
+After `npm run build`, run
+`node tests/browser/checkpoint-camera.ts --timeout 600000` for the complete
+production world and `node tests/browser/world-camera.ts --timeout 600000`
+for held-input forward/backtracking and editor framing regressions.
+The production check covers all seven transitions at 1280x900, 390x844 and
+844x390 with full and reduced motion. Named start/mid-pan/revealed images and
+endstates record fixed zoom, complete puzzle and hazard sweeps, incoming landing
+visibility, global picking and frozen mid-pan pause. Actual rendered warning,
+burst and glow values must be off for inactive hazards; inactive saw blades
+must be hidden. New-run captures wait for the committed run's first frames,
+not newly allocated render objects. Reload checks checkpoint-normalized state.
+Evidence is under `artifacts/checkpoint-camera/run-*`.
+
+## Wall rendering
+
+After `npm run build`, run `node tests/browser/walls.ts --timeout 600000`.
+The same owned-browser harness records legal-route views at 1280x900, 390x844
+and 844x390, checks actual wall/playfield luminance, and saves screenshots and
+pixel measurements under `artifacts/walls/after-*`. `--baseline` is only for
+recording the old build before a visual change, not for accepting the new one.
+Use the normal readability and editor checks alongside it to retain locator,
+marker and global painting behavior.
+
+## Graphics recovery
+After `npm run build`, run
+`node tests/browser/graphics-recovery.ts --timeout 300000`.
+This uses the same isolated Chromium harness and owned ephemeral preview.
+`WEBGL_lose_context` exercises play, pause, editor, initial-menu and touch loss;
+normal and synthetic actions must not advance either clock while unavailable.
+Restoration redraws the same state on the same canvas and requires a fresh
+explicit resume. Repeated cycles check resource/listener stability and identical
+paused pixels; hidden restoration defers application GPU work until visible.
+Isolated startup overrides and an injected framebuffer failure check actionable
+reload controls without mutating an existing browser profile.
+Evidence is saved under `artifacts/graphics-recovery/` and the usual per-run
+`artifacts/browser-check/` directory. This does not certify other launch browsers
+or GPU drivers, and snapshot persistence is covered separately by BT-045.
+
+## Exact continuation
+
+Run `node tests/browser/continuation.ts --timeout 300000`. This builds the real
+application with a small test-only V2 registry in `artifacts/continuation/`;
+it does not replace the playable production registry or add shipped test hooks.
+The native runner compares full committed snapshots through movement/respawn
+reloads, periodic and checkpoint saves, graphics loss, editor/playtest returns,
+new-run cancellation, deathless completion, two-tab handoff and recovery/reset.
+It checks explicit memory-only play and injected denied/quota-like failures.
+Injected rejection is **not** native quota exhaustion.
+
+The runner attempts history/BFCache restoration and reports whether the
+document actually survived; a fresh reload is not a BFCache pass. Persisted
+pagehide/pageshow handlers also have explicit event coverage. Chromium here did
+not retain the document in native BFCache, so real BFCache/device qualification
+remains BT-062. Existing browser journeys read committed IndexedDB values and
+wait on visible transaction state; localStorage is only a migration source,
+not a mirrored authority. Sound preferences retain their separate storage.
+
+## World editing and inspection
+
+Run `node tests/browser/world-editor.ts --timeout 300000`. Its isolated V2
+registry exercises the real application's import, section-focused global
+picking, terrain/pulse/saw brushes, undo, export and playtest return at 1280x900
+and 390x844. Invalid edits must preserve both live and committed drafts.
+Legal checkpoint/death/recovery input and a winning playtest must leave campaign
+records and the active resumable run byte-identical. Ordinary non-debug play
+must expose neither inspection helpers nor section skipping.
+Captures and endstates are under `artifacts/bt047/native-*`.
+
+Headless JSON input and clock/progression checks run in
+`node --test tests/world-editor.test.ts tests/editor.test.ts`. The POSIX
+named-pipe rejection regression uses the standard `mkfifo` utility; Windows
+does not run that POSIX-specific case.
+
 ## What is checked
 
-- Aftershock checks the actual selector contains only Borrowed Ground v2,
+- The production selector contains exactly one eight-section Aftershock world,
+  without section skipping or preset targets. General checks cover intentional
+  Start, confirmed/cancelled New run, real keyboard/touch, exact mid-puzzle
+  Continue, both 5752/5038-tick witnesses, persistent time-first/deathless results
+  and offline play. Journey adds sound/volume/mute, keyboard/focus/hidden-tab
+  clearing, bounded CPU-stall recovery, full-world editor roundtrip and same-ID
+  save isolation, repeated resource counts, all seven real checkpoint
+  death/reload/respawn/downstream recoveries, and ordinary non-debug play.
+- Aftershock captures legal positions at every section transition/checkpoint,
+  mixed hazards and completion at 1280x900, 390x844 and 844x390, under
+  `artifacts/bt052/captures-*`. Pause cards are explicitly suppressed only for
+  scene inspection; completion UI remains visible. This is not evidence of fun.
+  Readability measures actual opaque locator pixels across the same positions
+  at four viewport/DPR combinations, replacing completion with the final
+  pre-win tick. It checks the fixed-scale camera rectangle, not
+  every remote world marker.
+- The Aftershock command then builds an isolated V1 registry in
+  `artifacts/legacy-regression/` and retains the original three browser suites.
+  Those legacy checks assert Borrowed Ground v2,
   Crosscurrent and Checkerboard, six ordinary/mastery witnesses, visible target
   outcomes, retained clean records and repeatable real retries. Final landings
   must not save checkpoints; backtrack deaths return to the start for a full replay.
@@ -70,8 +170,8 @@ Prefer the npm command for acceptance so stale assets cannot pass.
   126/127/154/158/190 show pre-warning, 225 ms warning onset, ignition, aftermath
   and clear ground at 1280x900 and 390x844 with full/reduced motion. Corridor
   ticks 80/84 cover neighboring cells in different phases.
-  The readability runner samples each active encounter at spawn and 25/50/75%
-  of its ordinary witness, across four viewport/DPR combinations.
+  These compatibility fixtures never replace `dist/` or restore retired
+  entries to the production selector. Each native suite gets a fresh profile.
 - The dedicated explosion check imports a legacy pulse and verifies disclosed
   `on: 1` normalization, exact detonation collision, safe entry one tick later,
   the next distinct detonation and a render batch that skips ignition.
@@ -80,7 +180,15 @@ Prefer the npm command for acceptance so stale assets cannot pass.
   Repeated effects must not grow GPU geometry after initial death-effect upload.
   Captures are under `artifacts/explosions/`; runner logs and cleanup evidence
   use the usual per-run browser directory.
-- A single generic initial Play waits for intent and accepts Enter. Level
+- `npm run test:motion` (opt-in evidence, not part of the release gate) renders
+  deterministic 60 fps clips, two ticks per frame, of hazards, the Checkerboard
+  mastery replay with its victory beat, soft/hard ice and UI transitions at
+  1280x900 and 390x844 in full/reduced motion, plus a 4 s live frame-pacing
+  sample on the current world. Checkerboard is imported as an explicit legacy
+  playtest rather than looked up in the production selector.
+  `CLIP_DIR` and `CLIP_SCENARIOS` select output and subset; one run may
+  need splitting to stay within the 600 s runner limit. See `docs/ANIMATION.md`.
+- In the retained V1 fixture, a single generic initial Play waits for intent and accepts Enter. Level
   selection (including before initial Play), Next, Retry and Restart game level
   start immediately with viewport focus and no tutorial overlay. Completed
   campaigns offer level selection; returning visitors continue at the first

@@ -101,13 +101,16 @@ in an isolated artifact copy, copy back the lockfile, and rerun both checks.
   iframe and child fullscreen state, completed UI events and absence of an
   error notice are asserted. This is more than checking `allowfullscreen`.
 - After loading, networking is forced offline for ordinary non-debug play
-  and, separately, for input/fullscreen and all nine exact production witness
-  finishes. No additional requests are permitted. Witnesses use the existing
+  and, separately, for input/fullscreen and the complete eight-section world's
+  exact production witness. No additional requests are permitted. Witnesses use the existing
   production debug API, not synthetic saved records; each ends on its exact
   winning tick with zero deaths and ordered checkpoints.
 - A fresh origin starts with no progress. The game's actual finishes write
-  all nine records, and a subsequent ordinary iframe load hydrates them.
-  Only the progress storage key remains; no cookie, session storage, service
+  the revision-isolated world record in IndexedDB and retire the active run.
+  The debug iframe first continues the ordinary iframe's exact unfinished run;
+  a later ordinary reload hydrates completion. New-run setup honors the actual
+  confirmation/transaction gate rather than using a synchronous debug reset.
+  Legacy localStorage remains untouched; no cookie, session storage, service
   worker or ordinary-page debug API is present.
 
 ## Evidence and cleanup

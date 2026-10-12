@@ -1,16 +1,23 @@
 import './style.css';
 import { LEVELS, MASTERY_TARGETS } from '../data/levels.ts';
+import { BENCHMARKS, BENCHMARK_FAMILIES, BENCHMARK_SURFACES, type Benchmark } from '../data/benchmarks.ts';
+import { BENCHMARK_REPLAYS } from '../data/benchmark-replays.ts';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
-import { createState, step, hazardSample, hazardTick, ascii, DT, STILL } from '../core/simulation.ts';
+import { createState, restartCheckpoint, step, hazardTick, ascii, DT, STILL } from '../core/simulation.ts';
 import { importLevel, parseLevel, type Level, type Point } from '../core/level.ts';
+import { checkpointPuzzles, worldSectionIndex } from '../core/world.ts';
 import { paint, placeSaw, blankLevel, type Brush } from '../core/editor.ts';
-import { readProgress, recordFinish, bestClean, runRank, PROGRESS_KEY, DRAFT_KEY, type Progress } from '../application/storage.ts';
-import { nextCourse, finishResult } from '../application/campaign.ts';
+import { recordFinish, bestClean, runRank, readWorldRecords, getWorldRecord, recordWorldFinish, type Progress } from '../application/storage.ts';
+import { nextCourse, finishResult, worldFinishResult } from '../application/campaign.ts';
+import { openBrowserRunStorage } from '../application/run-storage.ts';
+import { createCheckpointSnapshot, createRunSnapshot, type RunSnapshot } from '../application/run-snapshot.ts';
+import { RunContinuation, shouldSave, type SaveStatus } from '../application/run-continuation.ts';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences } from '../application/preferences.ts';
-import { Audio } from './audio.ts';
+import { Audio, localBlast } from './audio.ts';
 import { courseGuide, deathMessage } from '../application/guidance.ts';
 import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
 import { Scene } from './scene.ts';
+import { GraphicsRecovery } from './graphics-recovery.ts';
 
 function element<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -45,17 +52,50 @@ const touchPointers = new Map<number, string>();
 const directions: Record<string, Point> = { up: { x: 0, y: -1 }, left: { x: -1, y: 0 }, down: { x: 0, y: 1 }, right: { x: 1, y: 0 } };
 const keyDirections: Record<string, string> = { KeyW: 'up', ArrowUp: 'up', KeyA: 'left', ArrowLeft: 'left', KeyS: 'down', ArrowDown: 'down', KeyD: 'right', ArrowRight: 'right' };
 
+const recoveryDialog = element<HTMLDialogElement>('graphics-recovery');
+element('graphics-reload').addEventListener('click', () => location.reload());
+recoveryDialog.addEventListener('cancel', event => event.preventDefault());
+recoveryDialog.addEventListener('keydown', event => { if (event.repeat) event.preventDefault(); });
+function showGraphicsFailure(message?: string) {
+  if (message) text('graphics-copy', message);
+  if (!recoveryDialog.open) recoveryDialog.showModal();
+  element('graphics-reload').focus();
+}
+
 function boot(scene: Scene) {
   const viewport = element('viewport'), menu = element<HTMLDialogElement>('game-menu'), audio = new Audio();
   const abort = new AbortController(), options = { signal: abort.signal };
   let level = LEVELS[0], state = createState(level), selectedCourse = 0;
   let mode: 'play' | 'edit' = 'play', draft: Level | null = null;
   let history: Level[] = [], brush: Brush = '.', sawStart: Point | null = null;
+  let editorSection = 0;
   let painting = false, lastPaint = '', testing = false, started = false, paused = true;
+  let benchmark: Benchmark | null = null, benchmarkFamily = BENCHMARK_FAMILIES[0].id;
+  const benchmarkTrials = new Map<string, Readonly<{ ticks: number; deaths: number }>>();
   let paintingPointer: number | null = null;
   let accumulator = 0, visualTime = 0;
+  // Debug stepping pins idle/victory animation to explicit animate() calls until play resumes.
+  let manualClock = false;
   let progress: Progress = {};
-  let storageFailed = false;
+  let legacyDraft: string | null = null;
+  let worldRecords = readWorldRecords(null);
+  let continuation: RunContinuation | null = null;
+  let activeRun: RunSnapshot | null = null, currentRunId: string | null = null;
+  let persistenceReady = false, memoryOnly = false, storageBusy = false, pageGone = false;
+  let suspension = 0, pendingNew: (() => void) | null = null;
+  const saveDialog = element<HTMLDialogElement>('save-recovery');
+  const newRunDialog = element<HTMLDialogElement>('new-run-confirm');
+  const resolveWorld = (id: string, revision: number) => {
+    const course = LEVELS.find(course => course.version === 2 && course.id === id && course.revision === revision);
+    return course?.version === 2 ? course : undefined;
+  };
+  // Activate only with the approved production revision, never for fixtures or
+  // arbitrary unavailable saves. Prior revision records/drafts stay untouched.
+  const obsoleteWorldRevisions = LEVELS.some(course =>
+    course.id === 'aftershock' && checkpointPuzzles(course) && course.revision === 2)
+    ? [{ worldId: 'aftershock', revision: 1 }] : [];
+  let storage = openBrowserRunStorage(resolveWorld, obsoleteWorldRevisions);
+  let closingStorage: Promise<void> = Promise.resolve();
   let feedbackUntil = 0;
   let lastDeath = '';
   let result: ReturnType<typeof finishResult> | null = null;
@@ -66,10 +106,35 @@ function boot(scene: Scene) {
     cancel: id => cancelAnimationFrame(id),
     render: frame,
   });
+  const graphics = new GraphicsRecovery(() => {
+    suspension++;
+    paused = true; accumulator = 0; clearInput(); loop.setActive(false);
+    scene.releaseGraphics();
+  }, graphicsUnavailable);
+  function graphicsUnavailable() {
+    saveCurrent();
+    showGraphicsFailure();
+    hud();
+  }
+  // Defense in depth for DOM actions (including synthetic clicks on enabled
+  // controls). State-changing functions and the frame/tick paths also gate.
+  for (const type of ['click', 'input', 'change', 'pointerdown', 'pointermove', 'keydown']) {
+    element('boundstoy').addEventListener(type, event => {
+      const target = event.target as Node;
+      if (recoveryDialog.contains(target)) return;
+      if ((!persistenceReady || storageBusy || saveDialog.open || newRunDialog.open)
+        && !saveDialog.contains(target) && !newRunDialog.contains(target)) {
+        event.preventDefault(); event.stopImmediatePropagation(); return;
+      }
+      if (graphics.awaitingResume && event instanceof KeyboardEvent && event.repeat) {
+        event.preventDefault(); event.stopImmediatePropagation(); return;
+      }
+      if (graphics.available || recoveryDialog.contains(event.target as Node)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+    }, { ...options, capture: true });
+  }
   loop.setVisible(!document.hidden);
   scene.onInvalidate = loop.invalidate;
-  try { progress = readProgress(localStorage.getItem(PROGRESS_KEY)); }
-  catch (error) { report('Could not load local progress', error); }
   try { preferences = readPreferences(localStorage.getItem(PREFERENCES_KEY)); }
   catch (error) { report('Could not load sound preferences', error); }
   audio.setVolume(preferences.volume);
@@ -105,6 +170,142 @@ function boot(scene: Scene) {
   }
   soundControls();
 
+  function canPlay() {
+    return persistenceReady && !storageBusy && !pageGone && !saveDialog.open && !newRunDialog.open && graphics.available;
+  }
+  function recordFor(course: Level) {
+    return course.version === 2 ? getWorldRecord(worldRecords, course)
+      : Object.hasOwn(progress, course.id) ? progress[course.id] : undefined;
+  }
+  function campaignProgress(): Progress {
+    const records = { ...progress };
+    for (const course of LEVELS) if (course.version === 2) {
+      delete records[course.id];
+      const best = getWorldRecord(worldRecords, course);
+      if (best) records[course.id] = best;
+    }
+    return records;
+  }
+  function freezeForStorage() {
+    suspension++; paused = true; accumulator = 0; clearInput(); syncRendering(); overlay(); hud();
+  }
+  function storageFailure(reason: string) {
+    console.warn('[Boundstoy] Save unavailable:', reason);
+    freezeForStorage();
+    text('save-status', 'Not saved');
+    element<HTMLButtonElement>('save-export').disabled = storage.status !== 'ok';
+    element<HTMLButtonElement>('save-reset').disabled = storage.status !== 'ok';
+    text('save-copy', `${reason} Your existing data has not been discarded. Retry, export it, or explicitly play without saving.`);
+    if (graphics.available && !saveDialog.open) saveDialog.showModal();
+  }
+  function saveChanged(status: SaveStatus) {
+    if (pageGone) return;
+    progressSaved = status.phase === 'saved';
+    text('save-status', memoryOnly ? 'Not saving' : status.phase === 'saving' ? 'Saving...'
+      : status.phase === 'saved' ? 'Saved' : status.phase === 'error' ? 'Not saved' : 'Save options');
+    if (status.phase === 'error') storageFailure(status.reason ?? 'Saving failed.');
+    overlay();
+  }
+  function saveCurrent() {
+    if (testing || mode !== 'play' || level.version !== 2 || !currentRunId) return;
+    const snapshot = createRunSnapshot(level, currentRunId, state);
+    activeRun = state.won ? null : snapshot;
+    if (!memoryOnly && continuation && persistenceReady)
+      void continuation.save(createCheckpointSnapshot(level, currentRunId, state));
+  }
+  function restoreRun(snapshot: RunSnapshot) {
+    if (!graphics.available) return;
+    const index = LEVELS.findIndex(course => course.version === 2 && course.id === snapshot.worldId
+      && course.revision === snapshot.revision);
+    if (index < 0) { storageFailure('The saved world revision is unavailable.'); return; }
+    selectedCourse = index; mode = 'play'; testing = false; benchmark = null;
+    load(LEVELS[index], 'paused');
+    currentRunId = snapshot.runId; state = snapshot.state;
+    visualTime = state.tick * DT; manualClock = true;
+    lastDeath = state.deathCause ? deathMessage(state.deathCause) : '';
+    updateLayout(); loop.drawNow();
+  }
+  async function connectStorage() {
+    if (storageBusy || pageGone) return;
+    storageBusy = true; text('save-status', 'Loading save...');
+    try {
+      if (storage.status !== 'ok') storage = openBrowserRunStorage(resolveWorld, obsoleteWorldRevisions);
+      if (storage.status !== 'ok') { storageFailure(storage.reason); return; }
+      const acquired = await storage.value.acquire();
+      if (acquired.status !== 'ok') { storageFailure(`${acquired.status}: ${acquired.reason}`); return; }
+      if (pageGone) { await acquired.value.release(); return; }
+      const owner = new RunContinuation(acquired.value, saveChanged);
+      continuation = owner;
+      const legacy = await acquired.value.readLegacy();
+      if (pageGone || continuation !== owner) { await owner.close(); return; }
+      if (legacy.status !== 'ok') {
+        await continuation.close(); continuation = null;
+        storageFailure(legacy.reason); return;
+      }
+      progress = legacy.value.progress; legacyDraft = legacy.value.draft;
+      worldRecords = acquired.value.initial.records; activeRun = acquired.value.initial.active;
+      if (memoryOnly) { started = false; testing = false; mode = 'play'; benchmark = null; }
+      currentRunId = null;
+      persistenceReady = true; memoryOnly = false;
+      text('save-retry', 'Retry saving');
+      element<HTMLButtonElement>('save-export').disabled = false;
+      element<HTMLButtonElement>('save-reset').disabled = false;
+      saveDialog.close();
+      if (activeRun) restoreRun(activeRun);
+      else if (!started && mode === 'play' && graphics.available) {
+        selectedCourse = nextCourse(LEVELS, campaignProgress()) ?? 0;
+        load(LEVELS[selectedCourse]);
+      }
+      text('save-status', activeRun ? 'Saved' : 'Save options');
+    } finally {
+      storageBusy = false;
+      if (!pageGone) {
+        updateLayout(); syncRendering();
+        if (new URLSearchParams(location.search).has('debug')) window.__BOUNDSTOY__ = debug;
+      }
+    }
+  }
+  function beginWorld(index: number, entry: 'play' | 'paused') {
+    const next = LEVELS[index];
+    if (!canPlay() || next.version !== 2) return;
+    const begin = () => {
+      if (!canPlay()) return;
+      selectedCourse = index; mode = 'play'; testing = false; benchmark = null; load(next, 'paused');
+      currentRunId = crypto.randomUUID();
+      const snapshot = createRunSnapshot(next, currentRunId, state);
+      activeRun = snapshot;
+      if (memoryOnly) { if (entry === 'play') play(); return; }
+      if (!continuation) { storageFailure('Save ownership is unavailable.'); return; }
+      storageBusy = true;
+      const intent = suspension;
+      void continuation.replace(snapshot).then(answer => {
+        storageBusy = false;
+        if (pageGone || currentRunId !== snapshot.runId) return;
+        if (answer.status === 'ok' && entry === 'play' && suspension === intent
+          && !document.hidden && !menu.open && !graphics.awaitingResume) play();
+        overlay(); hud();
+      });
+    };
+    if (activeRun) {
+      setPaused(true);
+      pendingNew = begin; newRunDialog.showModal();
+      clearInput(); syncRendering();
+      element('new-run-cancel').focus();
+    } else begin();
+  }
+  function restartRun() {
+    if (!canPlay() || mode === 'edit') return;
+    if (checkpointPuzzles(level) && !state.won && (testing || currentRunId)) {
+      state = restartCheckpoint(level, state);
+      accumulator = 0; feedbackUntil = 0; clearInput();
+      // Existing scene rebuild is the public reset boundary for interpolation,
+      // trails and hazard effects. Do not record a teleport as player movement.
+      scene.setLevel(level); scene.highlight(null);
+      saveCurrent(); play(); loop.drawNow();
+    } else if (level.version === 2 && !testing) beginWorld(selectedCourse, 'play');
+    else load(level, 'play');
+  }
+
   function clearInput() {
     for (const pointer of touchPointers.keys()) {
       document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
@@ -125,21 +326,22 @@ function boot(scene: Scene) {
   }
   function syncRendering() {
     // A modal freezes all background visuals, including entry/editor/victory.
-    loop.setActive(!menu.open && (!started || mode === 'edit' || state.won || !paused));
+    loop.setActive(persistenceReady && !storageBusy && !saveDialog.open && !newRunDialog.open
+      && graphics.available && !graphics.awaitingResume && !menu.open && (!started || mode === 'edit' || state.won || !paused));
   }
   function saveDraft() {
     if (!draft) return;
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-      text('draft-status', 'Draft saved on this device.'); storageFailed = false;
-    } catch (error) {
-      text('draft-status', 'Not saved. Export JSON to keep your work.');
-      if (!storageFailed) report('Could not save draft; export it instead', error);
-      storageFailed = true;
-    }
+    legacyDraft = JSON.stringify(draft);
+    if (memoryOnly || !continuation) { text('draft-status', 'Not saved. Export JSON to keep your work.'); return; }
+    const source = legacyDraft;
+    text('draft-status', 'Saving draft...');
+    void continuation.execute(lease => lease.writeLegacyDraft(source)).then(answer => {
+      if (!pageGone && legacyDraft === source)
+        text('draft-status', answer.status === 'ok' ? 'Draft saved.' : 'Not saved. Export JSON to keep your work.');
+    });
   }
   function courseCards() {
-    text('completion-count', `${LEVELS.filter(course => progress[course.id]).length} / ${LEVELS.length} cleared`);
+    text('completion-count', `${LEVELS.filter(course => recordFor(course)).length} / ${LEVELS.length} cleared`);
     const list = element('course-list'); list.replaceChildren();
     LEVELS.forEach((course, index) => {
       const button = document.createElement('button');
@@ -149,18 +351,85 @@ function boot(scene: Scene) {
       const number = document.createElement('span'); number.className = 'course-number'; number.textContent = String(index + 1).padStart(2, '0');
       const body = document.createElement('span'), title = document.createElement('strong'), subtitle = document.createElement('small');
       title.textContent = course.name;
-      const best = progress[course.id];
+      const best = recordFor(course);
       const clean = bestClean(best), target = MASTERY_TARGETS[course.id];
-      subtitle.textContent = `${runRank(best, target)} · ${clean === undefined ? 'Mastery' : 'Clean'} ${
+      subtitle.textContent = course.version === 2 ? `${best ? `Best ${timeLabel(best.ticks)} · ${best.deaths} retries` : 'No record'}${clean !== undefined ? ' · Deathless' : ''}${activeRun?.worldId === course.id ? ' · Continue' : ''}`
+        : `${runRank(best, target)} · ${clean === undefined ? 'Mastery' : 'Clean'} ${
         timeLabel(clean ?? target)}${clean === undefined ? ' clean' : ` · Target ${timeLabel(target)}`}`;
       body.append(title, subtitle);
       const arrow = document.createElement('span'); arrow.textContent = best ? '✓' : '↗';
       button.append(number, body, arrow); list.append(button);
     });
   }
+  function benchmarkLabel(item: Benchmark) {
+    const witness = BENCHMARK_REPLAYS[item.level.id];
+    if (!witness) return 'No verified route';
+    const margin = Math.min(...witness.lateMargins);
+    return `Verified route · min margin ${margin}${margin === 24 ? '+' : ''} ticks`;
+  }
+  function benchmarkCards() {
+    const family = BENCHMARK_FAMILIES.find(f => f.id === benchmarkFamily);
+    if (!family) throw new Error('Unknown benchmark family.');
+    text('benchmark-question', family.question);
+    element<HTMLSelectElement>('benchmark-family').value = family.id;
+    const list = element('benchmark-list'); list.replaceChildren();
+    for (const item of BENCHMARKS.filter(b => b.familyId === family.id)) {
+      const button = document.createElement('button'), body = document.createElement('span');
+      button.className = `course-card${benchmark === item ? ' selected' : ''}`;
+      button.id = `choose-${item.level.id}`; button.dataset.benchmark = item.level.id;
+      button.setAttribute('aria-pressed', String(benchmark === item));
+      const number = document.createElement('span'); number.className = 'course-number';
+      number.textContent = String(BENCHMARKS.indexOf(item) + 1).padStart(2, '0');
+      const title = document.createElement('strong'), status = document.createElement('small'), id = document.createElement('code');
+      title.textContent = BENCHMARK_SURFACES.find(s => s.id === item.surfaceId)!.name;
+      status.textContent = benchmarkLabel(item); id.textContent = `${item.level.id} · r${item.level.revision}`;
+      body.append(title, status, id);
+      const trial = benchmarkTrials.get(item.level.id);
+      if (trial) {
+        const result = document.createElement('small');
+        result.textContent = `This session: ${timeLabel(trial.ticks)} · ${trial.deaths} retries`;
+        body.append(result);
+      }
+      const arrow = document.createElement('span'); arrow.textContent = '↗';
+      button.append(number, body, arrow); list.append(button);
+    }
+  }
+  function openBenchmarks() {
+    if (!canPlay()) return;
+    if (!menu.open) openMenu();
+    if (benchmark) benchmarkFamily = benchmark.familyId;
+    showHelp(false); element('menu-home').hidden = true; element('benchmark-panel').hidden = false;
+    text('menu-title', 'Benchmarks · 24');
+    benchmarkCards(); menu.scrollTop = 0; element('benchmark-family').focus({ preventScroll: true });
+  }
+  function loadBenchmark(id: string) {
+    if (!canPlay()) return;
+    const next = BENCHMARKS.find(b => b.level.id === id);
+    if (!next) throw new Error('Unknown benchmark.');
+    saveCurrent();
+    benchmark = next; benchmarkFamily = next.familyId; testing = true; mode = 'play';
+    closeMenu(); load(next.level); element('benchmark-start').focus({ preventScroll: true });
+  }
   function overlay() {
-    const target = MASTERY_TARGETS[level.id], ranked = !testing && target !== undefined;
-    element('overlay').hidden = menu.open || mode === 'edit' || started && !paused && !state.won;
+    element('restart').setAttribute('aria-label', checkpointPuzzles(level) && !state.won ? 'Restart puzzle'
+      : level.version === 2 && !testing ? 'New run' : 'Restart level');
+    element('restart').title = checkpointPuzzles(level) && !state.won
+      ? 'Restart puzzle (R) — return to checkpoint, keeping time and retries'
+      : level.version === 2 && !testing ? 'New run (R) — asks before replacing your run' : 'Restart level (R)';
+    if (graphics.awaitingResume) {
+      element('overlay').hidden = menu.open;
+      element('overlay').classList.remove('won');
+      for (const id of ['finish-stats', 'finish-comparison', 'finish-mastery', 'mastery-target', 'intro-audio', 'retry-course']) element(id).hidden = true;
+      text('overlay-kicker', 'GRAPHICS RESTORED');
+      text('overlay-title', 'Still paused.');
+      text('overlay-copy', 'Your state is unchanged. Resume when you are ready.');
+      text('primary-action', mode === 'edit' ? 'Resume editor →' : 'Resume →');
+      text('overlay-foot', 'WAITING FOR YOUR NEXT ACTION');
+      return;
+    }
+    const target = MASTERY_TARGETS[level.id], ranked = level.version === 1 && !testing && typeof target === 'number';
+    element('overlay').hidden = menu.open || mode === 'edit' || Boolean(benchmark && !started) || started && !paused && !state.won;
+    element('overlay').classList.toggle('won', state.won);
     element('finish-stats').hidden = !state.won;
     element('finish-comparison').hidden = !state.won || testing;
     element('finish-mastery').hidden = !state.won || !ranked;
@@ -168,50 +437,86 @@ function boot(scene: Scene) {
     if (ranked) text('mastery-target', `Mastery: ${timeLabel(target)} or faster, with zero retries.`);
     element('intro-audio').hidden = started || mode === 'edit';
     element('retry-course').hidden = !started || mode === 'edit';
+    text('retry-course', benchmark && state.won ? 'New trial ↻' : checkpointPuzzles(level) && !state.won ? 'Restart puzzle ↻'
+      : level.version === 2 && (!testing || checkpointPuzzles(level)) ? 'New run ↻' : 'Retry level ↻');
     if (mode === 'edit') return;
     if (state.won) {
-      const next = nextCourse(LEVELS, progress, selectedCourse);
+      const next = nextCourse(LEVELS, campaignProgress(), selectedCourse);
       const complete = !testing && next === null;
       text('overlay-kicker', testing ? 'PLAYTEST COMPLETE' : state.deaths === 0 ? 'CLEAN RUN · ZERO RETRIES' : 'NICE FINISH');
-      text('overlay-title', complete ? 'Campaign complete.' : 'Level clear.');
+      text('overlay-title', level.version === 2 && !testing ? 'World complete.' : complete ? 'Campaign complete.' : 'Level clear.');
       text('overlay-copy', testing ? 'Back to the editor, or give it another run.'
+        : level.version === 2 ? 'World complete. Try for a faster time or a deathless run.'
         : complete ? `All ${LEVELS.length} encounters cleared. Chase the mastery targets.`
         : next !== null ? `Up next: ${LEVELS[next].name}.` : 'Choose another route to master.');
       text('finish-time', timeLabel(state.tick));
       text('finish-retries', String(state.deaths));
-      const clean = bestClean(progress[level.id]);
-      text('finish-best', testing ? 'PLAYTEST' : clean === undefined ? '—' : timeLabel(clean));
+      const best = recordFor(level), clean = bestClean(best);
+      text('finish-best', testing ? 'PLAYTEST' : level.version === 2 ? best ? timeLabel(best.ticks) : '—'
+        : clean === undefined ? '—' : timeLabel(clean));
+      element('finish-best').previousElementSibling!.textContent = level.version === 2 ? 'Best time' : 'Best clean';
+      if (level.version === 2 && !testing) {
+        element('finish-mastery').hidden = false;
+        text('finish-mastery', clean === undefined ? 'Deathless completion still ahead.' : 'Deathless completion achieved.');
+      }
       if (ranked) text('finish-mastery', state.deaths > 0 ? `Assisted clear · Clean target ${timeLabel(target)}.`
         : state.tick <= target ? `Mastered · Target ${timeLabel(target)}.`
         : `Clean · Mastery target ${timeLabel(target)}.`);
       const delta = result ? (Math.abs(result.deltaTicks) * DT).toFixed(2) : '0.00';
-      text('finish-comparison', !result || result.kind === 'first' ? state.deaths === 0
+      text('finish-comparison', !result || result.kind === 'first' ? level.version === 2 ? 'First world clear. Your time is the next challenge.' : state.deaths === 0
         ? 'First clear. Your next run is a new challenge.' : 'Assisted clear. Go again without retries for a clean record.'
         : result.kind === 'best' ? result.deltaTicks < 0 ? `Personal best! ${delta}s faster.` : `Personal best! ${result.fewerRetries} fewer retries.`
         : result.kind === 'equal' ? 'Matched your personal best.'
         : result.deltaTicks > 0 ? `${delta}s from your best. Find your next clean line.` : 'Matched your best time. Try fewer retries.');
-      text('primary-action', testing ? 'Back to editor ↗' : complete ? 'Choose a level →' : 'Next level →');
+      text('primary-action', testing ? 'Back to editor ↗' : level.version === 2 ? 'World menu →' : complete ? 'Choose a level →' : 'Next level →');
       text('overlay-foot', testing ? 'PLAYTESTS DO NOT CHANGE LEVEL RECORDS'
-        : progressSaved ? 'BEST TIMES SAVED ON THIS DEVICE' : 'NOT SAVED · RECORDS LAST ONLY THIS SESSION');
+        : progressSaved ? 'RECORD SAVED' : continuation?.status.phase === 'saving' ? 'SAVING RECORD...' : 'NOT SAVED');
     } else if (started) {
       text('overlay-kicker', 'TAKE YOUR TIME');
       text('overlay-title', 'Paused.');
-      text('overlay-copy', lastDeath ? `Last retry: ${lastDeath}` : 'Your next move can wait. R restarts the whole level.');
-      text('primary-action', 'Resume →'); text('overlay-foot', 'SPACE TO RESUME');
+      text('overlay-copy', lastDeath ? `Last retry: ${lastDeath}` : level.version === 2
+        ? 'Continue from this exact position. Time and hazards stay paused until you resume.'
+        : 'Your next move can wait. R restarts the whole level.');
+      text('primary-action', level.version === 2 ? 'Continue →' : 'Resume →'); text('overlay-foot', 'SPACE TO RESUME');
     } else {
-      const continuing = LEVELS.some(course => progress[course.id]);
+      const continuing = LEVELS.some(course => recordFor(course));
       text('overlay-kicker', 'READ THE RHYTHM. MAKE YOUR MOVE.');
-      text('overlay-title', continuing ? 'Find your next flow.' : 'Small tracks. Big flow.');
-      text('overlay-copy', 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Retries repeat the pattern. R resets the run.');
-      text('primary-action', continuing ? 'Continue →' : 'Play →');
+      text('overlay-title', level.version === 2 ? 'One world. Eight sections.' : continuing ? 'Find your next flow.' : 'Small tracks. Big flow.');
+      text('overlay-copy', level.version === 2
+        ? checkpointPuzzles(level)
+          ? 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Only the current puzzle runs. R restarts it from your checkpoint; New run starts the world over.'
+          : 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Hazards keep their rhythm through retries. R starts a new run.'
+        : 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Retries repeat the pattern. R resets the run.');
+      text('primary-action', level.version === 2 && !testing ? continuing ? 'New run →' : 'Start →' : continuing ? 'Continue →' : 'Play →');
       text('overlay-foot', 'NO LIVES. NO RUSH. ONE MORE TRY.');
+    }
+    if (benchmark) {
+      text('overlay-kicker', state.won ? 'BENCHMARK COMPLETE' : 'CONTROLLED SURFACE COMPARISON');
+      if (state.won) {
+        text('overlay-title', 'Trial complete.');
+        text('overlay-copy', 'Compare another surface with the same layout and timing, or start a fresh trial.');
+        text('primary-action', 'Compare surfaces →');
+        element('finish-best').previousElementSibling!.textContent = 'Reference route';
+        const witness = BENCHMARK_REPLAYS[level.id];
+        text('finish-best', witness ? timeLabel(witness.ticks) : 'Unverified');
+      } else if (!started) {
+        text('overlay-title', level.name);
+        text('overlay-copy', benchmark.question);
+        text('primary-action', 'Start trial →');
+      }
+      text('overlay-foot', `${benchmarkLabel(benchmark)} · ${benchmark.level.id}`);
     }
   }
   function hud() {
+    element('benchmark-start').hidden = !benchmark || started;
+    element('pause').hidden = Boolean(benchmark && !started);
     text('timer', timeLabel(state.tick)); text('deaths', String(state.deaths).padStart(2, '0'));
     text('run-status', mode === 'edit' ? 'Click or drag to paint' : state.won ? 'Complete' : !started ? 'Ready' : paused ? 'Paused' : '');
     const guide = courseGuide(level, state);
-    text('route-hint', state.won ? 'A clean line. A better time. Your next challenge is yours.' : guide.hint);
+    if (level.version === 2 && mode === 'play' && !testing)
+      text('course-number', `SECTION ${guide.index + 1} / ${guide.total} · ${guide.title}`);
+    text('route-hint', benchmark ? benchmark.question
+      : state.won ? 'A clean line. A better time. Your next challenge is yours.' : guide.hint);
     const hint = element('route-hint'), feedback = element('game-feedback'), pause = element<HTMLButtonElement>('pause');
     if (hint.title !== guide.title) hint.title = guide.title;
     const hideFeedback = state.tick >= feedbackUntil || mode === 'edit' || state.won;
@@ -225,23 +530,49 @@ function boot(scene: Scene) {
   }
   function updateLayout() {
     text('course-title', mode === 'edit' ? 'Level editor' : level.name);
-    text('course-number', mode === 'edit' || testing ? 'YOUR LEVEL' : `AFTERSHOCK ${selectedCourse + 1} / ${LEVELS.length}`);
+    text('course-number', benchmark ? `BENCHMARK ${BENCHMARKS.indexOf(benchmark) + 1} / ${BENCHMARKS.length} · r${level.version === 2 ? level.revision : 1}`
+      : mode === 'edit' || testing ? 'YOUR LEVEL' : `AFTERSHOCK ${selectedCourse + 1} / ${LEVELS.length}`);
+    text('play-tab', level.version === 2 ? 'Back to world' : 'Restart game level');
+    element('new-run').hidden = level.version !== 2 || testing || mode === 'edit';
+    text('help-restart-label', checkpointPuzzles(level) ? 'Restart puzzle' : level.version === 2 && !testing ? 'New run' : 'Restart level');
+    text('help-restart-note', benchmark ? ' (returns to the start and resets the pattern, keeping time and retries)'
+      : checkpointPuzzles(level)
+      ? ' (returns to checkpoint and resets its pattern, keeping time and retries; use New run to start over)'
+      : level.version === 2 && !testing ? ' (asks before replacing an unfinished world run)' : ' (resets the level)');
     document.querySelector('.workspace')!.classList.toggle('editing', mode === 'edit');
     element('editor-panel').hidden = mode !== 'edit';
     element('test-badge').hidden = !testing || mode === 'edit';
+    text('test-badge', benchmark ? 'BENCHMARK' : 'PLAYTEST');
+    element('benchmark-return').hidden = !benchmark;
+    element('benchmark-info').hidden = !benchmark;
+    element('save-status').hidden = Boolean(benchmark);
+    if (benchmark) {
+      text('benchmark-id', `${level.id} · r${benchmark.level.revision}`);
+      text('benchmark-status', benchmarkLabel(benchmark));
+    }
     element('editor-coordinates').hidden = mode !== 'edit';
     element('touch-controls').hidden = mode === 'edit';
     element('route-hint').hidden = mode === 'edit';
-    element('editor-return').hidden = !testing;
+    element('editor-return').hidden = !testing || Boolean(benchmark);
     element<HTMLButtonElement>('restart').disabled = mode === 'edit';
     text('controls-note', mode === 'edit' ? 'Choose a brush, then click or drag on the board. Control or Command Z undoes a change. Escape opens the menu.'
+      : benchmark ? 'WASD or arrows to move. Space pauses. R restarts the trial pattern at the start, keeping time and retries. Benchmarks chooses another surface or puzzle. Escape opens the menu.'
+      : checkpointPuzzles(level)
+      ? 'WASD or arrow keys to move. Space pauses and resumes. R restarts the current puzzle at its checkpoint, keeping time and retries. New run in the menu starts the world over. Escape opens the menu. On touch screens, hold the direction buttons to move.'
+      : level.version === 2 && !testing
+      ? 'WASD or arrow keys to move. Space pauses and resumes. R requests a new run, with confirmation before replacing an unfinished run. Escape opens the menu. On touch screens, hold the direction buttons to move.'
       : 'WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons to move.');
-    viewport.setAttribute('aria-label', mode === 'edit' ? 'Level editor. Choose a brush, then click or drag on the board.' : 'Boundstoy course. WASD or arrows to move; R to restart; Space to pause.');
-    courseCards(); overlay(); hud();
+    viewport.setAttribute('aria-label', mode === 'edit' ? 'Level editor. Choose a brush, then click or drag on the board.'
+      : checkpointPuzzles(level) ? 'Boundstoy world. WASD or arrows to move; R to restart the current puzzle at its checkpoint; Space to pause.'
+      : level.version === 2 && !testing ? 'Boundstoy world. WASD or arrows to move; R to request a new run; Space to pause.'
+      : 'Boundstoy course. WASD or arrows to move; R to restart; Space to pause.');
+    editorControls(); courseCards(); overlay(); hud();
   }
   function load(next: Level, entry: 'ready' | 'play' | 'paused' = 'ready') {
+    if (!graphics.resume()) return;
+    currentRunId = null;
     level = next; state = createState(level); started = entry !== 'ready'; paused = entry !== 'play';
-    accumulator = 0; feedbackUntil = 0; lastDeath = ''; result = null;
+    accumulator = 0; feedbackUntil = 0; lastDeath = ''; result = null; manualClock = false;
     clearInput(); scene.setLevel(level); scene.highlight(null);
     // Transfer focus before hiding the action that started this run.
     if (!paused) viewport.focus({ preventScroll: true });
@@ -250,32 +581,54 @@ function boot(scene: Scene) {
     if (entry === 'play') activateSound();
   }
   function loadCourse(index: number, entry: 'play' | 'paused' = 'play') {
+    if (!canPlay()) return;
     if (!Number.isInteger(index) || !LEVELS[index]) throw new Error('Unknown course index.');
-    selectedCourse = index; mode = 'play'; testing = false; load(LEVELS[index], entry);
+    saveCurrent();
+    const next = LEVELS[index];
+    if (next.version === 2) {
+      if (activeRun?.worldId === next.id && activeRun.revision === next.revision) {
+        restoreRun(activeRun); if (entry === 'play') play();
+      } else beginWorld(index, entry);
+      return;
+    }
+    selectedCourse = index; mode = 'play'; testing = false; benchmark = null; load(LEVELS[index], entry);
     if (entry === 'paused') element('primary-action').focus({ preventScroll: true });
   }
   function play() {
-    if (menu.open || mode === 'edit') return;
+    if (!canPlay() || menu.open) return;
+    if (mode === 'edit') {
+      if (graphics.awaitingResume) { graphics.resume(); clearInput(); overlay(); syncRendering(); viewport.focus(); }
+      return;
+    }
+    graphics.resume();
     activateSound();
     if (state.won) {
+      if (benchmark) { openBenchmarks(); return; }
       if (testing) { enterEditor(); return; }
-      const next = nextCourse(LEVELS, progress, selectedCourse);
+      const next = nextCourse(LEVELS, campaignProgress(), selectedCourse);
       if (next === null) openMenu();
       else loadCourse(next);
       return;
     }
-    clearInput(); started = true; paused = false; accumulator = 0;
+    if (level.version === 2 && !testing && !currentRunId) { beginWorld(selectedCourse, 'play'); return; }
+    clearInput(); started = true; paused = false; accumulator = 0; manualClock = false;
     viewport.focus({ preventScroll: true }); overlay(); hud();
     syncRendering();
   }
   function setPaused(value: boolean) {
+    if (!graphics.available) return;
+    if (value) suspension++;
+    else if (!canPlay()) return;
     if (!started || state.won || mode === 'edit') return;
-    paused = value; clearInput(); accumulator = 0;
+    if (!value) graphics.resume();
+    paused = value; clearInput(); accumulator = 0; if (!value) manualClock = false;
     if (!value) viewport.focus({ preventScroll: true });
     overlay(); hud(); syncRendering();
+    if (value) saveCurrent();
   }
   function showHelp(show: boolean) {
     element('menu-home').hidden = show; element('help-panel').hidden = !show;
+    element('benchmark-panel').hidden = true;
     text('menu-title', show ? 'How to play' : 'Take a breather.');
     menu.scrollTop = 0;
   }
@@ -295,7 +648,7 @@ function boot(scene: Scene) {
     if (level.hazards.some(hazard => hazard.kind === 'saw')) add('Saws', 'Watch the patrol and cross when the way is clear.', '#e35b80');
   }
   function openMenu() {
-    if (menu.open) return;
+    if (!canPlay() || menu.open) return;
     clearInput(); setPaused(true); showHelp(false); courseCards();
     text('menu-play', mode === 'edit' ? 'Back to editor →' : state.won ? 'View results →' : started ? 'Resume →' : 'Play →');
     menu.append(element('notice'));
@@ -310,10 +663,12 @@ function boot(scene: Scene) {
     syncRendering();
   }
   function tick(input: Point) {
-    const previousTick = hazardTick(state);
+    if (!canPlay() || graphics.awaitingResume) return;
+    const previousTick = hazardTick(state), before = state;
     state = step(level, state, input);
-    if (hazardTick(state) === previousTick + 1 && level.hazards.some(hazard => hazard.kind === 'pulse'
-      && !hazardSample(hazard, previousTick).active && hazardSample(hazard, hazardTick(state)).active)) audio.play('blast');
+    scene.record(before, state, input);
+    if (state.patternOffset === before.patternOffset
+      && localBlast(level, state.position, previousTick, hazardTick(state), state)) audio.play('blast');
     if (state.event !== 'none') audio.play(state.event);
     if (state.event === 'death' && state.deathCause) {
       lastDeath = deathMessage(state.deathCause);
@@ -328,26 +683,81 @@ function boot(scene: Scene) {
     }
     if (state.event === 'win') {
       clearInput();
+      if (benchmark) benchmarkTrials.set(level.id, { ticks: state.tick, deaths: state.deaths });
       if (!testing) {
-        result = finishResult(progress[level.id], { ticks: state.tick, deaths: state.deaths });
-        progress = recordFinish(progress, level.id, state.tick, state.deaths);
-        try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ version: 1, runs: progress })); progressSaved = true; }
-        catch (error) { progressSaved = false; report('Could not save your best time', error); }
+        progressSaved = false;
+        if (level.version === 2) {
+          result = worldFinishResult(worldRecords, level, { ticks: state.tick, deaths: state.deaths });
+          worldRecords = recordWorldFinish(worldRecords, level, state.tick, state.deaths);
+        } else {
+          result = finishResult(recordFor(level), { ticks: state.tick, deaths: state.deaths });
+          progress = recordFinish(progress, level.id, state.tick, state.deaths);
+          if (!memoryOnly && continuation) {
+            const { id } = level, { tick, deaths } = state;
+            void continuation.execute(lease => lease.recordLegacyFinish(id, tick, deaths));
+          }
+        }
         courseCards();
       }
       overlay();
       element('primary-action').focus({ preventScroll: true });
     }
+    if (shouldSave(before, state, level)) saveCurrent();
   }
   function commit(next: Level) {
+    if (mode !== 'edit' || !graphics.available || graphics.awaitingResume) return;
     history = [...history.slice(-39), level]; draft = next; level = next; state = createState(level);
-    scene.setLevel(level); saveDraft(); element<HTMLButtonElement>('undo').disabled = false;
+    sawStart = null;
+    scene.setLevel(level); editorControls(); saveDraft(); element<HTMLButtonElement>('undo').disabled = false;
   }
+  function editorControls() {
+    const enabled = mode === 'edit' && level.version === 2;
+    const select = element<HTMLSelectElement>('section-focus');
+    element('section-focus-field').hidden = !enabled;
+    select.disabled = !enabled;
+    select.replaceChildren();
+    if (level.version === 2) {
+      editorSection = Math.min(editorSection, level.sections.length - 1);
+      level.sections.forEach((section, index) => {
+        const option = document.createElement('option');
+        option.value = String(index); option.textContent = `${index + 1} · ${section.name}`;
+        select.append(option);
+      });
+      select.value = String(editorSection);
+    } else editorSection = 0;
+    for (const id of ['spawn', 'goal', 'checkpoint']) {
+      const button = element('palette').querySelector<HTMLButtonElement>(`[data-brush="${id}"]`);
+      if (!button) continue; // Initial layout precedes palette construction.
+      button.disabled = level.version === 2;
+      button.title = level.version === 2 ? 'World markers require validated section JSON.' : '';
+    }
+    if (level.version === 2 && ['spawn', 'goal', 'checkpoint'].includes(brush))
+      element('palette').querySelector<HTMLButtonElement>('[data-brush="."]')?.click();
+  }
+  // This copy is presentation-only. Never feed editor focus into step(), saves,
+  // snapshots, checkpoint history or the campaign continuation.
+  function sceneState() {
+    if (mode !== 'edit' || level.version !== 2) return state;
+    const bounds = level.sections[editorSection].bounds;
+    return { ...state, position: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 } };
+  }
+  element('section-focus').addEventListener('change', () => {
+    if (mode !== 'edit' || level.version !== 2 || !canPlay() || graphics.awaitingResume) return;
+    const value = element<HTMLSelectElement>('section-focus').value, index = Number(value);
+    if (value === '' || !Number.isInteger(index) || !level.sections[index]) {
+      element<HTMLSelectElement>('section-focus').value = String(editorSection);
+      notify('Select an existing world section.', true); return;
+    }
+    editorSection = index; sawStart = null; clearInput(); scene.highlight(null); loop.drawNow();
+  }, options);
   function enterEditor() {
-    mode = 'edit'; testing = false; sawStart = null; history = [];
+    if (!canPlay()) return;
+    saveCurrent();
+    if (!testing) history = [];
+    mode = 'edit'; testing = false; benchmark = null; sawStart = null;
     if (!draft) {
       try {
-        const saved = localStorage.getItem(DRAFT_KEY);
+        const saved = legacyDraft;
         if (saved) {
           draft = importLevel(saved);
           if (draft.hazards.some(hazard => hazard.kind === 'pulse'))
@@ -357,7 +767,7 @@ function boot(scene: Scene) {
     }
     draft ??= parseLevel({ ...LEVELS[selectedCourse], id: 'my-course', name: `${LEVELS[selectedCourse].name} remix` });
     load(draft); element<HTMLInputElement>('level-name').value = draft.name;
-    element<HTMLButtonElement>('undo').disabled = true;
+    element<HTMLButtonElement>('undo').disabled = history.length === 0;
     viewport.focus();
   }
   const brushes: { id: Brush; label: string; color: string; mark: string; help: string }[] = [
@@ -384,6 +794,7 @@ function boot(scene: Scene) {
     element('palette').append(button);
   }
   function paintAt(event: PointerEvent, initial: boolean) {
+    if (!graphics.available || graphics.awaitingResume) return;
     const point = scene.pick(event.clientX, event.clientY);
     scene.highlight(point);
     if (!point) return;
@@ -394,8 +805,8 @@ function boot(scene: Scene) {
     try {
       if (brush === 'saw') {
         if (!sawStart) { sawStart = point; text('brush-help', `Start at (${point.x}, ${point.y}). Click the patrol's other end.`); }
-        else { commit(placeSaw(level, sawStart, point)); sawStart = null; text('brush-help', 'Patrol placed. Click two new points to add another.'); }
-      } else commit(paint(level, point, brush));
+        else { commit(placeSaw(level, sawStart, point, level.version === 2 ? level.sections[editorSection].id : undefined)); sawStart = null; text('brush-help', 'Patrol placed. Click two new points to add another.'); }
+      } else commit(paint(level, point, brush, level.version === 2 ? level.sections[editorSection].id : undefined));
     } catch (error) { notify(error instanceof Error ? error.message : String(error), true); }
   }
   viewport.addEventListener('pointerdown', event => {
@@ -413,7 +824,7 @@ function boot(scene: Scene) {
   viewport.addEventListener('lostpointercapture', stopPainting, options);
   viewport.addEventListener('pointerleave', () => { if (!painting) scene.highlight(null); }, options);
   viewport.addEventListener('keydown', event => {
-    if (event.target !== viewport) return;
+    if (!graphics.available || event.target !== viewport) return;
     if (event.code in keyDirections && mode === 'play') {
       event.preventDefault();
       if (!event.repeat && started && !paused && !state.won && !menu.open) keys.add(event.code);
@@ -421,8 +832,8 @@ function boot(scene: Scene) {
       event.preventDefault();
       if (!event.repeat) { if (!started) play(); else setPaused(!paused); }
     } else if (event.code === 'KeyR' && mode === 'play' && !event.repeat) {
-      event.preventDefault(); load(level, 'play');
-    } else if (event.code === 'Enter' && mode === 'play' && (!started || state.won || paused)) {
+      event.preventDefault(); restartRun();
+    } else if (event.code === 'Enter' && !event.repeat && mode === 'play' && (!started || state.won || paused)) {
       event.preventDefault(); play();
     } else if ((event.ctrlKey || event.metaKey) && event.code === 'KeyZ' && mode === 'edit') {
       event.preventDefault(); undo();
@@ -436,12 +847,13 @@ function boot(scene: Scene) {
   window.addEventListener('blur', () => { clearInput(); setPaused(true); }, options);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { clearInput(); setPaused(true); }
+    else if (graphics.status === 'lost' && !scene.renderer.getContext().isContextLost()) restoreGraphics();
     loop.setVisible(!document.hidden);
   }, options);
   document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
     button.addEventListener('pointerdown', event => {
       event.preventDefault();
-      if (mode !== 'play' || state.won || !started || paused || menu.open) return;
+      if (!graphics.available || mode !== 'play' || state.won || !started || paused || menu.open) return;
       touchPointers.set(event.pointerId, button.dataset.direction!);
       button.classList.add('pressed'); button.setPointerCapture(event.pointerId);
     }, options);
@@ -451,13 +863,15 @@ function boot(scene: Scene) {
     button.addEventListener('lostpointercapture', release, options);
   });
   function undo() {
+    if (mode !== 'edit' || !graphics.available || graphics.awaitingResume) return;
     const previous = history.pop();
     if (!previous) return;
     draft = previous; level = previous; state = createState(level); sawStart = null;
-    scene.setLevel(level); saveDraft(); element<HTMLInputElement>('level-name').value = level.name;
+    scene.setLevel(level); editorControls(); saveDraft(); element<HTMLInputElement>('level-name').value = level.name;
     element<HTMLButtonElement>('undo').disabled = history.length === 0;
   }
   function rename() {
+    if (!graphics.available || graphics.awaitingResume) return false;
     if (mode !== 'edit') return true;
     try {
       const name = element<HTMLInputElement>('level-name').value.trim();
@@ -472,13 +886,18 @@ function boot(scene: Scene) {
     return source;
   }
   element('primary-action').addEventListener('click', play, options);
-  element('retry-course').addEventListener('click', () => load(level, 'play'), options);
+  element('benchmark-start').addEventListener('click', play, options);
+  element('retry-course').addEventListener('click', restartRun, options);
   element('pause').addEventListener('click', () => {
     setPaused(true); element('primary-action').focus({ preventScroll: true });
   }, options);
   element('restart').addEventListener('click', () => {
     if (mode === 'edit') return;
-    load(level, 'play');
+    restartRun();
+  }, options);
+  element('new-run').addEventListener('click', () => {
+    if (!canPlay() || mode === 'edit' || testing || level.version !== 2) return;
+    closeMenu(); beginWorld(selectedCourse, 'play');
   }, options);
   element('play-tab').addEventListener('click', () => loadCourse(selectedCourse), options);
   element('editor-return').addEventListener('click', enterEditor, options);
@@ -487,7 +906,7 @@ function boot(scene: Scene) {
   menu.addEventListener('cancel', event => { event.preventDefault(); closeMenu(); }, options);
   menu.addEventListener('keydown', event => {
     if (event.code !== 'Tab') return;
-    const buttons = [...menu.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')].filter(button => button.getClientRects().length);
+    const buttons = [...menu.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)')].filter(button => button.getClientRects().length);
     const first = buttons[0], last = buttons.at(-1);
     if (event.shiftKey && (document.activeElement === first || document.activeElement === element('menu-title'))) {
       event.preventDefault(); last?.focus();
@@ -497,7 +916,7 @@ function boot(scene: Scene) {
   }, options);
   element('menu-play').addEventListener('click', () => {
     closeMenu(mode === 'edit' ? viewport : element('primary-action'));
-    if (mode === 'play' && !state.won) play();
+    if (graphics.awaitingResume || mode === 'play' && !state.won) play();
   }, options);
   element('help').addEventListener('click', () => {
     fillHelp(); showHelp(true); element('menu-title').focus({ preventScroll: true });
@@ -515,6 +934,26 @@ function boot(scene: Scene) {
   element('course-list').addEventListener('click', event => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-level]');
     if (button) { closeMenu(); loadCourse(Number(button.dataset.level)); }
+  }, options);
+  for (const family of BENCHMARK_FAMILIES) {
+    const option = document.createElement('option'); option.value = family.id; option.textContent = family.name;
+    element('benchmark-family').append(option);
+  }
+  for (const id of ['benchmarks-open', 'benchmark-return']) element(id).addEventListener('click', openBenchmarks, options);
+  element('benchmarks-back').addEventListener('click', () => {
+    showHelp(false); element('benchmarks-open').focus({ preventScroll: true });
+  }, options);
+  element('benchmark-family').addEventListener('change', () => {
+    const id = element<HTMLSelectElement>('benchmark-family').value;
+    if (!BENCHMARK_FAMILIES.some(f => f.id === id)) {
+      element<HTMLSelectElement>('benchmark-family').value = benchmarkFamily;
+      notify('Select an existing benchmark family.', true); return;
+    }
+    benchmarkFamily = id; benchmarkCards();
+  }, options);
+  element('benchmark-list').addEventListener('click', event => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-benchmark]');
+    if (button?.dataset.benchmark) loadBenchmark(button.dataset.benchmark);
   }, options);
   for (const id of ['audio', 'intro-audio']) element(id).addEventListener('click', () => { void setSound(!preferences.sound); }, options);
   element('sound-volume').addEventListener('input', () => {
@@ -566,50 +1005,194 @@ function boot(scene: Scene) {
     const link = document.createElement('a'); link.href = url; link.download = `${level.id}.json`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, options);
-  scene.renderer.domElement.addEventListener('webglcontextlost', event => {
-    event.preventDefault(); setPaused(true); notify('The graphics context was lost. Reload this page to restore the game.', true);
+  element('new-run-accept').addEventListener('click', () => {
+    const begin = pendingNew; pendingNew = null; newRunDialog.close(); begin?.();
   }, options);
+  const cancelNewRun = () => {
+    pendingNew = null; newRunDialog.close(); overlay(); syncRendering();
+    element('primary-action').focus({ preventScroll: true });
+  };
+  element('new-run-cancel').addEventListener('click', cancelNewRun, options);
+  newRunDialog.addEventListener('cancel', event => { event.preventDefault(); cancelNewRun(); }, options);
+  element('save-status').addEventListener('click', () => {
+    setPaused(true);
+    if (continuation?.status.phase !== 'error') text('save-copy', memoryOnly
+      ? 'This session is not being saved. Reloading or closing it loses unsaved play.'
+      : checkpointPuzzles(level)
+        ? 'Reload returns to your checkpoint with the latest saved time, retries and progress, and a fresh puzzle pattern. Totals save on checkpoints, death, pause and leaving, not periodically. Resume here keeps your live position and paused pattern.'
+        : 'Saves finish asynchronously. After an abrupt closure, Continue restores the latest completed save, not necessarily your last input.');
+    saveDialog.showModal(); syncRendering();
+  }, options);
+  const closeSaveDialog = () => {
+    if (!persistenceReady || storageBusy || continuation?.status.phase === 'error') return;
+    saveDialog.close(); overlay(); syncRendering(); element('primary-action').focus();
+  };
+  element('save-close').addEventListener('click', closeSaveDialog, options);
+  saveDialog.addEventListener('cancel', event => { event.preventDefault(); closeSaveDialog(); }, options);
+  element('save-retry').addEventListener('click', async () => {
+    if (storageBusy) return;
+    if (memoryOnly && !window.confirm('Restore the last committed save? Unsaved play from this session will be discarded.')) return;
+    if (!continuation) { await connectStorage(); return; }
+    storageBusy = true;
+    try {
+      const answer = await continuation.retry();
+      if (answer.status === 'ok') {
+        saveCurrent();
+        if (draft && legacyDraft === JSON.stringify(draft)) text('draft-status', 'Draft saved.');
+        saveDialog.close();
+      }
+    } finally { storageBusy = false; overlay(); syncRendering(); }
+  }, options);
+  element('save-memory').addEventListener('click', async () => {
+    if (storageBusy) return;
+    storageBusy = true; freezeForStorage();
+    try {
+      await continuation?.close(); continuation = null;
+      memoryOnly = true; persistenceReady = true; progressSaved = false;
+      text('save-retry', 'Restore saved game');
+      text('save-status', 'Not saving'); saveDialog.close();
+    } finally { storageBusy = false; overlay(); syncRendering(); }
+  }, options);
+  async function releaseForRecovery() {
+    freezeForStorage(); saveCurrent();
+    persistenceReady = false;
+    await continuation?.close(); continuation = null;
+  }
+  element('save-export').addEventListener('click', async () => {
+    if (storageBusy || storage.status !== 'ok') return;
+    storageBusy = true;
+    try {
+      await releaseForRecovery();
+      const answer = await storage.value.exportRecovery();
+      if (answer.status !== 'ok') { storageFailure(answer.reason); return; }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(answer.value, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = 'boundstoy-recovery.json'; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      text('save-copy', 'Recovery data exported. Retry to reacquire saving, or choose play without saving.');
+    } finally { storageBusy = false; }
+  }, options);
+  element('save-reset').addEventListener('click', async () => {
+    if (storageBusy || storage.status !== 'ok' || !window.confirm(
+      'Reset the saved world and current run? A recovery copy will preserve the stored world and records. Legacy records and the editor draft stay unchanged.')) return;
+    storageBusy = true;
+    try {
+      await releaseForRecovery();
+      const answer = await storage.value.resetRecovery();
+      if (answer.status !== 'ok') { storageFailure(answer.reason); return; }
+      activeRun = null; currentRunId = null; started = false; testing = false; benchmark = null; mode = 'play';
+    } finally { storageBusy = false; }
+    await connectStorage();
+  }, options);
+  scene.renderer.domElement.addEventListener('webglcontextlost', event => {
+    event.preventDefault(); graphics.lose();
+  }, options);
+  function restoreGraphics() {
+    // Native Three cache restoration may happen in the background; defer our
+    // GPU rebake/draw until visible, without opening any play entry meanwhile.
+    if (document.hidden) return;
+    try {
+      graphics.restore(() => {
+        scene.restoreGraphics();
+        scene.draw(sceneState(), visualTime, mode === 'edit');
+        scene.verifyGraphics();
+      });
+      if (!graphics.available) return;
+      clearInput(); accumulator = 0; paused = true;
+      recoveryDialog.close();
+      if (activeRun && !currentRunId && mode === 'play' && !testing) restoreRun(activeRun);
+      if (!persistenceReady || continuation?.status.phase === 'error') {
+        if (!saveDialog.open) saveDialog.showModal();
+      }
+      overlay(); hud(); syncRendering();
+      (menu.open ? element('menu-play') : element('primary-action')).focus({ preventScroll: true });
+    } catch (error) {
+      console.warn('[Boundstoy] Graphics recovery failed', error);
+      showGraphicsFailure('Graphics could not be restored. The game remains frozen. Reload the page to try again; unsaved play may be lost.');
+    }
+  }
+  scene.renderer.domElement.addEventListener('webglcontextrestored', restoreGraphics, options);
 
   const debug = {
     snapshot: () => structuredClone({ state, level, mode, paused, started, testing, input: movement() }),
+    inspect: () => {
+      const index = level.version === 2 ? worldSectionIndex(level, state.visited) : null;
+      const section = level.version === 2 && index !== null ? level.sections[index] : null;
+      return structuredClone({
+        identity: { version: level.version, id: level.id, ...(level.version === 2 ? { revision: level.revision } : {}) },
+        tick: state.tick, hazardTick: hazardTick(state), patternOffset: state.patternOffset,
+        deaths: state.deaths, respawnTicks: state.respawnTicks, checkpoints: state.visited,
+        section: section ? { index, id: section.id, name: section.name } : null,
+        editorSection: mode === 'edit' && level.version === 2
+          ? { index: editorSection, id: level.sections[editorSection].id } : null,
+      });
+    },
+    graphics: () => ({ status: graphics.status, visualTime, accumulator }),
+    persistence: () => ({
+      ready: persistenceReady && !storageBusy,
+      phase: memoryOnly ? 'memory' : continuation?.status.phase ?? 'unavailable',
+      runId: currentRunId,
+    }),
     ascii: () => ascii(level, state),
     load: (index: number) => {
+      if (!graphics.available) return;
       if (abort.signal.aborted) throw new Error('The game has been disposed.');
       loadCourse(index, 'paused'); visualTime = 0; loop.drawNow();
     },
     advance: (ticks: number, input: Point = STILL) => {
+      if (!canPlay() || graphics.awaitingResume) return structuredClone(state);
       if (abort.signal.aborted) throw new Error('The game has been disposed.');
       if (!Number.isInteger(ticks) || ticks < 0 || ticks > 100_000) throw new Error('advance accepts 0-100000 ticks.');
       if (mode !== 'play') throw new Error('Use Play or Playtest before advancing the simulation.');
       paused = true; started = true; accumulator = 0; clearInput();
       for (let i = 0; i < ticks && !state.won; i++) tick(input);
-      visualTime = state.tick * DT; hud(); overlay(); syncRendering(); loop.drawNow();
+      visualTime = state.tick * DT; manualClock = true; hud(); overlay(); syncRendering(); loop.drawNow();
       return structuredClone(state);
     },
+    /** Advance only the visual clock (victory/menu-free animation) for deterministic captures. */
+    animate: (seconds: number) => {
+      if (!graphics.available || graphics.awaitingResume) return;
+      if (!Number.isFinite(seconds) || seconds < 0 || seconds > 10) throw new Error('animate accepts 0-10 seconds.');
+      manualClock = true; visualTime += seconds; loop.drawNow();
+    },
     project: (point: Point) => scene.project(point),
+    pick: (x: number, y: number) => scene.pick(x, y),
+    camera: () => structuredClone(scene.inspectView()),
     export: () => JSON.stringify(level),
     metrics: () => ({ frames: scene.renderer.info.render.frame, drawCalls: scene.renderer.info.render.calls, triangles: scene.renderer.info.render.triangles, geometries: scene.renderer.info.memory.geometries, textures: scene.renderer.info.memory.textures }),
   };
-  if (new URLSearchParams(location.search).has('debug')) window.__BOUNDSTOY__ = debug;
-
   function frame(elapsed: number) {
+    if (!graphics.available) return;
+    if (!canPlay()) { hud(); scene.draw(sceneState(), visualTime, mode === 'edit'); return; }
+    if (graphics.awaitingResume) { hud(); scene.draw(sceneState(), visualTime, mode === 'edit'); return; }
     if (!menu.open && !paused && mode === 'play' && !state.won) {
       visualTime += elapsed;
       const pending = fixedSteps(accumulator, elapsed);
       accumulator = pending.remainder;
       const input = movement();
       for (let i = 0; i < pending.count && !state.won; i++) tick(input);
-    } else if (!menu.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
-    hud(); scene.draw(state, visualTime, mode === 'edit');
+    } else if (!manualClock && !menu.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
+    const live = !menu.open && !paused && mode === 'play' && !state.won;
+    hud(); scene.draw(sceneState(), visualTime, mode === 'edit', live ? accumulator / DT : 1);
   }
-  selectedCourse = nextCourse(LEVELS, progress) ?? 0;
   load(LEVELS[selectedCourse]); element('primary-action').focus({ preventScroll: true });
   window.addEventListener('pagehide', event => {
-    clearInput(); setPaused(true); loop.setVisible(false);
+    clearInput(); setPaused(true); saveCurrent(); loop.setVisible(false);
+    pageGone = true; persistenceReady = false;
+    closingStorage = continuation?.close() ?? Promise.resolve();
     if (event.persisted) return;
     loop.dispose(); abort.abort(); clearTimeout(noticeTimer); scene.dispose(); audio.dispose(); delete window.__BOUNDSTOY__;
   }, options);
-  window.addEventListener('pageshow', () => loop.setVisible(!document.hidden), options);
+  window.addEventListener('pageshow', async event => {
+    if (event.persisted) {
+      await closingStorage;
+      pageGone = false; continuation = null;
+      if (memoryOnly) persistenceReady = true;
+      else await connectStorage();
+    }
+    loop.setVisible(!document.hidden);
+  }, options);
+  void connectStorage();
   return debug;
 }
 
@@ -619,10 +1202,9 @@ declare global {
 try {
   boot(new Scene(element('viewport')));
 } catch (error) {
-  element('overlay').hidden = false;
-  text('overlay-title', 'The game could not start.');
-  text('overlay-copy', 'This game needs a browser with WebGL2 and hardware acceleration. Nothing was sent over the network.');
-  element<HTMLButtonElement>('primary-action').disabled = true;
-  text('primary-action', 'Reload after enabling WebGL2');
-  report('Game startup failed', error);
+  console.warn('[Boundstoy] Game startup failed', error);
+  for (const control of element('boundstoy').querySelectorAll<HTMLButtonElement>('button, input, textarea')) control.disabled = true;
+  element<HTMLButtonElement>('graphics-reload').disabled = false;
+  text('graphics-title', 'The game could not start.');
+  showGraphicsFailure('Graphics could not start. This game requires WebGL2. Enable hardware acceleration or try a supported browser, then reload this page.');
 }

@@ -1,5 +1,6 @@
 import { TERRAIN, RULES, type Tile, type Terrain } from '../data/terrain.ts';
 import { center, type Level, type Hazard, type Point, type Checkpoint } from './level.ts';
+import { checkpointPuzzles, worldSectionIndex } from './world.ts';
 
 export const DT = 1 / RULES.tickRate;
 export type DeathCause = 'void' | 'spikes' | 'pulse' | 'saw';
@@ -25,6 +26,22 @@ export function createState(level: Level): State {
 export function hazardTick(state: State): number {
   return state.tick - state.patternOffset;
 }
+/** Timed hazards belong to progression, not the player's current location. */
+export function hazardEnabled(level: Level, hazard: Hazard, state: State): boolean {
+  const section = activeHazardSection(level, state);
+  return section === undefined || hazard.sectionId === section;
+}
+function activeHazardSection(level: Level, state: State): string | null | undefined {
+  return !checkpointPuzzles(level) ? undefined : state.won ? null
+    : level.sections[worldSectionIndex(level, state.visited)].id;
+}
+/** Explicit restart only; ordinary deaths keep their epoch. Won runs stay frozen. */
+export function restartCheckpoint(level: Level, state: State): State {
+  if (!checkpointPuzzles(level)) throw new Error('restartCheckpoint requires checkpoint puzzleMode.');
+  if (state.won) return state;
+  return { ...state, position: center(state.checkpoint), velocity: STILL,
+    respawnTicks: 0, event: 'none', patternOffset: state.tick };
+}
 export function terrainAt(level: Level, position: Point): Terrain {
   const char = level.tiles[Math.floor(position.y)]?.[Math.floor(position.x)] as Tile | undefined;
   return char === undefined ? TERRAIN[' '] : TERRAIN[char];
@@ -42,7 +59,7 @@ export function hazardSample(hazard: Hazard, tick: number) {
 export function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
-function wallAt(level: Level, p: Point): boolean {
+export function wallAt(level: Level, p: Point): boolean {
   const r = RULES.radius;
   for (let y = Math.floor(p.y - r); y <= Math.floor(p.y + r); y++) {
     for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
@@ -54,10 +71,14 @@ function wallAt(level: Level, p: Point): boolean {
   }
   return false;
 }
-function lethalAt(level: Level, p: Point, tick: number): DeathCause | null {
+/** tick is pattern-local; checkpoint worlds additionally require live progression state. */
+export function lethalAt(level: Level, p: Point, tick: number, state?: State): DeathCause | null {
+  if (checkpointPuzzles(level) && !state) throw new Error('lethalAt requires state for checkpoint puzzleMode.');
+  const section = state ? activeHazardSection(level, state) : undefined;
   const terrain = terrainAt(level, p);
   if (terrain.lethal) return terrain.id === 'spikes' ? 'spikes' : 'void';
   for (const h of level.hazards) {
+    if (section !== undefined && h.sectionId !== section) continue;
     const sample = hazardSample(h, tick);
     if (!sample.active) continue;
     if (h.kind === 'saw') {
@@ -73,7 +94,7 @@ function lethalAt(level: Level, p: Point, tick: number): DeathCause | null {
 function die(state: State, deathCause: DeathCause): State {
   return { ...state, deaths: state.deaths + 1, respawnTicks: RULES.respawnTicks, velocity: STILL, event: 'death', deathCause };
 }
-function reachesCheckpoint(level: Level, position: Point, checkpoint: Checkpoint): boolean {
+export function reachesCheckpoint(level: Level, position: Point, checkpoint: Checkpoint): boolean {
   const target = center(checkpoint), span = distance(position, target);
   if (span >= (checkpoint.radius ?? RULES.markerRadius)) return false;
   // A larger collection zone must not award a puzzle from the other side of a wall.
@@ -144,17 +165,24 @@ export function step(level: Level, prior: State, input: Point): State {
       if (!wallAt(level, yMove)) position = yMove;
       else vy = 0;
     }
-    const cause = lethalAt(level, position, hazardTick(state));
+    const cause = lethalAt(level, position, hazardTick(state), state);
     if (cause) return die({ ...state, position }, cause);
   }
   state = { ...state, position, velocity: { x: vx, y: vy } };
-  for (const checkpoint of level.checkpoints) {
+  // Snapshot the one eligible world marker before collection, so overlapping
+  // zones cannot complete multiple sections in one tick. V1 stays unordered.
+  const nextSection = level.version === 2 ? worldSectionIndex(level, state.visited) : 0;
+  const checkpoints = level.version === 2
+    ? level.checkpoints.slice(nextSection, nextSection + 1) : level.checkpoints;
+  for (const checkpoint of checkpoints) {
     const key = `${checkpoint.x},${checkpoint.y}`;
     if (!state.visited.includes(key) && reachesCheckpoint(level, position, checkpoint)) {
-      state = { ...state, checkpoint, visited: [...state.visited, key], event: 'checkpoint' };
+      state = { ...state, checkpoint, visited: [...state.visited, key], event: 'checkpoint',
+        patternOffset: checkpointPuzzles(level) ? state.tick : state.patternOffset };
     }
   }
-  if (distance(position, center(level.goal)) < RULES.markerRadius) {
+  const exitReady = level.version === 1 || worldSectionIndex(level, state.visited) === level.sections.length - 1;
+  if (exitReady && distance(position, center(level.goal)) < RULES.markerRadius) {
     return { ...state, won: true, velocity: STILL, event: 'win' };
   }
   return state;
@@ -165,6 +193,7 @@ export function ascii(level: Level, state: State): string {
   for (const point of level.checkpoints) rows[point.y][point.x] = 'C';
   rows[level.goal.y][level.goal.x] = 'G';
   for (const h of level.hazards) {
+    if (!hazardEnabled(level, h, state)) continue;
     const sample = hazardSample(h, hazardTick(state)), p = sample.position;
     rows[Math.floor(p.y)][Math.floor(p.x)] = h.kind === 'saw' ? 'X' : sample.active ? '*' : 'o';
   }

@@ -1,45 +1,72 @@
 ---
 {
   "id": "BT-024",
-  "title": "Prove and finish one world of explosion timing",
+  "title": "Build and prove a continuous eight-section Aftershock world",
   "type": "epic",
   "status": "in_progress",
   "priority": "P1",
   "depends_on": [],
-  "parent": null,
+  "parent": "BT-038",
   "scope": ["."],
-  "approval": "In session 6faada62-ebbe-4b03-aceb-bb5fab9de659 the user approved the Aftershock world plan, with the explicit prerequisite that explosions kill for one frame and their lingering effects are harmless. Gameplay depth, challenge and replay value take priority over onboarding.",
+  "approval": "2026-10-10 user: Implement the entire plan, using subagent where it is helpful to do so. Execute local implementation; preserve the explicit human acceptance and deployment gates in BT-038.",
   "assignment": null,
   "blocked_reason": null
 }
 ---
-# BT-024: Prove and finish one world of explosion timing
+# BT-024: Build and prove a continuous eight-section Aftershock world
 
 ## Problem
 
-The user rejected Relay as another easy prototype with no meaningful replay
-value. A world must develop one mechanic into genuinely different decisions,
-not merely replace layouts or improve onboarding.
+The user wants one complete bounds/escape map rather than another set of small
+demonstrations. The three current Aftershock encounters are disposable.
+Eight connected A-to-B sections must offer escalating, worthwhile play with
+safe checkpoints between puzzles and an exit completing the finale.
 
 ## Scope
 
-Eight-stage pulse-only world on normal ground. First establish one-tick
-detonations, then prove three greyboxes (moving sequences, temporary refuge,
-route choice) before building the finale or introductory progression.
-Revise all timing designs for discrete explosions, not sustained lethal windows.
-No new movement abilities, backend, leaderboard or onboarding redesign.
+Follow the reviewed plan in [BT-038](BT-038-finished-game-release.md).
+Build one continuous eight-section world on normal ground using themed
+explosions and saws, with seven intermediate checkpoints. Hazards and elapsed
+time continue through death/respawn and freeze together during pause/closure.
+Only the active puzzle's hazards run; checkpoints activate the next pattern
+and deactivate completed hazards. Restart/reload return to the checkpoint and
+reset its pattern, preserving saved totals. Time is the primary record and deathless
+completion is separate. No preset targets or player checkpoint skipping.
+
+Build the complete rough world before the main user playtest. Optional new
+hazards or local interactions need a concrete design and separate bounded scope;
+they are not prerequisites. Existing movement and one-tick explosion behavior
+remain unchanged. Release polish and publication belong to BT-038.
 
 ## Acceptance criteria
 
-- [x] Detonation is lethal for one simulation tick, followed by harmless aftermath.
-- [ ] Three greyboxes demonstrate distinct clear/mastery routes worth replaying.
-- [ ] User gameplay feedback accepts the depth before campaign expansion.
-- [ ] Finale combines route and timing decisions without introducing a new rule.
-- [ ] Finished progression, clean records, mastery targets and reliable practice follow the proven encounters.
+- [ ] Eight distinct escalating sections form one continuous world without run resets at section boundaries.
+- [ ] Seven ordered safe checkpoints have all-phase safety and verified downstream recovery; the final puzzle ends at the exit.
+- [ ] Pulse/saw patterns continue through death and respawn with unchanged movement and one-tick pulse lethality.
+- [ ] Exact continuation, time-first records and saved-run deathless eligibility work.
+- [ ] Camera, minimal navigation, relevant cues and secondary editor compatibility support full-world play.
+- [ ] Full-world legal routes, failure cases, timing margins and save/recovery browser evidence are recorded.
+- [ ] The user accepts the complete rough world after any necessary bounded rework; silence is not approval.
 
 ## Implementation context
 
-Approved plan: The Gap, Closing Time, Slipstream, Borrowed Ground, Counterpoint,
+The 2026-10-10 interview and request to review/split the plan supersede the
+historical direction below. The materially changed epic was initially returned
+to backlog. The user's subsequent "Implement the entire plan" request approved
+execution; the epic is now in progress, with human acceptance still required.
+BT-039 through BT-045 and BT-047 through BT-053 are the new world-proof
+children. BT-046 is a shared release reliability prerequisite under BT-038.
+Completed BT-025 through BT-030 remain historical evidence, not constraints
+requiring preservation of their layouts, retry mode or target times.
+
+### Historical plan and approval (superseded, retained for provenance)
+
+Original approval: "In session 6faada62-ebbe-4b03-aceb-bb5fab9de659 the user
+approved the Aftershock world plan, with the explicit prerequisite that
+explosions kill for one frame and their lingering effects are harmless.
+Gameplay depth, challenge and replay value take priority over onboarding."
+
+Historical proposed plan: The Gap, Closing Time, Slipstream, Borrowed Ground, Counterpoint,
 The Cut, Broken Cadence, The Engine. These are design hypotheses, not an
 instruction to build eight untested rooms sequentially. Long-burning fields
 and their old safe-duration arithmetic are superseded by instantaneous blasts.
@@ -76,12 +103,24 @@ No ghosts, daily challenges or marathon mode until intrinsic replay value works.
 
 ## Verification
 
+Run the owning issues' deterministic and browser checks, then `npm test`,
+`npm run build` and the updated `npm run release:check` against the integrated
+world. Require a full-world input witness, all seven checkpoint recoveries,
+continuous-phase and measured decision-margin evidence, exact save/continue,
+editor isolation and real Brave playtesting. BT-053 records explicit human
+acceptance after bounded rework; passed replays cannot supply that decision.
+
+### Historical verification (superseded)
+
 Exact collision/aftermath and frame-rate checks for the prerequisite.
 For each greybox: distinct first-clear/mastery solutions, deliberate failure
 cases, measured timing opportunities and a player-feedback gate.
 Automated solvability and visual approval are not proof that the world is fun.
 
 ## Handoff
+
+New continuous-world work is pending. The following is the historical handoff,
+not acceptance of the revised scope.
 
 Orchestrator-owned staged work. BT-025 is integrated and verified. BT-026 authored
 Slipstream, Borrowed Ground and The Cut; BT-027 integrates them as the only
@@ -101,6 +140,9 @@ direction but does not assert a finished world or independently establish
 replay-value acceptance.
 
 ## Result
+
+Revised scope: pending implementation and human acceptance under BT-053.
+Historical result:
 
 The short replacement set and puzzle-end checkpoints are integrated and verified
 under BT-028/029, not a finished eight-stage world. Their measured route

@@ -2,15 +2,20 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEVELS } from '../../data/levels.ts';
-import { REPLAYS } from '../../data/replays.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../../data/aftershock.ts';
+import { AFTERSHOCK_REPLAYS as REPLAYS } from '../../data/aftershock-replays.ts';
+import { checkRoughJourney } from './rough-journey.ts';
 import { PROGRESS_KEY } from '../../application/storage.ts';
 import { PREFERENCES_KEY } from '../../application/preferences.ts';
 import { main } from '../../scripts/browser-check.ts';
 import { waitFor } from './runtime.ts';
+import { readStored, seedStored } from './persistence.ts';
 import type { BrowserContext } from './scenarios.ts';
 
-export async function checkJourney({ page, origin, signal, log }: BrowserContext) {
+export async function checkJourney(context: BrowserContext) {
+  const { page, origin, signal, log } = context;
+  if (await page.evaluate('window.__BOUNDSTOY__.snapshot().level.version === 2'))
+    return checkRoughJourney(context);
   let navigation = 0;
   const reload = async () => {
     const url = `${origin}/?debug&journey=${++navigation}`;
@@ -30,8 +35,8 @@ export async function checkJourney({ page, origin, signal, log }: BrowserContext
     await page.call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
     await page.call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
   };
-  const save = (runs: Record<string, { ticks: number; deaths: number }>) => page.evaluate(
-    `localStorage.setItem(${JSON.stringify(PROGRESS_KEY)}, ${JSON.stringify(JSON.stringify({ version: 1, runs }))})`);
+  const save = (runs: Record<string, { ticks: number; deaths: number }>) =>
+    seedStored(page, PROGRESS_KEY, JSON.stringify({ version: 1, runs }), signal);
   const replay = async (index: number) => {
     const state = await page.evaluate<{ won: boolean; deaths: number }>(`(() => {
       window.__BOUNDSTOY__.load(${index});
@@ -44,6 +49,7 @@ export async function checkJourney({ page, origin, signal, log }: BrowserContext
   };
   const total = (index: number) => REPLAYS[index].reduce((sum, command) => sum + command.ticks, 0);
   await page.evaluate('localStorage.clear()');
+  await seedStored(page, PROGRESS_KEY, null, signal);
   await reload();
   assert.match(await text('overlay-copy'), /WASD.*golden EXIT.*Retries repeat the pattern/);
   assert.equal(await text('course-title'), LEVELS[0].name);
@@ -61,7 +67,7 @@ export async function checkJourney({ page, origin, signal, log }: BrowserContext
   await replay(missing);
   assert.equal(await text('overlay-title'), 'Campaign complete.');
   assert.match(await text('finish-comparison'), /First clear/);
-  const preserved = await page.evaluate<Record<string, { ticks: number }>>(`JSON.parse(localStorage.getItem(${JSON.stringify(PROGRESS_KEY)})).runs`);
+  const preserved = JSON.parse((await readStored(page, PROGRESS_KEY, signal))!).runs;
   assert.equal(preserved['retired-prototype-v0'].ticks, 484);
   assert.equal(preserved[LEVELS[missing].id].ticks, total(missing));
   await click('primary-action');

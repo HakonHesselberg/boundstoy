@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0b101b" />
-    <meta name="description" content="Small tracks. Big flow. Read the rhythm, steer through handcrafted escape courses and chase your cleanest run. Play free in your browser." />
+    <meta name="description" content="Aftershock: one continuous eight-section escape world. Read travelling blasts and saw patrols, reach safe checkpoints and chase your personal best." />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-    <title>Boundstoy — small tracks, big flow</title>
+    <title>Boundstoy — Aftershock</title>
   </head>
   <body>
     <div id="boundstoy">
@@ -18,22 +18,26 @@
         <div class="level-heading"><span id="course-number" class="eyebrow"></span><h1 id="course-title">Boundstoy</h1></div>
         <span class="test-badge" id="test-badge" hidden>PLAYTEST</span>
         <button id="editor-return" hidden>Back to editor</button>
+        <button id="benchmark-return" hidden>Benchmarks</button>
         <button id="menu-toggle" aria-haspopup="dialog" aria-controls="game-menu" aria-expanded="false">Menu <span aria-hidden="true">☰</span></button>
       </header>
 
       <main class="workspace">
         <section class="game-column" aria-label="Game">
+          <div id="benchmark-info" class="benchmark-info" hidden>
+            <code id="benchmark-id"></code><span id="benchmark-status"></span>
+          </div>
           <div class="play-bar">
             <div class="counters"><span><small>Time</small><b id="timer">00:00.00</b></span><span><small>Retries</small><b id="deaths">00</b></span></div>
             <span id="run-status" class="run-status">Ready</span>
-            <div class="run-actions"><button id="restart" title="Restart level (R)" aria-label="Restart level">↻</button><button id="pause" title="Pause game (Space)">Pause <span aria-hidden="true">Ⅱ</span></button></div>
+            <div class="run-actions"><button id="restart" title="Restart level (R)" aria-label="Restart level">↻</button><button id="benchmark-start" hidden>Start trial →</button><button id="pause" title="Pause game (Space)">Pause <span aria-hidden="true">Ⅱ</span></button></div>
           </div>
           <div id="viewport" class="viewport" tabindex="0" role="application" aria-label="Boundstoy level. Use WASD or arrow keys to move. R to restart, Space to pause." aria-describedby="controls-note">
             <div id="overlay" class="overlay">
               <section class="overlay-card" aria-labelledby="overlay-title" aria-describedby="overlay-copy">
                 <span class="eyebrow" id="overlay-kicker">READ THE RHYTHM. MAKE YOUR MOVE.</span>
-                <h2 id="overlay-title">Small tracks. Big flow.</h2>
-                <p id="overlay-copy">Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Retries repeat the pattern. R resets the run.</p>
+                <h2 id="overlay-title">One world. Eight sections.</h2>
+                <p id="overlay-copy">Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Hazards keep their rhythm through retries. R starts a new run.</p>
                 <p id="mastery-target" class="finish-comparison"></p>
                 <div id="finish-stats" class="finish-stats" hidden><div><small>Time</small><strong id="finish-time"></strong></div><div><small>Retries</small><strong id="finish-retries"></strong></div><div><small>Best clean</small><strong id="finish-best"></strong></div></div>
                 <p id="finish-mastery" class="finish-comparison" hidden></p>
@@ -53,6 +57,7 @@
               <button data-direction="up" aria-label="Move up">↑</button><button data-direction="left" aria-label="Move left">←</button>
               <button data-direction="down" aria-label="Move down">↓</button><button data-direction="right" aria-label="Move right">→</button>
             </div>
+            <button id="save-status" class="secondary-action" aria-haspopup="dialog">Loading save...</button>
           </div>
           <p id="controls-note" class="sr-only">WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons to move.</p>
         </section>
@@ -60,6 +65,11 @@
         <aside id="editor-panel" class="editor-panel" aria-label="Level editor" hidden>
           <div class="panel-heading"><h2>Level editor</h2><button id="play-tab">Restart game level</button></div>
           <label class="field-label" for="level-name">Level name</label><input id="level-name" maxlength="60" value="My course" />
+          <div id="section-focus-field" hidden>
+            <label class="field-label" for="section-focus">Editor section view</label>
+            <select id="section-focus" aria-describedby="section-focus-help" disabled></select>
+            <p id="section-focus-help" class="brush-help">View only, not a playtest start. Edit section, start, exit, checkpoint and camera metadata together in validated JSON. Invalid edits keep your draft.</p>
+          </div>
           <div class="editor-toolbar"><button id="undo">Undo</button><button id="new-course">New blank</button><button id="copy-course">Remix level</button></div>
           <span class="eyebrow palette-heading">GROUND &amp; OBSTACLES</span>
           <div id="palette" class="palette" role="group" aria-label="Editor brushes"></div>
@@ -78,26 +88,57 @@
         <div class="menu-heading"><h2 id="menu-title" tabindex="-1">Take a breather.</h2><button id="menu-close" aria-label="Close menu">×</button></div>
         <div id="menu-home">
           <button id="menu-play" class="primary">Play →</button>
-          <div class="panel-heading"><h3>Aftershock · first encounters</h3><span id="completion-count" class="count-label"></span></div>
-          <div class="course-list" id="course-list" aria-label="Choose a level"></div>
+          <button id="new-run" class="secondary-action" hidden>New run ↻</button>
+          <div class="panel-heading"><h3>Your world</h3><span id="completion-count" class="count-label"></span></div>
+          <div class="course-list" id="course-list" aria-label="Continue or start Aftershock"></div>
           <div class="menu-settings"><button id="audio" aria-label="Enable sound" aria-pressed="false">Sound off</button><button id="fullscreen" aria-label="Enter fullscreen">Fullscreen ⛶</button><button id="help">How to play</button></div>
           <label class="field-label" id="sound-volume-label" for="sound-volume">Volume 50%</label>
           <input id="sound-volume" type="range" min="0" max="100" step="1" value="50" />
+          <button id="benchmarks-open" class="secondary-action">Benchmarks · 24 experiments</button>
           <button id="editor-tab" class="secondary-action">Level editor ↗</button>
-          <p class="menu-note">No account. No network. Records stay on this device.</p>
         </div>
+        <section id="benchmark-panel" aria-label="Benchmark collection" hidden>
+          <p>Six puzzle families, four surfaces each. Layout and timing stay fixed. Only the puzzle floor changes; start and exit landings stay normal.</p>
+          <label class="field-label" for="benchmark-family">Puzzle family</label>
+          <select id="benchmark-family" aria-describedby="benchmark-question"></select>
+          <p id="benchmark-question"></p>
+          <div id="benchmark-list" class="course-list" aria-label="Choose a surface"></div>
+          <p class="benchmark-note">Verified routes are deathless input replays, not verdicts on fun. Margins measure late inputs in simulation ticks, capped at 24 (200 ms). No verified route does not mean impossible.</p>
+          <p class="benchmark-note">Trial results last for this session. Your Aftershock run and editor draft are kept separate.</p>
+          <button id="benchmarks-back" class="secondary-action">Back to menu</button>
+        </section>
         <section id="help-panel" aria-label="How to play" hidden>
           <p>Reach the golden exit. Numbered checkpoints save your place if you fall or hit a hazard.</p>
-          <dl class="controls-help"><dt>Move</dt><dd><kbd>WASD</kbd> / <kbd>Arrows</kbd> / hold touch arrows</dd><dt>Pause / resume</dt><dd><kbd>Space</kbd></dd><dt>Restart whole level</dt><dd><kbd>R</kbd> (resets time and checkpoints)</dd><dt>Menu</dt><dd><kbd>Esc</kbd></dd></dl>
+          <dl class="controls-help"><dt>Move</dt><dd><kbd>WASD</kbd> / <kbd>Arrows</kbd> / hold touch arrows</dd><dt>Pause / resume</dt><dd><kbd>Space</kbd></dd><dt id="help-restart-label">Restart</dt><dd><kbd>R</kbd><span id="help-restart-note"></span></dd><dt>Menu</dt><dd><kbd>Esc</kbd></dd></dl>
           <h3 id="help-level-title">This level</h3>
           <p id="help-description"></p>
           <ul id="help-terrain" class="help-terrain"></ul>
           <button id="help-back" class="primary">Back to menu ←</button>
         </section>
       </dialog>
+      <dialog id="save-recovery" class="game-menu" aria-labelledby="save-title" aria-describedby="save-copy">
+        <h2 id="save-title">Saved game</h2>
+        <p id="save-copy">Only completed saves can be recovered after closing the page.</p>
+        <button id="save-retry" class="primary">Retry saving</button>
+        <button id="save-export" class="secondary-action">Export recovery data</button>
+        <button id="save-reset" class="secondary-action">Reset saved world</button>
+        <button id="save-memory" class="secondary-action">Play without saving</button>
+        <button id="save-close" class="secondary-action">Back</button>
+      </dialog>
+      <dialog id="new-run-confirm" class="game-menu" aria-labelledby="new-run-title">
+        <h2 id="new-run-title">Start a new run?</h2>
+        <p>This replaces your unfinished world run, including its time, retries and checkpoint progress. Your completed records remain.</p>
+        <button id="new-run-accept" class="primary">Start new run</button>
+        <button id="new-run-cancel" class="secondary-action">Keep current run</button>
+      </dialog>
+      <dialog id="graphics-recovery" class="game-menu" aria-labelledby="graphics-title" aria-describedby="graphics-copy">
+        <h2 id="graphics-title">Graphics unavailable.</h2>
+        <p id="graphics-copy">The game is frozen while your browser restores graphics. If it cannot recover, reload the page. Unsaved play may be lost on reload.</p>
+        <button id="graphics-reload" class="primary">Reload page</button>
+      </dialog>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden><span id="notice-text"></span><button id="dismiss-notice" aria-label="Dismiss notification">×</button></div>
     </div>
-    <noscript><p class="noscript">Boundstoy needs JavaScript and WebGL2 to play. No account or internet connection is needed after loading.</p></noscript>
+    <noscript><p class="noscript">Boundstoy needs JavaScript and WebGL2 to play.</p></noscript>
     <script type="module" src="/presentation/main.ts"></script>
   </body>
 </html>

@@ -5,6 +5,9 @@ import { readProgress, recordFinish, runRank } from '../application/storage.ts';
 test('Progress_NoSave_StartsEmpty', () => {
   assert.deepEqual(readProgress(null), {});
 });
+test('Progress_ConstructorId_DoesNotReadInheritedPrototypeAsAPreviousRun', () => {
+  assert.deepEqual(recordFinish({}, 'constructor', 100, 0).constructor, { ticks: 100, deaths: 0 });
+});
 test('Progress_BestRun_PreservesFastestFinish', () => {
   const first = recordFinish({}, 'first', 1000, 3);
   const slower = recordFinish(first, 'first', 1100, 1);

@@ -8,20 +8,30 @@ Boundstoy is a static browser playground for ice sliding and timed bounds.
 Scope: a shippable, consumer-facing game with at most ten focused levels,
 a secondary level editor, and the existing four movement surfaces. Teach each
 mechanic before combining it; build on existing mechanics only.
-The playable set is three short Aftershock variations: Borrowed Ground,
-Crosscurrent and Checkerboard. The user rejected the first Aftershock set
+The playable candidate is one continuous eight-section Aftershock world with
+seven between-puzzle checkpoints and one final exit. Human full-map acceptance,
+launch scope/platform qualification and publication remain separate gates.
+The three short Borrowed Ground, Crosscurrent and Checkerboard prototypes are
+retired from the selector but retain legacy regressions. The user rejected the first Aftershock set
 (repetitive Slipstream, too-long Borrowed Ground, redundant The Cut) as well as
 Relay. Do not treat legal replays as proof of interesting or human-readable play.
 Explore travelling sequences, lateral movement and alternating grid groups,
 not repetitions of simultaneous three-tile gates.
 Place checkpoints between puzzles, never next to the exit or on its safe approach.
-The exit completes the final puzzle; current single-puzzle maps have no checkpoints.
+The exit completes the final puzzle; single-puzzle imports need no checkpoints.
 Between-puzzle checkpoints need safe landings, triggers wide enough for valid routes,
 and verified downstream recovery. New markers use explicit radii; legacy imports
 retain their default.
 Light/dark normal-ground shades are cosmetic, never another movement surface.
-Retries reset the pattern, not elapsed time/deaths. Clean records and mastery
-targets require zero deaths. The world expansion gate remains human feedback.
+Only the active world puzzle runs; future/completed timed hazards are inactive.
+Checkpoints start the next puzzle's local pattern. Ordinary death preserves it;
+explicit Restart returns to the checkpoint and resets it, keeping elapsed time
+and deaths. Saves retain checkpoint position and totals at checkpoint, death,
+pause/leaving and completion boundaries, never periodically.
+Legacy V1 retry-reset behavior remains compatible. World records compare time
+first, then deaths; deathless completion is separate, without preset mastery
+targets. Reload continues from the saved checkpoint, paused without
+wall-clock catch-up. Further world expansion remains gated on human feedback.
 Explosions are lethal for exactly one simulation tick; lingering effects are
 harmless. Do not restore sustained flames or stack consecutive detonations to
 disguise a continuous damage window. Warnings last 27 ticks (225 ms); keep effects
@@ -55,7 +65,7 @@ See docs/PLATFORM.md for platform-specific build/test commands.
 npm run build       # Type-check and static production build
 npm test            # Node unit tests and deterministic course replays
 npm run dev         # http://127.0.0.1:4321
-npm run inspect -- 1 --replay
+npm run inspect -- 0 --replay
 ```
 
 ## Project Structure

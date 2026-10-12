@@ -196,6 +196,9 @@ export class Cdp {
   on(method: string, listener: (params: EventParams) => void) {
     this.listeners.set(method, [...this.listeners.get(method) ?? [], listener]);
   }
+  connectTarget(targetId: string, signal?: AbortSignal): Promise<Cdp> {
+    return Cdp.connect(new URL(`/devtools/page/${encodeURIComponent(targetId)}`, this.socket.url).href, this.timeout, signal);
+  }
 
   call<T = Record<string, unknown>>(method: string, params: object = {}): Promise<T> {
     if (this.closed) return Promise.reject(new Error(`${method}: CDP socket is closed.`));

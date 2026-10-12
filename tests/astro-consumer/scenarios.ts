@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { LEVELS } from '../../data/levels.ts';
 import { REPLAYS } from '../../data/replays.ts';
-import { PROGRESS_KEY } from '../../application/storage.ts';
+import { getWorldRecord, PROGRESS_KEY } from '../../application/storage.ts';
+import { DATABASE_NAME, DATABASE_STORE } from '../../application/indexeddb.ts';
+import { RUN_STORAGE_KEY } from '../../application/run-storage.ts';
 import { Cdp, waitFor } from '../browser/runtime.ts';
 import type { Inventory } from './fixture.ts';
 
@@ -21,7 +23,20 @@ export async function checkConsumer({ page, origin, base, files, signal, request
     `(() => { const window = globalThis.${frame}.contentWindow, document = window.document; return (${source}); })()`);
   const snapshot = () => game<Snapshot>('window.__BOUNDSTOY__.snapshot()');
   const text = (id: string) => game<string>(`document.getElementById(${JSON.stringify(id)}).textContent`);
-  const saved = () => game<string | null>(`window.localStorage.getItem(${JSON.stringify(PROGRESS_KEY)})`);
+  const saved = async () => {
+    await until('Iframe committed save', () => game<boolean>(
+      `!['Loading save...', 'Saving...'].includes(document.getElementById('save-status').textContent)`));
+    return game<string | null>(`new Promise((resolve, reject) => {
+      const open = window.indexedDB.open(${JSON.stringify(DATABASE_NAME)});
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result, tx = db.transaction(${JSON.stringify(DATABASE_STORE)}, 'readonly');
+        const request = tx.objectStore(${JSON.stringify(DATABASE_STORE)}).get(${JSON.stringify(RUN_STORAGE_KEY)});
+        tx.oncomplete = () => { db.close(); resolve(request.result ?? null); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('Iframe read aborted')); };
+      };
+    })`);
+  };
   const pause = (ms: number) => delay(ms, undefined, { signal });
   const until = <T>(label: string, probe: () => Promise<T | false | null>) => waitFor(label, probe, 10_000, signal);
   const keyCodes: Record<string, [string, number]> = {
@@ -110,6 +125,7 @@ export async function checkConsumer({ page, origin, base, files, signal, request
   await offline(true);
   const ordinaryRequests = requests.length;
   await click('#primary-action');
+  await until('Committed ordinary start', () => game<boolean>("document.getElementById('overlay').hidden"));
   assert.equal(await game('document.activeElement.id'), 'viewport');
   const timer = await text('timer');
   await key('ArrowRight', true);
@@ -123,8 +139,10 @@ export async function checkConsumer({ page, origin, base, files, signal, request
   await screenshot('ordinary.png');
   log(`PASS ${base}: default wrapper, lazy non-debug iframe, all production bytes/notices and Astro CSS; ordinary offline play.`);
 
+  const unfinished = await saved();
+  assert.ok(unfinished);
   await navigate(true);
-  assert.equal(await saved(), null);
+  assert.equal(await saved(), unfinished, 'Debug iframe resumes the ordinary iframe run without advancing time.');
   assert.ok(await game<boolean>('window.__BOUNDSTOY__.metrics().triangles > 0'), 'The real production renderer submitted geometry.');
   await offline(true);
   const loadedRequests = requests.length;
@@ -188,9 +206,15 @@ export async function checkConsumer({ page, origin, base, files, signal, request
   log(`PASS ${base}: fullscreen permission, trusted button entry, host/child fullscreen state and trusted button exit.`);
 
   assert.equal(REPLAYS.length, LEVELS.length);
-  const expectedRuns: Record<string, { ticks: number; deaths: number }> = {};
   for (const [index, level] of LEVELS.entries()) {
-    await game(`window.__BOUNDSTOY__.load(${index})`);
+    assert.ok(level.version === 2);
+    await game(`(() => {
+      document.getElementById('restart').click();
+      if (document.getElementById('new-run-confirm').open) document.getElementById('new-run-accept').click();
+      window.dispatchEvent(new Event('blur'));
+    })()`);
+    await until('Committed exact fresh iframe run', () => game<boolean>(`window.__BOUNDSTOY__.persistence().ready
+      && window.__BOUNDSTOY__.snapshot().state.tick === 0 && window.__BOUNDSTOY__.snapshot().paused`));
     assert.deepEqual((await snapshot()).level, level, 'Copied bundle matches current source content.');
     let elapsed = 0;
     for (const [step, command] of REPLAYS[index].entries()) {
@@ -207,17 +231,20 @@ export async function checkConsumer({ page, origin, base, files, signal, request
     const state = (await snapshot()).state, ticks = REPLAYS[index].reduce((sum, command) => sum + command.ticks, 0);
     assert.equal(state.won, true); assert.equal(state.tick, ticks); assert.equal(state.deaths, 0);
     assert.deepEqual(state.visited, level.checkpoints.map(point => `${point.x},${point.y}`));
-    expectedRuns[level.id] = { ticks, deaths: 0 };
+    const committed = JSON.parse((await saved())!);
+    assert.equal(committed.active, null);
+    assert.deepEqual(getWorldRecord(committed.records, level), { ticks, deaths: 0 });
     log(`PASS ${base}: offline ${level.id}, ${ticks} exact ticks, zero deaths, ordered checkpoints.`);
   }
-  assert.deepEqual(JSON.parse((await saved())!).runs, expectedRuns, 'Real game finishes wrote exact local records.');
   assert.equal(requests.length, loadedRequests, 'Input, fullscreen and all finishes need no post-load requests.');
   await screenshot('campaign-complete.png');
   const progress = await saved();
   await navigate(false);
   assert.equal(await saved(), progress, 'Reloaded non-debug iframe preserves local records.');
   assert.equal(await text('completion-count'), `${LEVELS.length} / ${LEVELS.length} cleared`);
-  assert.deepEqual(await game('Object.keys(window.localStorage)'), [PROGRESS_KEY], 'Only local game progress was stored.');
+  assert.equal(await game(`window.localStorage.getItem(${JSON.stringify(PROGRESS_KEY)})`), null,
+    'World progress never creates or overwrites legacy localStorage records.');
+  assert.deepEqual(await game('Object.keys(window.localStorage)'), [], 'World persistence uses IndexedDB, not localStorage projections.');
   assert.equal(await game('window.sessionStorage.length'), 0);
   assert.equal(await game('typeof window.__BOUNDSTOY__'), 'undefined');
   log(`PASS ${base}: ordinary reload hydrates all ${LEVELS.length} records; no cookies, workers, telemetry or remote runtime assets.`);

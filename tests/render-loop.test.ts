@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
 import { createState, DT, step, STILL } from '../core/simulation.ts';
-import { LEVELS } from '../data/levels.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../data/aftershock.ts';
 import { parseLevel } from '../core/level.ts';
 import { blankLevel } from '../core/editor.ts';
 

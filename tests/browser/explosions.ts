@@ -6,6 +6,7 @@ import { main } from '../../scripts/browser-check.ts';
 import { DRAFT_KEY } from '../../application/storage.ts';
 import type { State } from '../../core/simulation.ts';
 import { waitFor } from './runtime.ts';
+import { seedStored } from './persistence.ts';
 import type { BrowserContext } from './scenarios.ts';
 
 export async function checkExplosions({ page, origin, signal, log }: BrowserContext) {
@@ -109,7 +110,7 @@ export async function checkExplosions({ page, origin, signal, log }: BrowserCont
     log(`PASS: ${prefix} motion: exact collision, next-tick entry, skipped ignition render, paused pixels and bounded resources.`);
   }
 
-  await page.evaluate(`localStorage.setItem(${JSON.stringify(DRAFT_KEY)}, ${JSON.stringify(JSON.stringify(fixture(1)))})`);
+  await seedStored(page, DRAFT_KEY, JSON.stringify(fixture(1)), signal);
   await page.call('Page.navigate', { url: `${origin}/?debug&explosions=restore` });
   await waitFor('Legacy draft restore boot', () => page.evaluate(
     'location.search.includes("restore") && Boolean(window.__BOUNDSTOY__)'), 15000, signal);

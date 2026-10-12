@@ -1,3 +1,8 @@
+import type { Level, Point } from '../core/level.ts';
+import { hazardEnabled, hazardSample, type State } from '../core/simulation.ts';
+import { checkpointPuzzles } from '../core/world.ts';
+import { selectWorldView } from './world-camera.ts';
+
 export const MAX_AUDIO_VOICES = 8;
 const MAX_MASTER_GAIN = 0.5;
 
@@ -69,4 +74,18 @@ export class Audio {
     this.enabled = false; this.stopVoices(); this.master?.disconnect();
     void this.context?.close().catch(error => console.error('[Boundstoy] Could not close sound', error));
   }
+}
+/** Follow the same position-based view as rendering, including safe connectors
+ * and backtracking. Checkpoint worlds require actual progression context. */
+export function localBlast(level: Level, position: Point, previousTick: number, tick: number, state?: State): boolean {
+  if (checkpointPuzzles(level) && !state) throw new Error('localBlast requires state for checkpoint puzzleMode.');
+  if (tick !== previousTick + 1) return false;
+  const sections = level.version === 2 ? selectWorldView(level, position).sections : null;
+  return level.hazards.some(hazard => hazard.kind === 'pulse'
+    && (!state || hazardEnabled(level, hazard, state))
+    && (!sections || level.version === 2 && sections.some(i => {
+      const b = level.sections[i].bounds;
+      return hazard.x >= b.x && hazard.x < b.x + b.width && hazard.y >= b.y && hazard.y < b.y + b.height;
+    }))
+    && !hazardSample(hazard, previousTick).active && hazardSample(hazard, tick).active);
 }

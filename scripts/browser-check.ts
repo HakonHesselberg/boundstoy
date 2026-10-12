@@ -9,7 +9,8 @@ import { checkGame, type BrowserContext } from '../tests/browser/scenarios.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-export async function main(args = process.argv.slice(2), check: (context: BrowserContext) => Promise<void> = checkGame) {
+export async function main(args = process.argv.slice(2), check: (context: BrowserContext) => Promise<void> = checkGame,
+  bundleDirectory = join(root, 'dist')) {
   const cleanup = new Cleanup(), controller = new AbortController();
   const logs: string[] = [], problems: string[] = [], requests: string[] = [];
   const resources: Record<string, unknown> = {};
@@ -26,13 +27,13 @@ export async function main(args = process.argv.slice(2), check: (context: Browse
       throw new Error(`Chromium is missing or not executable: ${options.browser}. Install Chromium or pass --browser /absolute/path. No checks were skipped.`);
     });
     if (process.platform === 'win32') throw new Error('Browser checks require POSIX process-group cleanup; run on Linux. npm test remains portable.');
-    await access(join(root, 'dist/index.html')).catch(() => {
+    await access(join(bundleDirectory, 'index.html')).catch(() => {
       throw new Error('Production bundle missing. Run npm run test:browser (builds first), not the runner directly.');
     });
     await mkdir(join(root, 'artifacts/browser-check'), { recursive: true });
     artifacts = await mkdtemp(join(root, 'artifacts/browser-check/run-'));
     log(`Evidence: ${artifacts}`);
-    const origin = await startPreview(join(root, 'dist'), cleanup, controller.signal);
+    const origin = await startPreview(bundleDirectory, cleanup, controller.signal);
     assert.ok(![4321, 4331, 4333].includes(Number(new URL(origin).port)), 'Reserved preview port selected.');
     resources.server = origin;
     // Chromium puts a Unix socket below TMPDIR; keep this owned path short.

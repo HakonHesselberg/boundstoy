@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextCourse, finishResult } from '../application/campaign.ts';
-import { readProgress, recordFinish } from '../application/storage.ts';
+import { nextCourse, finishResult, worldFinishResult } from '../application/campaign.ts';
+import { readProgress, recordFinish, readWorldRecords, recordWorldFinish } from '../application/storage.ts';
 import { LEVELS } from './fixtures/relay-levels.ts';
 
 const courses = [{ id: 'new-a' }, { id: 'new-b' }, { id: 'new-c' }];
@@ -50,4 +50,24 @@ test('Finish_EqualTime_RespectsRetryTiebreakWithoutInventingTimeImprovement', ()
   assert.deepEqual(finishResult(run, { ticks: 1200, deaths: 1 }), { kind: 'best', deltaTicks: 0, fewerRetries: 1 });
   assert.equal(finishResult(run, run).kind, 'equal');
   assert.equal(finishResult(run, { ticks: 1200, deaths: 3 }).kind, 'slower');
+});
+
+test('WorldFinish_TimeFirstComparison_IsRevisionScopedAndSeparateFromLegacyCleanResults', () => {
+  const world = { version: 2, id: 'world', revision: 1 } as const;
+  const records = recordWorldFinish(readWorldRecords(null), world, 1000, 0);
+  assert.deepEqual(worldFinishResult(records, world, { ticks: 900, deaths: 3 }),
+    { kind: 'best', deltaTicks: -100, fewerRetries: -3 });
+  const assisted = recordWorldFinish(records, world, 900, 3);
+  assert.deepEqual(worldFinishResult(assisted, world, { ticks: 950, deaths: 0 }),
+    { kind: 'slower', deltaTicks: 50, fewerRetries: 3 });
+  assert.equal(worldFinishResult(assisted, world, { ticks: 900, deaths: 2 }).kind, 'best');
+  assert.equal(worldFinishResult(assisted, world, { ticks: 900, deaths: 3 }).kind, 'equal');
+  assert.equal(worldFinishResult(assisted, world, { ticks: 900, deaths: 4 }).kind, 'slower');
+  assert.deepEqual(worldFinishResult(records, { ...world, revision: 2 }, { ticks: 1100, deaths: 0 }),
+    { kind: 'first', deltaTicks: 0, fewerRetries: 0 });
+  assert.throws(() => worldFinishResult(records, world, { ticks: NaN, deaths: 0 }));
+});
+
+test('Campaign_ConstructorId_IsNotAnInheritedClear', () => {
+  assert.equal(nextCourse([{ id: 'constructor' }], {}), 0);
 });

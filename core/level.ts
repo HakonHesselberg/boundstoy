@@ -1,11 +1,15 @@
 import { TERRAIN, RULES, type Tile } from '../data/terrain.ts';
+import { V1_LIMITS, V2_LIMITS } from '../data/level-limits.ts';
+import { parseWorldMetadata, type World } from './world.ts';
+
+export type { World, WorldCheckpoint, Section, Bounds, SectionCamera, SectionCompletion } from './world.ts';
 
 export type Point = Readonly<{ x: number; y: number }>;
 export type Checkpoint = Point & Readonly<{ radius?: number }>;
-export type Pulse = Readonly<{ kind: 'pulse'; x: number; y: number; period: number; on: number; phase: number }>;
-export type Saw = Readonly<{ kind: 'saw'; from: Point; to: Point; period: number; phase: number }>;
+export type Pulse = Readonly<{ kind: 'pulse'; x: number; y: number; period: number; on: number; phase: number; sectionId?: string }>;
+export type Saw = Readonly<{ kind: 'saw'; from: Point; to: Point; period: number; phase: number; sectionId?: string }>;
 export type Hazard = Pulse | Saw;
-export type Level = Readonly<{
+export type LevelV1 = Readonly<{
   version: 1;
   id: string;
   name: string;
@@ -17,6 +21,7 @@ export type Level = Readonly<{
   hazards: readonly Hazard[];
   resetPatternOnRetry?: boolean;
 }>;
+export type Level = LevelV1 | World;
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object.`);
@@ -42,15 +47,30 @@ export function isTile(value: string): value is Tile {
 
 export function parseLevel(value: unknown): Level {
   const raw = record(value, 'Level');
-  if (raw.version !== 1) throw new Error('Unsupported level version. Expected version 1.');
+  if (raw.version !== 1 && raw.version !== 2) throw new Error('Unsupported level version. Expected version 1 or 2.');
+  const v2 = raw.version === 2, limits = v2 ? V2_LIMITS : V1_LIMITS;
+  const keys = (obj: Record<string, unknown>, allowed: readonly string[], label: string) => {
+    if (v2) for (const key of Object.keys(obj))
+      if (!allowed.includes(key)) throw new Error(`${label}: unknown field "${key}".`);
+  };
+  if (v2) for (const field of ['tiles', 'hazards', 'checkpoints']) {
+    const values = raw[field];
+    if (Array.isArray(values)) for (let i = 0; i < values.length; i++)
+      if (!Object.hasOwn(values, i)) throw new Error(`${field}[${i}] must not be a sparse array entry.`);
+  }
+  keys(raw, ['version', 'id', 'revision', 'name', 'description', 'tiles', 'spawn', 'goal',
+    'checkpoints', 'hazards', 'resetPatternOnRetry', 'sections', 'puzzleMode'], 'World');
+  if (raw.puzzleMode !== undefined && (!v2 || raw.puzzleMode !== 'checkpoint'))
+    throw new Error('puzzleMode must be checkpoint and is only supported in version 2.');
   if (raw.resetPatternOnRetry !== undefined && typeof raw.resetPatternOnRetry !== 'boolean')
     throw new Error('resetPatternOnRetry must be a boolean.');
   const id = text(raw.id, 'id', 60);
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error('id must use lowercase letters, numbers and hyphens.');
-  const rows = list(raw.tiles, 'tiles', 32);
-  if (rows.length < 6) throw new Error('tiles must contain 6-32 rows.');
+  const rows = list(raw.tiles, 'tiles', limits.maxHeight);
+  if (rows.length < limits.minHeight) throw new Error(`tiles must contain ${limits.minHeight}-${limits.maxHeight} rows.`);
   const tiles = rows.map((row, y) => {
-    if (typeof row !== 'string' || row.length < 8 || row.length > 40) throw new Error(`tiles row ${y} needs a width of 8-40.`);
+    if (typeof row !== 'string' || row.length < limits.minWidth || row.length > limits.maxWidth)
+      throw new Error(`tiles row ${y} needs a width of ${limits.minWidth}-${limits.maxWidth}.`);
     for (const char of row) if (!isTile(char)) throw new Error(`Unknown terrain "${char}" in row ${y}.`);
     return row;
   });
@@ -63,42 +83,63 @@ export function parseLevel(value: unknown): Level {
     if (safe && (TERRAIN[char].solid || TERRAIN[char].lethal)) throw new Error(`${label} must be on safe ground.`);
     return Object.freeze({ x, y });
   };
-  const hazards = list(raw.hazards, 'hazards', 80).map((value, i): Hazard => {
+  const hazards = list(raw.hazards, 'hazards', limits.hazards).map((value, i): Hazard => {
     const h = record(value, `hazards[${i}]`);
+    if (Object.hasOwn(h, 'sectionId') && raw.puzzleMode !== 'checkpoint')
+      throw new Error(`hazards[${i}].sectionId requires checkpoint puzzleMode.`);
+    const ownership = h.sectionId === undefined ? {} : { sectionId: text(h.sectionId, `hazards[${i}].sectionId`, 60) };
     const period = integer(h.period, `hazards[${i}].period`, 120, 3600);
     const phase = integer(h.phase, `hazards[${i}].phase`, 0, period - 1);
     if (h.kind === 'pulse') {
+      keys(h, ['kind', 'x', 'y', 'period', 'on', 'phase', 'sectionId'], `pulse[${i}]`);
       // Version-1 imports keep their rhythm, but legacy flame durations become single detonations.
-      integer(h.on, `pulse[${i}].on`, 1, period - 60);
+      integer(h.on, `pulse[${i}].on`, 1, v2 ? 1 : period - 60);
       return Object.freeze({ kind: 'pulse', ...point(h, `pulse[${i}]`), period, phase,
-        on: 1 });
+        on: 1, ...ownership });
     }
     if (h.kind === 'saw') {
-      return Object.freeze({ kind: 'saw', from: point(h.from, `saw[${i}].from`), to: point(h.to, `saw[${i}].to`), period, phase });
+      keys(h, ['kind', 'from', 'to', 'period', 'phase', 'sectionId'], `saw[${i}]`);
+      keys(record(h.from, 'saw.from'), ['x', 'y'], 'saw.from');
+      keys(record(h.to, 'saw.to'), ['x', 'y'], 'saw.to');
+      return Object.freeze({ kind: 'saw', from: point(h.from, `saw[${i}].from`), to: point(h.to, `saw[${i}].to`), period, phase, ...ownership });
     }
     throw new Error(`Unknown hazard kind in hazards[${i}].`);
   });
+  keys(record(raw.spawn, 'spawn'), ['x', 'y'], 'spawn');
+  keys(record(raw.goal, 'goal'), ['x', 'y'], 'goal');
   const spawn = point(raw.spawn, 'spawn', true), goal = point(raw.goal, 'goal', true);
   if (spawn.x === goal.x && spawn.y === goal.y) throw new Error('spawn and goal must be different tiles.');
-  const checkpoints = list(raw.checkpoints, 'checkpoints', 30).map((value, i): Checkpoint => {
+  const checkpoints = list(raw.checkpoints, 'checkpoints', limits.checkpoints).map((value, i): Checkpoint => {
     const label = `checkpoint[${i}]`, position = point(value, label, true), { radius } = record(value, label);
+    keys(record(value, label), ['id', 'x', 'y', 'radius'], label);
+    if (v2 && radius === undefined) throw new Error(`${label}.radius is required for version 2.`);
     if (radius === undefined) return position;
     if (typeof radius !== 'number' || !Number.isFinite(radius) || radius <= 0 || radius > RULES.maxCheckpointRadius)
       throw new Error(`${label}.radius must be a number greater than 0 and at most ${RULES.maxCheckpointRadius}.`);
     return Object.freeze({ ...position, radius });
   });
-  return Object.freeze({
-    version: 1, id, name: text(raw.name, 'name', 60), description: text(raw.description, 'description', 240),
+  const common = {
+    id, name: text(raw.name, 'name', 60), description: text(raw.description, 'description', 240),
     tiles: Object.freeze(tiles), spawn, goal,
     checkpoints: Object.freeze(checkpoints),
     hazards: Object.freeze(hazards),
     resetPatternOnRetry: raw.resetPatternOnRetry === true,
-  });
+  };
+  return v2 ? parseWorldMetadata(raw, common) : Object.freeze({ version: 1, ...common });
 }
 
 export function importLevel(source: string): Level {
-  if (source.length > 100_000) throw new Error('Level JSON exceeds the 100 KB limit.');
-  return parseLevel(JSON.parse(source));
+  if (source.length > V2_LIMITS.importBytes || new TextEncoder().encode(source).length > V2_LIMITS.importBytes)
+    throw new Error('World JSON exceeds the 1 MB limit.');
+  let raw: unknown;
+  try { raw = JSON.parse(source); }
+  catch (error) {
+    if (source.length > V1_LIMITS.importCharacters) throw new Error('Level JSON exceeds the 100 KB limit.');
+    throw error;
+  }
+  if (record(raw, 'Level').version !== 2 && source.length > V1_LIMITS.importCharacters)
+    throw new Error('Level JSON exceeds the 100 KB limit.');
+  return parseLevel(raw);
 }
 
 export function center(point: Point): Point {

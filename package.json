@@ -18,6 +18,7 @@
     "test:journey": "npm run build && node tests/browser/journey.ts",
     "test:explosions": "npm run build && node tests/browser/explosions.ts",
     "test:aftershock": "npm run build && node tests/browser/aftershock.ts",
+    "test:motion": "npm run build && node tests/browser/motion-clips.ts --timeout 600000",
     "release:check": "npm run evaluate && node scripts/browser-check.ts && node tests/browser/journey.ts && node tests/browser/explosions.ts && node tests/browser/aftershock.ts && node tests/mobile-readability.test.ts --readability-browser",
     "test:readability": "npm run build && node tests/mobile-readability.test.ts --readability-browser",
     "test:astro": "npm run build && node scripts/check-astro.ts",

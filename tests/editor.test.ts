@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS } from '../data/levels.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../data/aftershock.ts';
 import { paint, placeSaw, blankLevel } from '../core/editor.ts';
 import { importLevel, parseLevel } from '../core/level.ts';
 import { RULES } from '../data/terrain.ts';
@@ -54,4 +54,22 @@ test('Level_AllBuiltins_ValidateAndAreFrozen', () => {
 test('Import_InvalidAndOversizeJSON_RejectsWithoutFallback', () => {
   assert.throws(() => importLevel('{oops'));
   assert.throws(() => importLevel(' '.repeat(100_001)), /100 KB/);
+});
+
+test('Level_V1LimitsAndEditorExport_RemainExplicitAndCompatible', () => {
+  const legacy = { ...blankLevel(), tiles: Array.from({ length: 32 }, () => '.'.repeat(40)),
+    checkpoints: Array.from({ length: 30 }, (_, x) => ({ x, y: 20 })),
+    hazards: Array.from({ length: 80 }, () => ({ kind: 'pulse', x: 1, y: 1, period: 360, on: 77, phase: 0 })) };
+  const level = parseLevel(legacy);
+  assert.equal(level.version, 1);
+  assert.equal(level.resetPatternOnRetry, false);
+  assert.deepEqual(importLevel(JSON.stringify(paint(level, { x: 4, y: 4 }, ':'))),
+    paint(level, { x: 4, y: 4 }, ':'));
+  assert.throws(() => parseLevel({ ...legacy, tiles: [...legacy.tiles, legacy.tiles[0]] }), /tiles|rows/i);
+  assert.throws(() => parseLevel({ ...legacy, tiles: legacy.tiles.map(r => `${r}.`) }), /width/i);
+  assert.throws(() => parseLevel({ ...legacy, hazards: [...legacy.hazards, legacy.hazards[0]] }), /hazards/i);
+  assert.throws(() => parseLevel({ ...legacy, checkpoints: [...legacy.checkpoints, legacy.checkpoints[0]] }), /checkpoints/i);
+  const json = JSON.stringify(level);
+  assert.deepEqual(importLevel(json + ' '.repeat(100_000 - json.length)), level);
+  assert.throws(() => importLevel(json + ' '.repeat(100_001 - json.length)), /100 KB/i);
 });

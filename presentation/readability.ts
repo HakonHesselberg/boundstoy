@@ -12,6 +12,39 @@ const right = new THREE.Vector3(), up = new THREE.Vector3();
 
 export type RouteSign = { sprite: THREE.Sprite; label: string };
 
+const SIGN_TEXELS = 128;
+const SIGN_FONT = '650 74px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+/** Signs draw after translucent bursts/halos but before the player locator (2). */
+export const SIGN_RENDER_ORDER = 1;
+
+/** Labelled plate in the interface typeface; never depth-clipped by its own marker. */
+export function createRouteSign(label: string, color: number,
+  createCanvas: () => HTMLCanvasElement = () => document.createElement('canvas')) {
+  const wide = label.length > 2;
+  const canvas = createCanvas();
+  canvas.width = SIGN_TEXELS * (wide ? 3 : 1.5); canvas.height = SIGN_TEXELS;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas 2D is required for route markers.');
+  const accent = `#${new THREE.Color(color).getHexString()}`;
+  const inset = 6, radius = 30;
+  context.beginPath();
+  context.roundRect(inset, inset + 6, canvas.width - inset * 2, canvas.height - inset * 2 - 12, radius);
+  context.fillStyle = 'rgba(10, 20, 30, 0.92)'; context.fill();
+  context.lineWidth = 6; context.strokeStyle = accent; context.stroke();
+  context.fillStyle = accent; context.font = SIGN_FONT;
+  context.textAlign = 'center'; context.textBaseline = 'middle';
+  context.fillText(label, canvas.width / 2, canvas.height / 2 + 3);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false, toneMapped: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.renderOrder = SIGN_RENDER_ORDER;
+  sprite.position.y = 1.05;
+  sprite.scale.set(wide ? 1.35 : 0.675, 0.45, 1);
+  return { sprite, material, texture };
+}
+
 export function createPlayerLocator(): THREE.Group {
   // A hollow, screen-aligned pointer is a locator, not a larger collision body.
   const shape = new THREE.Shape();
@@ -76,7 +109,7 @@ export function fitRouteSigns(signs: readonly RouteSign[], camera: THREE.Orthogr
     const wide = label.length > 2;
     sprite.visible = label !== 'START' || BODY_WIDTH * ppu >= MIN_BODY_PIXELS;
     sprite.position.set(0, 1.05, 0);
-    sprite.scale.set(wide ? 1.7 : 0.95, 0.45, 1);
+    sprite.scale.set(wide ? 1.35 : 0.675, 0.45, 1);
     if (!adaptive || !sprite.visible) continue;
     const h = SIGN_HEIGHT_PIXELS / ppu;
     sprite.scale.set(h * (wide ? 3 : 1.5), h, 1);

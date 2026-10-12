@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { LEVELS } from '../data/levels.ts';
+import { AFTERSHOCK_LEVELS as LEVELS } from '../data/aftershock.ts';
 import { REPLAYS } from '../data/replays.ts';
 import { LEVELS as RELAY_LEVELS } from './fixtures/relay-levels.ts';
 import { REPLAYS as RELAY_REPLAYS } from './fixtures/relay-replays.ts';
@@ -143,7 +143,7 @@ test('Desktop_CompleteCourseCameraAndOriginalMarkerScale_AreUnchanged', () => {
     assert.equal(locator.visible, false, 'desktop keeps the original robot without a redundant cue');
     const sprite = new THREE.Sprite();
     fitRouteSigns([{ sprite, label: '01' }], camera, layout.height);
-    assert.deepEqual(sprite.scale.toArray(), [0.95, 0.45, 1]);
+    assert.deepEqual(sprite.scale.toArray(), [0.675, 0.45, 1]);
     assert.equal(sprite.position.y, 1.05);
     const aspect = layout.width / layout.height;
     const extent = Math.max(level.tiles.length * 0.85 + 3, (level.tiles[0].length + 2) / aspect);
@@ -161,17 +161,13 @@ test('Desktop_CompleteCourseCameraAndOriginalMarkerScale_AreUnchanged', () => {
 if (process.argv.includes('--readability-browser')) {
   const { main } = await import('../scripts/browser-check.ts');
   const { waitFor } = await import('./browser/runtime.ts');
-  const scenarios = LEVELS.map((_, index) => ({ index, name: 'spawn', commands: [] as { ticks: number; x: number; y: number }[] }));
-  for (const [index, replay] of REPLAYS.entries()) for (const fraction of [0.25, 0.5, 0.75]) {
-    const tick = Math.floor(replay.reduce((sum, command) => sum + command.ticks, 0) * fraction);
-    let remaining = tick;
-    const commands = replay.flatMap(command => {
-      const ticks = Math.min(remaining, command.ticks); remaining -= ticks;
-      return ticks ? [{ ...command, ticks }] : [];
-    });
-    scenarios.push({ index, name: `encounter at ${tick}`, commands });
-  }
-  await main(process.argv.slice(2).filter(arg => arg !== '--readability-browser'), async ({ page, log, signal }) => {
+  const { worldDriver, roughWorldStops, sliceRoute } = await import('./browser/rough-world.ts');
+  // Winning deliberately retires the gameplay locator; include the last live
+  // goal-approach tick instead of measuring a victory effect as a player body.
+  const scenarios = roughWorldStops().map(([tick, name]) =>
+    tick === 5752 ? [5751, 'final approach'] as const : [tick, name] as const);
+  await main(process.argv.slice(2).filter(arg => arg !== '--readability-browser'), async context => {
+    const { page, log, signal } = context, driver = worldDriver(context);
     let loads = 0;
     page.on('Page.loadEventFired', () => { loads++; });
     for (const [width, height, dpr] of [[390, 844, 1], [844, 390, 1], [390, 844, 2], [1440, 1200, 1]]) {
@@ -181,14 +177,16 @@ if (process.argv.includes('--readability-browser')) {
       await page.call('Page.reload');
       await waitFor('Readability viewport reload', async () => loads > before, 15_000, signal);
       await waitFor('Readability WebGL boot', () => page.evaluate('Boolean(window.__BOUNDSTOY__)'), 15_000, signal);
-      for (const { index, name, commands } of scenarios) {
+      await driver.newRun();
+      let cursor = 0;
+      for (const [tick, name] of scenarios) {
+        const state = await driver.run(sliceRoute(REPLAYS[0], cursor, tick));
+        assert.equal(state.tick, tick);
+        cursor = tick;
         const measurement = await page.evaluate<{
-          width: number; height: number; overflow: boolean; routeVisible: boolean; deaths: number;
+          width: number; height: number; overflow: boolean; routeVisible: boolean; deaths: number; needsLocator: boolean;
         }>(`(async () => {
           const debug = window.__BOUNDSTOY__;
-          debug.load(${index});
-          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          for (const command of ${JSON.stringify(commands)}) debug.advance(command.ticks, {x: command.x, y: command.y});
           debug.advance(0);
           const canvas = document.querySelector('.viewport canvas'), rect = canvas.getBoundingClientRect();
           const image = document.createElement('canvas'); image.width = canvas.width; image.height = canvas.height;
@@ -205,23 +203,31 @@ if (process.argv.includes('--readability-browser')) {
               if (Math.abs(pixels[offset] - 176) <= 3 && pixels[offset + 1] >= 252
                 && Math.abs(pixels[offset + 2] - 228) <= 3) { xs.push(x); ys.push(y); }
             }
-          const routeVisible = [level.spawn, level.goal, ...level.checkpoints].every(point => {
+          const frame = debug.camera().view.frame;
+          const routeVisible = [
+            {x:frame.x-0.5,y:frame.y-0.5},
+            {x:frame.x+frame.width-0.5,y:frame.y-0.5},
+            {x:frame.x-0.5,y:frame.y+frame.height-0.5},
+            {x:frame.x+frame.width-0.5,y:frame.y+frame.height-0.5},
+          ].every(point => {
             const p = debug.project(point);
             return p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
           });
+          const adjacent = debug.project({x:state.position.x+0.5,y:state.position.y-0.5});
           return {
             width: xs.length ? (Math.max(...xs) - Math.min(...xs) + 1) / ratio : 0,
             height: ys.length ? (Math.max(...ys) - Math.min(...ys) + 1) / ratio : 0,
             overflow: document.documentElement.scrollWidth > innerWidth, routeVisible, deaths: state.deaths,
+            needsLocator: 0.46 * Math.abs(adjacent.x-center.x) < 12,
           };
         })()`);
-        log(`${width}x${height}@${dpr}/index ${index}/${name}: actual opaque locator pixels ${JSON.stringify(measurement)}`);
+        log(`${width}x${height}@${dpr}/${name} at ${tick}: actual opaque locator pixels ${JSON.stringify(measurement)}`);
         assert.equal(measurement.overflow, false);
-        assert.equal(measurement.routeVisible, true);
+        assert.equal(measurement.routeVisible, true, 'The fixed-scale camera rectangle is visible, not the remote world.');
         assert.equal(measurement.deaths, 0, 'Encounter samples use the exact legal replay, never teleports.');
-        if (width < 1440) assert.ok(measurement.width >= 12 && measurement.height >= 12,
+        if (measurement.needsLocator) assert.ok(measurement.width >= 12 && measurement.height >= 12,
           'Measure opaque rendered pixels, not a halo, sprite box, collider diameter, or projected proxy.');
-        else assert.deepEqual([measurement.width, measurement.height], [0, 0], 'No redundant desktop locator.');
+        else assert.deepEqual([measurement.width, measurement.height], [0, 0], 'No redundant locator when the body already fits.');
       }
     }
   });

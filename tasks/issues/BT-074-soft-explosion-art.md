@@ -3,7 +3,7 @@
   "id": "BT-074",
   "title": "Restyle explosion pads to the soft-lit diorama art",
   "type": "feature",
-  "status": "review",
+  "status": "done",
   "priority": "P2",
   "depends_on": ["BT-073"],
   "parent": null,
@@ -86,8 +86,8 @@ world.
     passes.
   - Browser suites with exit 0: explosions (passed on retry after a load
     timeout), readability, graphics-recovery, world-editor and
-    explosion-puzzles. browser-check and checkpoint-camera were still running
-    at commit time.
+    explosion-puzzles. browser-check and checkpoint-camera passed after the
+    commit.
   - Evidence: session `bcce7959` under `files/soft2`.
 - Risks: as follows.
   - Idle triangles rise because of the rounded groove ribbons. Tessellation is
@@ -102,4 +102,9 @@ world.
 
 ## Result
 
-Pending.
+- Summary: Accepted on 2026-10-12. The user said "This is looking a lot
+  better" and asked for the work to be committed.
+- Verification: `npm run evaluate` passes (491/491), and seven browser suites
+  have exit 0: explosions, readability, graphics-recovery, world-editor,
+  explosion-puzzles, browser-check and checkpoint-camera.
+- Integration: on `master` as `26acaab`.

@@ -112,12 +112,8 @@ and record draw calls from `__BOUNDSTOY__.metrics()` before and after.
   - Pad geometries still upload per pad on first charge (R15 follow-up).
   - The tone of the fill was judged by eye in SwiftShader captures; hardware
     GPUs may differ slightly.
-- Commit: none. The work is in the main working tree at `.`, among other
-  sessions' uncommitted changes. Files:
-  - `presentation/{scene,hazard-visuals,readability,wall-visuals,world-camera,marker-visuals,terrain-visuals}.ts`
-  - `data/terrain.ts`
-  - `tests/{route-signs,marker-visuals,hazard-visuals,ground-visuals,wall-visuals,world-camera}.test.ts`
-  - docs
+- Commit: merged to `master` on 2026-10-12 with the full working tree, as
+  snapshot `b4d50e2` plus its follow-up commit.
 - Resources: every browser run used the repository's owned headless Chromium
   harness. All processes, ports and profiles were cleaned up by the harness.
 - Decisions: as follows.

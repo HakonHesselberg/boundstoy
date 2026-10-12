@@ -115,11 +115,8 @@ world-editor and journey. Then take before/after headless captures and metrics.
     the lanes slightly.
   - The hairline grid is subtle at world scale.
   - Tones were judged in SwiftShader captures.
-- Commit: none. The work is in the main working tree among other sessions'
-  uncommitted changes. Files:
-  - `presentation/{scene,hazard-visuals,wall-visuals,terrain-visuals,stroke-visuals,player-visuals}.ts`
-  - `tests/{stroke-visuals,scene-strokes,player-visuals,hazard-visuals,ground-visuals,wall-visuals,motion}.test.ts`
-  - docs
+- Commit: merged to `master` on 2026-10-12 with the full working tree, as
+  snapshot `b4d50e2` plus its follow-up commit.
 - Resources: every run used the repository's owned headless Chromium harness,
   which cleaned up all processes.
 - Decisions: as follows.

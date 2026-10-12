@@ -129,6 +129,19 @@ Design takeaways from this playtest, not an approved redesign:
 - Inward rings received negative feedback on every surface. Wall slalom's
   current hazards are too trivial on normal and hard ice.
 
+### Subsequent scope decision
+
+2026-10-12, after reviewing all 24: the user directed us to ignore mud
+completely and focus on a good set of explosion puzzles. This supersedes the
+proposed next round of six mixed prototypes: no mud prototype or separate
+hazard-free sliding/aiming course in the next set. Prioritize explosion-pattern
+gameplay rather than surface comparisons. This does not itself remove existing
+movement rules or benchmark data; the existing 24 remain reference material.
+The exact next layouts and the role of ice have not been selected.
+
+The user also requested closing the running game. Stopped the owned
+`aftershock-playtest` preview session on port 4400.
+
 ## Handoff
 
 - Summary: Implemented the approved 24-trial collection directly in the primary worktree.

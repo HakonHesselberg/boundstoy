@@ -4,7 +4,8 @@ import { Box3, Mesh, ConeGeometry, Vector3, LineSegments, Matrix4, Color } from 
 import { createSpikes, createPulse, updatePulse, createPulseField, pulseFieldMode, createSawPath, createSawBlade,
   SAW_HALO_SIZE, WALL_HEIGHT, PULSE_BURST_PEAK_HEIGHT, type PulseView } from '../presentation/hazard-visuals.ts';
 import { RULES } from '../data/terrain.ts';
-import { EXPLOSION_STYLES, EXPLOSION_STYLE_IDS, DORMANT_FRAME, FRAME_KEYLINE } from '../data/explosion-styles.ts';
+import { EXPLOSION_STYLES, EXPLOSION_STYLE_IDS, DORMANT_FRAME } from '../data/explosion-styles.ts';
+import { LinearFilter, Texture } from 'three';
 import { AFTERSHOCK_LEVELS as LEVELS } from '../data/aftershock.ts';
 import { hazardSample } from '../core/simulation.ts';
 import type { Pulse } from '../core/level.ts';
@@ -36,29 +37,50 @@ test('Pulse_Warning_IsExactly225MillisecondsWithoutMovingIgnitionOrExtendingDang
   assert.equal(hazardSample(pulse, 361).active, false);
 });
 
-test('Pulse_Idle_IsAFlushStyleFrameOverVisibleGroundWithoutPlateOrDot', () => {
+test('Pulse_Idle_IsAThinRoundedGlowingGrooveOverVisibleGround', () => {
   const view = createPulse('ember');
   updatePulse(view, pulse, 200, false);
-  assert.deepEqual(new Set(visibleMeshes(view)), new Set([view.keyline, view.frame]),
-    'only the keyline and frame: the terrain beneath stays visible');
+  assert.deepEqual(new Set(visibleMeshes(view)), new Set([view.frame, view.edgeGlow]),
+    'a groove and its soft glow; no plate, dot, keyline or brackets');
   view.group.updateMatrixWorld(true);
   for (const mesh of visibleMeshes(view)) assert.ok(new Box3().setFromObject(mesh).max.y <= 0.03, 'flush with the floor');
   let lines = 0;
   view.group.traverse(object => { if (object instanceof LineSegments) lines++; });
   assert.equal(lines, 0, 'no fixed one-pixel GL lines');
-  assert.equal(view.keyline.material.color.getHex(), FRAME_KEYLINE);
-  // Corner brackets: the frame covers more area than a plain band of its width.
-  view.frame.geometry.computeBoundingBox();
-  const size = view.frame.geometry.boundingBox!.getSize(new Vector3());
-  assert.ok(size.x <= RULES.pulseRadius * 2 && size.z <= RULES.pulseRadius * 2, 'frame stays inside the footprint');
   const positions = view.frame.geometry.getAttribute('position');
-  let area = 0;
-  for (let i = 0; i < positions.count; i += 3) {
-    const [a, b, c] = [0, 1, 2].map(k => new Vector3().fromBufferAttribute(positions, i + k));
-    area += b.sub(a).cross(c.sub(a)).length() / 2;
+  const box = new Box3().setFromBufferAttribute(positions as never), outer = box.max.x;
+  assert.ok(outer < RULES.pulseRadius, 'inside the footprint');
+  let area = 0, corner = Infinity;
+  for (let i = 0; i < positions.count; i++) {
+    const v = new Vector3().fromBufferAttribute(positions, i);
+    corner = Math.min(corner, Math.hypot(outer - Math.abs(v.x), outer - Math.abs(v.z)));
+    if (i % 3 === 0) {
+      const [a, b, c] = [0, 1, 2].map(k => new Vector3().fromBufferAttribute(positions, i + k));
+      area += b.sub(a).cross(c.sub(a)).length() / 2;
+    }
   }
-  const band = 4 * (size.x - 0.05) * 0.05;
-  assert.ok(area > band * 1.15, 'thicker corner brackets mark an armed device');
+  assert.ok(corner > 0.02, 'rounded corners: no vertex sits on the square corner');
+  assert.ok(area < 8 * outer * 0.035, 'a thin groove, not a thick sprite band');
+  assert.ok(view.edgeGlow.material.map instanceof Texture && view.edgeGlow.material.blending === 2, 'soft additive inner glow');
+});
+
+test('Pulse_EveryVisiblePart_IsSoftShadedNotFlat', () => {
+  for (const id of EXPLOSION_STYLE_IDS) {
+    const view = createPulse(id);
+    for (const tick of [200, 340, 358, 0, 1, 4, 10, 20, 30]) {
+      updatePulse(view, pulse, tick, false);
+      for (const mesh of visibleMeshes(view)) {
+        const material = mesh.material as { map?: Texture | null; vertexColors?: boolean };
+        const thin = ['frame', 'fuse', 'ember'].includes(mesh.name);
+        assert.ok(thin || material.vertexColors || material.map, `${id}@${tick}: ${mesh.name || mesh.geometry.type} is a flat fill`);
+        if (material.map) assert.equal(material.map.magFilter, LinearFilter, 'smoothly filtered');
+      }
+    }
+    for (const part of view.motif.children as Mesh[]) {
+      assert.ok(part.geometry.getAttribute('position').count >= 60, `${id}: smooth motif geometry`);
+      assert.ok(part.geometry.getAttribute('color'), `${id}: core-to-tip colour gradient`);
+    }
+  }
 });
 
 test('Pulse_Styles_ColourTheFrameBurstAndDebrisAndDormantPadsAreNeutral', () => {
@@ -66,6 +88,7 @@ test('Pulse_Styles_ColourTheFrameBurstAndDebrisAndDormantPadsAreNeutral', () => 
     const style = EXPLOSION_STYLES[id], view = createPulse(id);
     updatePulse(view, pulse, 200, false);
     assert.equal(view.frame.material.color.getHex(), style.frame);
+    assert.equal(view.edgeGlow.material.color.getHex(), style.frame);
     updatePulse(view, pulse, 200, false, false);
     assert.equal(view.frame.material.color.getHex(), DORMANT_FRAME, `${id}: dormant pads carry no style colour`);
     assert.equal(view.warning.visible, false); assert.equal(view.burst.visible, false);
@@ -83,6 +106,7 @@ test('Pulse_ChargeUp_TheFrameBurnsAsTheFuseAndSalienceRisesEveryTick', () => {
     for (let tick = FIRST_WARNING; tick <= LAST_WARNING; tick++) {
       updatePulse(view, pulse, tick, reducedMotion);
       const now = { fuse: view.fuse.geometry.drawRange.count, tint: opacity(view.tint) };
+      assert.ok(view.spark.visible, `${id}: a glowing spark leads the fuse at ${tick}`);
       assert.ok(now.fuse > 0 && now.fuse >= previous.fuse, `${id}: fuse burns monotonically at ${tick}`);
       assert.ok(now.tint > previous.tint, `${id}: charge tint strictly rises at ${tick}`);
       previous = now;
@@ -238,7 +262,7 @@ test('PulseField_IdlePads_UseTwoDrawObjectsForAnyNumberOfPads', () => {
     if (object instanceof Mesh || object instanceof LineSegments) drawables++;
     if (object instanceof LineSegments) lines++;
   });
-  assert.equal(drawables, 2, 'keylines and frames are each one batched draw, whatever the styles');
+  assert.equal(drawables, 2, 'glows and grooves are each one batched draw, whatever the styles');
   assert.equal(lines, 0);
   const matrix = new Matrix4(), position = new Vector3();
   pads.forEach((pad, index) => {
@@ -259,13 +283,13 @@ test('PulseField_Modes_MatchTheIdlePulseViewAndHideLivePads', () => {
     field.setMode(index, enabled ? 'active' : 'dormant');
     field.frames.getColorAt(index, color);
     assert.equal(color.getHex(), view.frame.material.color.getHex(), 'idle frame matches the per-pad view');
-    field.keylines.getColorAt(index, color);
-    assert.equal(color.getHex(), view.keyline.material.color.getHex());
+    field.glows.getColorAt(index, color);
+    assert.equal(color.getHex(), view.edgeGlow.material.color.getHex());
     field.frames.getMatrixAt(index, matrix);
     assert.ok(Math.abs(matrix.determinant()) > 0, 'idle pad is drawn by the field');
   }
   field.setMode(1, 'hidden');
-  for (const mesh of [field.frames, field.keylines]) {
+  for (const mesh of [field.frames, field.glows]) {
     mesh.getMatrixAt(1, matrix);
     assert.deepEqual([0, 1, 2].map(i => new Vector3().setFromMatrixColumn(matrix, i).length()), [0, 0, 0],
       'charging/bursting pads hand over to their per-pad view');
@@ -285,7 +309,7 @@ test('PulseField_Mode_FollowsDormancyWarningAndAftermathWindows', () => {
 
 test('Pulse_Views_ShareStaticGeometryButOwnTheirColoursAndFuse', () => {
   const a = createPulse('toxic'), b = createPulse('toxic');
-  for (const part of ['keyline', 'frame', 'tint', 'flash', 'glow', 'wave', 'scorch', 'footprint'] as const) {
+  for (const part of ['edgeGlow', 'frame', 'tint', 'flash', 'glow', 'wave', 'scorch', 'footprint', 'spark'] as const) {
     assert.equal(a[part].geometry, b[part].geometry, `${part} geometry is uploaded once`);
     assert.notEqual(a[part].material, b[part].material, `${part} colour stays per pad`);
   }

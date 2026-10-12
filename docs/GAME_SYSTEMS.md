@@ -116,16 +116,21 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   Effects sample time since ignition, so skipping the ignition render frame
   does not hide the explosion. Pause freezes the effect; reduced motion removes
   particle travel and expansion but preserves warning, flash and fade.
-  Idle pads draw no plate: the actual terrain shows inside a flush frame (a
-  dark keyline, a style-coloured band and thicker corner brackets). Pads outside
-  the running world puzzle are dormant and use a neutral grey frame. Idle pads
-  are one instanced field (two draws); a pad switches to its own animated view
-  only while charging or bursting. During the warning the frame heats and a fuse
-  burns round it clockwise while a translucent tint rises to at most 0.5 opacity.
-  Ignition holds an opaque white-hot sheet for two ticks (always more salient
-  than the charge-up), with a style-coloured eruption peaking at tick 4 (at most
-  0.5 tall), an expanding shockwave, a glow, then a scorch mark and embers
-  cooling to the style's debris colour. Every vertex stays inside the projected
+  Idle pads draw no plate: the actual terrain shows inside a thin rounded
+  groove in the style colour with a soft additive inner edge glow. Pads outside
+  the running world puzzle are dormant: a grey groove and a faint glow. Idle
+  pads are one instanced field (two draws); a pad switches to its own animated
+  view only while charging or bursting. During the warning a glowing spark burns
+  clockwise round the groove, leaving a hot trail, while a soft edge tint rises
+  to at most 0.5 opacity. Ignition holds a soft, rounded white-hot flash for two
+  ticks (always more salient than the charge-up), with a smooth eruption that
+  shades from the style's white-hot core to its colour at the tips, peaking at
+  tick 4 (at most 0.5 tall). A soft ring shockwave and radial glow follow, then
+  a radial scorch and glowing embers that cool to the style's debris colour.
+  Pad art follows the soft-lit diorama: every visible part is shaded by a
+  linear-filtered mask (`presentation/glow-textures.ts`) or a vertex gradient,
+  except the thin groove, fuse and embers; there are no stepped or keyline
+  pixel-art cues. Every vertex stays inside the projected
   tile for all styles and ticks (`tests/mobile-readability.test.ts`).
 - Explosion style: optional cosmetic `style` on a pulse: `ember` (default and
   omitted on export), `plasma`, `toxic` or `psionic` (`data/explosion-styles.ts`).

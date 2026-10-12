@@ -29,8 +29,6 @@ export const EXPLOSION_STYLES = Object.freeze({
 export type ExplosionStyleId = keyof typeof EXPLOSION_STYLES;
 export const EXPLOSION_STYLE_IDS = Object.freeze(Object.keys(EXPLOSION_STYLES) as ExplosionStyleId[]);
 export const DEFAULT_EXPLOSION_STYLE: ExplosionStyleId = 'ember';
-/** Dark line around every frame band so it separates from light and dark floors alike. */
-export const FRAME_KEYLINE = 0x0b1118;
 /** Pads outside the running puzzle: same frame, no style colour. */
 export const DORMANT_FRAME = 0x6f7d88;
 

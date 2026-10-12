@@ -3,7 +3,7 @@
   "id": "BT-073",
   "title": "Add explosion styles, edge identity and bolder detonations",
   "type": "feature",
-  "status": "review",
+  "status": "done",
   "priority": "P2",
   "depends_on": [],
   "parent": null,
@@ -124,4 +124,10 @@ Take per-style headless captures at 1280×900.
 
 ## Result
 
-Pending.
+- Summary: Accepted on 2026-10-12. The user reviewed the merged result ("this
+  is getting better") and asked for the pixel-art look to be addressed. That
+  restyle continues in BT-074; the functional styles, colour groups and
+  editor stay.
+- Verification: the merged tree passes `npm run evaluate` (487/487) and the
+  browser-check, world-editor, explosion-puzzles and explosions suites.
+- Integration: merged into `master` as `0d3c6c4`.

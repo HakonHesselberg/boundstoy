@@ -116,11 +116,11 @@ three seconds; imported JSON/drafts retain their periods and phases, but legacy
 Existing drafts and older records are preserved, but old clears do not affect
 Continue. Choose **Remix level** in the editor to copy a current layout.
 
-An explosive tile shows its real ground (normal, ice or mud) inside a coloured frame with corner
-brackets. The colour groups pads that fire together: Ember (orange), Plasma (blue), Toxic (green) or
-Psionic (violet). Pads outside the running puzzle use a neutral grey frame. As it charges, the frame
-burns round as a fuse while a tint rises; then the tile turns white-hot and a coloured eruption,
-shockwave and cooling scorch follow. The framed square is the danger footprint.
+An explosive tile shows its real ground (normal, ice or mud) inside a thin, softly glowing rounded
+groove. The colour groups pads that fire together: Ember (orange), Plasma (blue), Toxic (green) or
+Psionic (violet). Pads outside the running puzzle use a neutral grey groove. As it charges, a spark
+burns round the groove while a soft glow rises; then the tile flashes white-hot and a smooth coloured
+eruption, shockwave and cooling scorch follow. The grooved square is the danger footprint.
 The tile is safe immediately after detonation, even while the burst dissipates
 for 300 ms. Fading debris is harmless, not continuous fire. Optional audio
 includes a low detonation thump.

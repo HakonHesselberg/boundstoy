@@ -38,6 +38,8 @@ disguise a continuous damage window. Warnings last 27 ticks (225 ms); keep effec
 compact and inside their projected tile footprint. Keep the four movement rules unchanged.
 Explosion colour is cosmetic: give each rhythm group one style, contrast neighbouring
 groups, and never let colour alone carry danger. No red explosion style.
+Art direction is a soft-lit stylised 3D diorama: soft masks, gradients and smooth
+geometry. Avoid pixel-art cues (stepped edges, keylines, flat colour blocks).
 Changes to routes require exact legal replays, necessity checks and measured
 input margins; these checks are not a substitute for worthwhile gameplay.
 Do not restore the obsolete six-lesson/Pocket wave preservation constraints.

@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { RULES } from '../data/terrain.ts';
-import { DEFAULT_EXPLOSION_STYLE, DORMANT_FRAME, EXPLOSION_STYLES, FRAME_KEYLINE, explosionStyle,
-  type ExplosionMotif, type ExplosionStyleId } from '../data/explosion-styles.ts';
+import { DEFAULT_EXPLOSION_STYLE, DORMANT_FRAME, EXPLOSION_STYLES, explosionStyle,
+  type ExplosionMotif, type ExplosionStyleDefinition, type ExplosionStyleId } from '../data/explosion-styles.ts';
+import { GLOW_TEXTURES } from './glow-textures.ts';
 import type { Pulse } from '../core/level.ts';
 import { hazardSample } from '../core/simulation.ts';
 import type { Point } from '../core/level.ts';
-import { createFrameGeometry, createRectsGeometry, createStrokeGeometry, frameRects } from './stroke-visuals.ts';
+import { createStrokeGeometry } from './stroke-visuals.ts';
 
 export const WALL_HEIGHT = 0.24;
 
@@ -38,17 +39,18 @@ export function createSpikes(): THREE.Group {
 // as far as its distance from the far edge allows. Sizes below are chosen
 // against that envelope and verified for every tick in mobile-readability tests.
 const R = RULES.pulseRadius;
-const KEYLINE = Object.freeze({ outer: R - 0.01, width: 0.016, y: 0.006 });
-const FRAME = Object.freeze({ outer: R - 0.024, width: 0.05, y: 0.008, bracket: 0.17, bracketWidth: 0.045 });
+// Idle identity: a thin rounded groove with a soft inner glow; the floor stays visible.
+const GROOVE = Object.freeze({ outer: R - 0.03, width: 0.028, radius: 0.09, y: 0.008 });
+const EDGE_GLOW = Object.freeze({ half: R - 0.03, y: 0.01, opacity: 0.55, dormant: 0x2c3338 });
 const FUSE_Y = 0.01;
-const FUSE_SEGMENTS_PER_SIDE = 9;
+const SPARK = Object.freeze({ size: 0.044, y: 0.014, pulse: 0.25 });
 const TINT = Object.freeze({ half: R - 0.03, y: 0.012, start: 0.06, rise: 0.44 });
 const FLASH = Object.freeze({ inset: 0.012, y: 0.014, holdTicks: 2, floor: 0.4 });
-const SCORCH = Object.freeze({ half: R - 0.01, y: 0.004, opacity: 0.65, fromTick: 2 });
-const GLOW = Object.freeze({ radius: 0.38, y: 0.016, ticks: 14 });
-const WAVE = Object.freeze({ radius: 0.3, tube: 0.025, y: 0.02, from: 0.4, to: 1.2, ticks: 14 });
+const SCORCH = Object.freeze({ half: R - 0.01, y: 0.004, opacity: 0.7, fromTick: 2 });
+const GLOW = Object.freeze({ half: 0.38, y: 0.016, ticks: 14 });
+const WAVE = Object.freeze({ half: 0.32, y: 0.02, from: 0.4, to: 1.2, ticks: 14 });
 const MOTIF = Object.freeze({ peakTick: 4, ticks: 16 });
-const EMBERS = Object.freeze({ count: 6, size: 0.03, from: 0.08, to: 0.26, lift: 0.16, coolTicks: 14 });
+const EMBERS = Object.freeze({ count: 6, size: 0.026, from: 0.08, to: 0.26, lift: 0.16, coolTicks: 14 });
 /** Highest point any burst motif reaches; a column at the tile centre stays inside the projection. */
 export const PULSE_BURST_PEAK_HEIGHT = 0.5;
 
@@ -58,36 +60,69 @@ const flatPlane = (half: number, y: number) =>
   new THREE.PlaneGeometry(half * 2, half * 2).rotateX(-Math.PI / 2).translate(0, y, 0);
 const apexUp = (geometry: THREE.BufferGeometry, height: number) => geometry.translate(0, height / 2, 0);
 
-/** Band plus thicker corner brackets: reads as an armed device over any floor. */
-function hazardFrameGeometry() {
-  const { outer, width, bracket, bracketWidth } = FRAME, inner = outer - width, deep = inner - bracketWidth;
-  const rects = frameRects(outer, width);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const x0 = sx * inner, x1 = sx * deep, z0 = sz * inner, z1 = sz * deep, reach = sx * (outer - bracket);
-    const zreach = sz * (outer - bracket);
-    rects.push([Math.min(x0, reach), Math.min(z0, z1), Math.max(x0, reach), Math.max(z0, z1)]);
-    rects.push([Math.min(x0, x1), Math.min(z1, zreach), Math.max(x0, x1), Math.max(z1, zreach)]);
-  }
-  return createRectsGeometry(rects).translate(0, FRAME.y, 0);
-}
-
-/** Clockwise copy of the frame band; drawRange reveals it as the burning fuse. */
-function fuseGeometry() {
-  const outer = FRAME.outer, inner = outer - FRAME.width;
-  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-  const positions: number[] = [];
-  for (let side = 0; side < 4; side++) {
-    const [ax, az] = corners[side], [bx, bz] = corners[(side + 1) % 4];
-    for (let i = 0; i < FUSE_SEGMENTS_PER_SIDE; i++) {
-      const s0 = i / FUSE_SEGMENTS_PER_SIDE, s1 = (i + 1) / FUSE_SEGMENTS_PER_SIDE;
-      const point = (s: number, r: number) => [(ax + (bx - ax) * s) * r, FUSE_Y, (az + (bz - az) * s) * r];
-      const [o0, o1, i0, i1] = [point(s0, outer), point(s1, outer), point(s0, inner), point(s1, inner)];
-      positions.push(...o0, ...i0, ...o1, ...o1, ...i0, ...i1);
+/** Clockwise centreline of a rounded square, with outward normals and cumulative length. */
+function roundedPath(half: number, radius: number, perCorner = 6, perSide = 4) {
+  const points: { x: number; z: number; nx: number; nz: number }[] = [];
+  const inner = half - radius;
+  // Corner centres and start angles walk clockwise from the far-left corner (screen top-left).
+  const corners = [[inner, -inner, -Math.PI / 2], [inner, inner, 0], [-inner, inner, Math.PI / 2], [-inner, -inner, Math.PI]] as const;
+  corners.forEach(([cx, cz, start], index) => {
+    const [px, pz, previous] = corners[(index + 3) % 4];
+    const from = { x: px + radius * Math.cos(previous + Math.PI / 2), z: pz + radius * Math.sin(previous + Math.PI / 2) };
+    const to = { x: cx + radius * Math.cos(start), z: cz + radius * Math.sin(start) };
+    for (let i = 0; i < perSide; i++) {
+      const t = i / perSide;
+      points.push({ x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t, nx: Math.cos(start), nz: Math.sin(start) });
     }
+    for (let i = 0; i < perCorner; i++) {
+      const angle = start + i / perCorner * Math.PI / 2;
+      points.push({ x: cx + radius * Math.cos(angle), z: cz + radius * Math.sin(angle), nx: Math.cos(angle), nz: Math.sin(angle) });
+    }
+  });
+  points.push(points[0]);
+  const lengths = [0];
+  for (let i = 1; i < points.length; i++)
+    lengths.push(lengths[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z));
+  return { points, lengths };
+}
+const GROOVE_PATH = roundedPath(GROOVE.outer - GROOVE.width / 2, GROOVE.radius - GROOVE.width / 2);
+
+/** Ribbon along the groove path, one quad per path step in clockwise order (drawRange reveals it). */
+function grooveRibbon(y: number) {
+  const { points } = GROOVE_PATH, w = GROOVE.width / 2, positions: number[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const [ao, ai, bo, bi] = [[a, w], [a, -w], [b, w], [b, -w]].map(([p, d]) => {
+      const q = p as typeof a, offset = d as number;
+      return [q.x + q.nx * offset, y, q.z + q.nz * offset];
+    });
+    positions.push(...ao, ...ai, ...bo, ...bo, ...ai, ...bi);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setDrawRange(0, 0);
+  return geometry;
+}
+function grooveAt(fraction: number) {
+  const { points, lengths } = GROOVE_PATH, target = fraction * lengths.at(-1)!;
+  let i = 1;
+  while (i < lengths.length - 1 && lengths[i] < target) i++;
+  const span = lengths[i] - lengths[i - 1], t = span ? (target - lengths[i - 1]) / span : 0;
+  return { x: points[i - 1].x + (points[i].x - points[i - 1].x) * t, z: points[i - 1].z + (points[i].z - points[i - 1].z) * t };
+}
+
+type Gradient = (position: THREE.Vector3) => number;
+const GRADIENT_FLOOR = 0.25;
+/** Per-vertex colour from the style's white-hot core (t = 0) to its burst colour (t = 1). */
+function gradientGeometry(geometry: THREE.BufferGeometry, style: ExplosionStyleDefinition, along: Gradient) {
+  const positions = geometry.getAttribute('position'), colors: number[] = [];
+  const core = new THREE.Color(style.core), burst = new THREE.Color(style.burst), color = new THREE.Color(), v = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    // Only the innermost part reaches white-hot; most of the shape keeps a saturated style colour.
+    const t = Math.min(Math.max(along(v.fromBufferAttribute(positions, i)), 0), 1);
+    color.lerpColors(core, burst, GRADIENT_FLOOR + (1 - GRADIENT_FLOOR) * Math.sqrt(t));
+    colors.push(color.r, color.g, color.b);
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   return geometry;
 }
 
@@ -95,50 +130,69 @@ function fuseGeometry() {
 // and the fuse draw range stay per pad.
 const SHARED = Object.freeze({
   footprint: new THREE.PlaneGeometry(R * 2, R * 2).rotateX(-Math.PI / 2),
-  keyline: createFrameGeometry(KEYLINE.outer, KEYLINE.width).translate(0, KEYLINE.y, 0),
-  frame: hazardFrameGeometry(),
+  groove: grooveRibbon(GROOVE.y),
+  edgeGlow: flatPlane(EDGE_GLOW.half, EDGE_GLOW.y),
+  spark: flatPlane(SPARK.size / 2, 0),
   tint: flatPlane(TINT.half, TINT.y),
   flash: flatPlane(R - FLASH.inset, FLASH.y),
   scorch: flatPlane(SCORCH.half, SCORCH.y),
-  glow: new THREE.CircleGeometry(GLOW.radius, 28).rotateX(-Math.PI / 2).translate(0, GLOW.y, 0),
-  wave: new THREE.TorusGeometry(WAVE.radius, WAVE.tube, 6, 28).rotateX(-Math.PI / 2).translate(0, WAVE.y, 0),
-  ember: new THREE.OctahedronGeometry(EMBERS.size),
-  column: apexUp(new THREE.ConeGeometry(0.08, PULSE_BURST_PEAK_HEIGHT, 8), PULSE_BURST_PEAK_HEIGHT),
-  petal: apexUp(new THREE.ConeGeometry(0.07, 0.26, 5), 0.26),
-  ring: new THREE.TorusGeometry(0.22, 0.02, 6, 28).rotateX(-Math.PI / 2),
-  bolt: apexUp(new THREE.CylinderGeometry(0.018, 0.03, PULSE_BURST_PEAK_HEIGHT, 5), PULSE_BURST_PEAK_HEIGHT),
-  puff: new THREE.IcosahedronGeometry(0.12, 1),
-  shard: new THREE.TetrahedronGeometry(0.05),
+  glow: flatPlane(GLOW.half, GLOW.y),
+  wave: flatPlane(WAVE.half, WAVE.y),
+  ember: new THREE.SphereGeometry(EMBERS.size, 10, 6),
 });
 
-type Part = Readonly<{ geometry: THREE.BufferGeometry; position: readonly [number, number, number];
+type Part = Readonly<{ shape: string; position: readonly [number, number, number];
   tilt?: readonly [number, number]; scale?: number }>;
 const ring = (count: number, make: (angle: number, index: number) => Part) =>
   Array.from({ length: count }, (_, i) => make(i * Math.PI * 2 / count, i));
-/** Burst shapes per motif; each part's extreme points sit inside the projected envelope. */
+const PETAL = 0.26, PUFF = 0.12;
+/** Smooth shapes with a colour gradient: hot at the core and base, style colour at the tips. */
+const SHAPES: Readonly<Record<string, () => [THREE.BufferGeometry, Gradient]>> = Object.freeze({
+  column: () => [apexUp(new THREE.ConeGeometry(0.08, PULSE_BURST_PEAK_HEIGHT, 16, 6), PULSE_BURST_PEAK_HEIGHT),
+    v => (v.y / PULSE_BURST_PEAK_HEIGHT) ** 0.8],
+  petal: () => [apexUp(new THREE.ConeGeometry(0.07, PETAL, 12, 5), PETAL), v => v.y / PETAL],
+  ring: () => [new THREE.TorusGeometry(0.22, 0.022, 10, 48).rotateX(-Math.PI / 2),
+    v => (Math.hypot(v.x, v.z) - 0.198) / 0.044],
+  bolt: () => [apexUp(new THREE.CylinderGeometry(0.016, 0.03, PULSE_BURST_PEAK_HEIGHT, 8, 8), PULSE_BURST_PEAK_HEIGHT),
+    v => 0.3 + 0.7 * (v.y / PULSE_BURST_PEAK_HEIGHT)],
+  puff: () => [new THREE.IcosahedronGeometry(PUFF, 3), v => 0.75 - 0.6 * (v.y + PUFF) / (2 * PUFF)],
+  orb: () => [new THREE.SphereGeometry(0.045, 12, 8), v => 0.3 + 0.7 * (v.y + 0.045) / 0.09],
+});
 const MOTIFS: Readonly<Record<ExplosionMotif, readonly Part[]>> = Object.freeze({
   // Scourge-like eruption: a central flame with eight petals leaning outward.
-  petals: [{ geometry: SHARED.column, position: [0, 0, 0] },
-    ...ring(8, angle => ({ geometry: SHARED.petal, position: [Math.cos(angle) * 0.12, 0, Math.sin(angle) * 0.12],
+  petals: [{ shape: 'column', position: [0, 0, 0] },
+    ...ring(8, angle => ({ shape: 'petal', position: [Math.cos(angle) * 0.12, 0, Math.sin(angle) * 0.12],
       tilt: [Math.cos(angle) * 0.5, Math.sin(angle) * 0.5] }))],
   // Protoss flash: two shock rings and a crackling column of bolts.
-  ring: [{ geometry: SHARED.ring, position: [0, 0.05, 0], scale: 1.4 }, { geometry: SHARED.ring, position: [0, 0.22, 0], scale: 0.9 },
-    ...ring(3, angle => ({ geometry: SHARED.bolt, position: [Math.cos(angle) * 0.04, 0, Math.sin(angle) * 0.04] }))],
+  ring: [{ shape: 'ring', position: [0, 0.05, 0], scale: 1.4 }, { shape: 'ring', position: [0, 0.22, 0], scale: 0.9 },
+    ...ring(3, angle => ({ shape: 'bolt', position: [Math.cos(angle) * 0.04, 0, Math.sin(angle) * 0.04] }))],
   // Zerg cloud: a large central puff over four smaller billows.
-  cloud: [{ geometry: SHARED.puff, position: [0, 0.22, 0], scale: 1.6 },
-    ...ring(4, angle => ({ geometry: SHARED.puff, position: [Math.cos(angle) * 0.17, 0.1, Math.sin(angle) * 0.17], scale: 1.2 }))],
-  // Dark Archon swirl: shards spiralling inward as they climb around a column.
-  swirl: [{ geometry: SHARED.column, position: [0, 0, 0], scale: 0.9 },
-    ...ring(8, (angle, i) => ({ geometry: SHARED.shard,
+  cloud: [{ shape: 'puff', position: [0, 0.22, 0], scale: 1.6 },
+    ...ring(4, angle => ({ shape: 'puff', position: [Math.cos(angle) * 0.17, 0.1, Math.sin(angle) * 0.17], scale: 1.2 }))],
+  // Dark Archon swirl: orbs spiralling inward as they climb around a column.
+  swirl: [{ shape: 'column', position: [0, 0, 0], scale: 0.9 },
+    ...ring(8, (angle, i) => ({ shape: 'orb',
       position: [Math.cos(angle * 1.5) * (0.3 - 0.03 * i), 0.05 + 0.05 * i, Math.sin(angle * 1.5) * (0.3 - 0.03 * i)] }))],
 });
+// Gradient geometry depends on the style's colours, so it is shared per style and shape.
+const shapeCache = new Map<string, THREE.BufferGeometry>();
+function shapeGeometry(style: ExplosionStyleDefinition, shape: string) {
+  const key = `${style.id}:${shape}`;
+  let geometry = shapeCache.get(key);
+  if (!geometry) {
+    const [base, along] = SHAPES[shape]();
+    geometry = gradientGeometry(base, style, along);
+    shapeCache.set(key, geometry);
+  }
+  return geometry;
+}
 
 const UP = new THREE.Vector3(0, 1, 0);
-function createMotif(motif: ExplosionMotif, material: THREE.Material) {
+function createMotif(style: ExplosionStyleDefinition, material: THREE.Material) {
   const group = new THREE.Group();
-  group.name = `motif-${motif}`;
-  for (const part of MOTIFS[motif]) {
-    const mesh = new THREE.Mesh(part.geometry, material);
+  group.name = `motif-${style.motif}`;
+  for (const part of MOTIFS[style.motif]) {
+    const mesh = new THREE.Mesh(shapeGeometry(style, part.shape), material);
     mesh.position.set(...part.position);
     if (part.tilt) mesh.quaternion.setFromUnitVectors(UP, new THREE.Vector3(part.tilt[0], 1, part.tilt[1]).normalize());
     mesh.scale.setScalar(part.scale ?? 1);
@@ -151,34 +205,39 @@ const basic = (color: number, extra: THREE.MeshBasicMaterialParameters = {}) =>
   new THREE.MeshBasicMaterial({ color, toneMapped: false, ...extra });
 const fading = (color: number, extra: THREE.MeshBasicMaterialParameters = {}) =>
   basic(color, { transparent: true, depthWrite: false, ...extra });
+const glowing = (color: number, map: THREE.Texture, extra: THREE.MeshBasicMaterialParameters = {}) =>
+  fading(color, { map, blending: THREE.AdditiveBlending, ...extra });
+const named = <T extends THREE.Object3D>(object: T, name: string) => { object.name = name; return object; };
 
 export function createPulse(styleId: ExplosionStyleId = DEFAULT_EXPLOSION_STYLE) {
   const style = EXPLOSION_STYLES[styleId];
   const group = new THREE.Group();
-  const footprint = new THREE.Mesh(SHARED.footprint, basic(0xffffff));
-  footprint.name = 'footprint'; footprint.visible = false;
-  const keyline = new THREE.Mesh(SHARED.keyline, basic(FRAME_KEYLINE));
-  const frame = new THREE.Mesh(SHARED.frame, basic(style.frame));
-  group.add(footprint, keyline, frame);
+  const footprint = named(new THREE.Mesh(SHARED.footprint, basic(0xffffff)), 'footprint');
+  footprint.visible = false;
+  const edgeGlow = named(new THREE.Mesh(SHARED.edgeGlow, glowing(style.frame, GLOW_TEXTURES.edge, { opacity: EDGE_GLOW.opacity })), 'edge-glow');
+  const frame = named(new THREE.Mesh(SHARED.groove, basic(style.frame, { side: THREE.DoubleSide })), 'frame');
+  group.add(footprint, edgeGlow, frame);
 
   const warning = new THREE.Group();
-  const tint = new THREE.Mesh(SHARED.tint, fading(style.hot));
-  const fuse = new THREE.Mesh(fuseGeometry(), basic(style.core, { side: THREE.DoubleSide }));
-  warning.add(tint, fuse); group.add(warning);
+  const tint = named(new THREE.Mesh(SHARED.tint, fading(style.hot, { map: GLOW_TEXTURES.edge })), 'tint');
+  const fuse = named(new THREE.Mesh(grooveRibbon(FUSE_Y), basic(style.core, { side: THREE.DoubleSide })), 'fuse');
+  fuse.geometry.setDrawRange(0, 0);
+  const spark = named(new THREE.Mesh(SHARED.spark, glowing(style.core, GLOW_TEXTURES.radial)), 'spark');
+  warning.add(tint, fuse, spark); group.add(warning);
 
   const burst = new THREE.Group();
-  const scorch = new THREE.Mesh(SHARED.scorch, fading(style.scorch));
-  const glow = new THREE.Mesh(SHARED.glow, fading(style.burst, { blending: THREE.AdditiveBlending }));
-  const flash = new THREE.Mesh(SHARED.flash, fading(style.core));
-  const wave = new THREE.Mesh(SHARED.wave, fading(style.hot));
-  const motifMaterial = fading(style.burst);
-  const motif = createMotif(style.motif, motifMaterial);
+  const scorch = named(new THREE.Mesh(SHARED.scorch, fading(style.scorch, { map: GLOW_TEXTURES.scorch })), 'scorch');
+  const glow = named(new THREE.Mesh(SHARED.glow, glowing(style.burst, GLOW_TEXTURES.radial)), 'glow');
+  const flash = named(new THREE.Mesh(SHARED.flash, fading(style.core, { map: GLOW_TEXTURES.flash })), 'flash');
+  const wave = named(new THREE.Mesh(SHARED.wave, glowing(style.hot, GLOW_TEXTURES.ring)), 'wave');
+  const motifMaterial = fading(0xffffff, { vertexColors: true });
+  const motif = createMotif(style, motifMaterial);
   const embers = new THREE.Group();
-  const emberMaterial = fading(style.burst);
-  for (let i = 0; i < EMBERS.count; i++) embers.add(new THREE.Mesh(SHARED.ember, emberMaterial));
+  const emberMaterial = fading(style.burst, { blending: THREE.AdditiveBlending });
+  for (let i = 0; i < EMBERS.count; i++) embers.add(named(new THREE.Mesh(SHARED.ember, emberMaterial), 'ember'));
   [scorch, glow, flash, wave, motif, embers].forEach((part, order) => { part.renderOrder = order; burst.add(part); });
   group.add(burst);
-  return { group, style, footprint, keyline, frame, warning, tint, fuse, burst, scorch, glow, flash, wave,
+  return { group, style, footprint, edgeGlow, frame, warning, tint, fuse, spark, burst, scorch, glow, flash, wave,
     motif, motifMaterial, embers, emberMaterial };
 }
 
@@ -199,16 +258,25 @@ export function updatePulse(view: PulseView, hazard: Pulse, tick: number, reduce
   const bursting = cycle < RULES.pulseEffectTicks;
   const age = Math.min(cycle / RULES.pulseEffectTicks, 1);
 
-  // Identity: the frame over visible ground. It heats toward the fuse colour while charging.
+  // Identity: the groove over visible ground. It heats toward the fuse colour while charging.
   view.frame.visible = !(bursting && cycle < RULES.pulseFlashTicks);
-  view.keyline.visible = view.frame.visible;
-  if (!enabled) view.frame.material.color.setHex(DORMANT_FRAME);
-  else mix(view.frame.material.color, style.frame, style.hot, charge);
+  view.edgeGlow.visible = view.frame.visible;
+  if (!enabled) {
+    view.frame.material.color.setHex(DORMANT_FRAME);
+    view.edgeGlow.material.color.setHex(EDGE_GLOW.dormant);
+  } else {
+    mix(view.frame.material.color, style.frame, style.hot, charge);
+    view.edgeGlow.material.color.setHex(style.frame);
+  }
 
-  // Anticipation: the fuse burns clockwise round the frame while a tint rises.
+  // Anticipation: a spark burns clockwise round the groove, leaving a hot trail, while an edge tint rises.
   view.warning.visible = sample.warning;
   const segments = view.fuse.geometry.getAttribute('position').count / 6;
   view.fuse.geometry.setDrawRange(0, Math.ceil(charge * segments) * 6);
+  const head = grooveAt(Math.min(charge, 0.999));
+  view.spark.visible = sample.warning;
+  view.spark.position.set(head.x, SPARK.y, head.z);
+  view.spark.scale.setScalar(reducedMotion ? 1 : 1 + SPARK.pulse * Math.sin(cycle * 1.7));
   view.tint.material.opacity = sample.warning ? TINT.start + TINT.rise * charge ** 1.5 : 0;
 
   // Detonation, sampled by time since ignition so a frame need not land on the lethal tick.
@@ -233,8 +301,6 @@ export function updatePulse(view: PulseView, hazard: Pulse, tick: number, reduce
     : 1 - easeInCubic((cycle - MOTIF.peakTick) / (MOTIF.ticks - MOTIF.peakTick));
   view.motif.scale.setScalar(reducedMotion ? 1 : Math.max(rise, 0.001));
   view.motif.rotation.y = reducedMotion || style.motif !== 'swirl' ? 0 : cycle * 0.25;
-  // Saturated against the white-hot flash, warming to the fuse colour as it collapses.
-  mix(view.motifMaterial.color, style.burst, style.hot, (cycle - MOTIF.peakTick) / (MOTIF.ticks - MOTIF.peakTick));
   view.motifMaterial.opacity = cycle <= MOTIF.peakTick ? 1 : Math.max(rise, 0.15);
 
   view.scorch.visible = cycle >= SCORCH.fromTick;
@@ -249,7 +315,6 @@ export function updatePulse(view: PulseView, hazard: Pulse, tick: number, reduce
     const angle = (index + 0.25) * Math.PI * 2 / EMBERS.count;
     const radius = EMBERS.from + (EMBERS.to - EMBERS.from) * flight;
     ember.position.set(Math.cos(angle) * radius, 0.02 + 4 * flight * (1 - flight) * EMBERS.lift, Math.sin(angle) * radius);
-    ember.rotation.set(angle, angle * 2, 0);
     ember.scale.setScalar(1 - 0.6 * age);
   });
 }
@@ -269,9 +334,10 @@ export function pulseFieldMode(sample: ReturnType<typeof hazardSample>, enabled:
 export function createPulseField(pads: readonly Readonly<{ x: number; y: number; style?: ExplosionStyleId }>[]) {
   const group = new THREE.Group();
   group.name = 'pulse-field';
-  const keylines = new THREE.InstancedMesh(SHARED.keyline.clone(), basic(0xffffff), pads.length);
-  const frames = new THREE.InstancedMesh(SHARED.frame.clone(), basic(0xffffff), pads.length);
-  group.add(keylines, frames);
+  const glows = new THREE.InstancedMesh(SHARED.edgeGlow.clone(),
+    glowing(0xffffff, GLOW_TEXTURES.edge, { opacity: EDGE_GLOW.opacity }), pads.length);
+  const frames = new THREE.InstancedMesh(SHARED.groove.clone(), basic(0xffffff, { side: THREE.DoubleSide }), pads.length);
+  group.add(glows, frames);
 
   const modes: (PulseFieldMode | null)[] = pads.map(() => null);
   const matrix = new THREE.Matrix4(), color = new THREE.Color();
@@ -279,23 +345,23 @@ export function createPulseField(pads: readonly Readonly<{ x: number; y: number;
   function setMode(index: number, mode: PulseFieldMode) {
     if (modes[index] === mode) return false;
     modes[index] = mode;
-    const pad = pads[index], shown = mode !== 'hidden';
+    const pad = pads[index], shown = mode !== 'hidden', dormant = mode === 'dormant';
     if (shown) matrix.makeTranslation(pad.x + 0.5, 0, pad.y + 0.5);
-    for (const mesh of [keylines, frames]) mesh.setMatrixAt(index, shown ? matrix : HIDDEN);
-    keylines.setColorAt(index, color.setHex(FRAME_KEYLINE));
-    frames.setColorAt(index, color.setHex(mode === 'dormant' ? DORMANT_FRAME : explosionStyle(pad).frame));
-    for (const mesh of [keylines, frames]) {
+    for (const mesh of [glows, frames]) mesh.setMatrixAt(index, shown ? matrix : HIDDEN);
+    glows.setColorAt(index, color.setHex(dormant ? EDGE_GLOW.dormant : explosionStyle(pad).frame));
+    frames.setColorAt(index, color.setHex(dormant ? DORMANT_FRAME : explosionStyle(pad).frame));
+    for (const mesh of [glows, frames]) {
       mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor!.needsUpdate = true;
     }
     return true;
   }
   pads.forEach((_, index) => setMode(index, 'active'));
   // Culling bounds come from the full field; hidden instances only shrink inside them.
-  for (const mesh of [keylines, frames]) mesh.computeBoundingSphere();
+  for (const mesh of [glows, frames]) mesh.computeBoundingSphere();
   const dispose = () => {
-    for (const mesh of [keylines, frames]) { mesh.geometry.dispose(); mesh.material.dispose(); }
+    for (const mesh of [glows, frames]) { mesh.geometry.dispose(); mesh.material.dispose(); }
   };
-  return { group, keylines, frames, setMode, dispose };
+  return { group, glows, frames, setMode, dispose };
 }
 
 export type PulseField = ReturnType<typeof createPulseField>;

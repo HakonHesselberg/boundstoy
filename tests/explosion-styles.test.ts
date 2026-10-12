@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { EXPLOSION_STYLES, EXPLOSION_STYLE_IDS, DEFAULT_EXPLOSION_STYLE, DORMANT_FRAME, FRAME_KEYLINE, explosionStyle }
+import { EXPLOSION_STYLES, EXPLOSION_STYLE_IDS, DEFAULT_EXPLOSION_STYLE, DORMANT_FRAME, explosionStyle }
   from '../data/explosion-styles.ts';
 import { TERRAIN, GROUND_COLORS } from '../data/terrain.ts';
 import { parseLevel, importLevel, type Pulse } from '../core/level.ts';
@@ -40,7 +40,6 @@ test('ExplosionStyles_Frames_AreDistinctFromEachOtherAndReadableOnEveryFloor', (
   for (const id of EXPLOSION_STYLE_IDS) {
     const { frame } = EXPLOSION_STYLES[id];
     assert.ok(hsl(frame).s >= 0.6, `${id}: saturated, unlike the neutral dormant frame`);
-    assert.ok(contrast(frame, FRAME_KEYLINE) >= 4.5, `${id}: the dark keyline always separates the band`);
     for (const floor of FLOORS) assert.ok(contrast(frame, floor) >= 1.6 || hueGap(frame, floor) >= 40,
       `${id} frame vs floor #${floor.toString(16)}`);
     for (const other of EXPLOSION_STYLE_IDS) if (other !== id)

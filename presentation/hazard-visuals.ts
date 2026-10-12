@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { RULES, GROUND_COLORS, GROUND_WARNING_COLORS } from '../data/terrain.ts';
+import { RULES } from '../data/terrain.ts';
+import { DEFAULT_EXPLOSION_STYLE, DORMANT_FRAME, EXPLOSION_STYLES, FRAME_KEYLINE, explosionStyle,
+  type ExplosionMotif, type ExplosionStyleId } from '../data/explosion-styles.ts';
 import type { Pulse } from '../core/level.ts';
 import { hazardSample } from '../core/simulation.ts';
 import type { Point } from '../core/level.ts';
-import { createFrameGeometry, createStrokeGeometry } from './stroke-visuals.ts';
+import { createFrameGeometry, createRectsGeometry, createStrokeGeometry, frameRects } from './stroke-visuals.ts';
 
 export const WALL_HEIGHT = 0.24;
 
@@ -29,49 +31,56 @@ export function createSpikes(): THREE.Group {
 }
 
 // Pulse presentation. Timing and footprint come from RULES; these values only
-// shape how idle, charge-up, flash and harmless aftermath read on screen.
-const PILOT_RADIUS = 0.085;
-const PILOT_IDLE = 0xe8a94c;
-const PILOT_HOT = 0xfff7e6;
-const OUTLINE_IDLE = 0xb4874a;
-// Inactive-section pads: still a recognisable footprint, but neutral so only
-// the running puzzle carries amber on screen.
-const PILOT_DORMANT = 0x6f7d88;
-const OUTLINE_DORMANT = 0x66737d;
-const PILOT_Y = 0.022;
-const OUTLINE_Y = 0.021;
-/** World-unit footprint band: about 1 px at desktop world scale, wider when closer. */
-const OUTLINE_WIDTH = 0.03;
-// Keeps the raised band inside the plate's projected footprint at the camera tilt.
-const OUTLINE_INSET = 0.004;
-const FUSE_WIDTH = 0.07;
+// shape how idle, charge-up, detonation and harmless aftermath read on screen.
+//
+// Every vertex must stay inside the tile's projected footprint. At the fixed
+// 25:17 camera tilt, screen-up = 0.562·y − 0.827·z, so a point may rise only
+// as far as its distance from the far edge allows. Sizes below are chosen
+// against that envelope and verified for every tick in mobile-readability tests.
+const R = RULES.pulseRadius;
+const KEYLINE = Object.freeze({ outer: R - 0.01, width: 0.016, y: 0.006 });
+const FRAME = Object.freeze({ outer: R - 0.024, width: 0.05, y: 0.008, bracket: 0.17, bracketWidth: 0.045 });
+const FUSE_Y = 0.01;
 const FUSE_SEGMENTS_PER_SIDE = 9;
-const FUSE_INSET = 0.012;
-const PREFLASH_TICKS = 4;
-const GLOW_WARNING_START = 0.15;
-const GLOW_CHARGE = 1.05;
-const GLOW_PREFLASH = 1.9;
-const FLASH_INSET = 0.012;
-const AFTERMATH_COOL_TICKS = 8;
-const WARM = new THREE.Color(0xffd27a);
-const COOL = new THREE.Color(0x9fc2dc);
-const CHARGE_EMISSIVE = new THREE.Color(0xff7a1e);
-const PREFLASH_EMISSIVE = new THREE.Color(0xffd29a);
-const PILOT_IDLE_COLOR = new THREE.Color(PILOT_IDLE);
-const PILOT_HOT_COLOR = new THREE.Color(PILOT_HOT);
+const TINT = Object.freeze({ half: R - 0.03, y: 0.012, start: 0.06, rise: 0.44 });
+const FLASH = Object.freeze({ inset: 0.012, y: 0.014, holdTicks: 2, floor: 0.4 });
+const SCORCH = Object.freeze({ half: R - 0.01, y: 0.004, opacity: 0.65, fromTick: 2 });
+const GLOW = Object.freeze({ radius: 0.38, y: 0.016, ticks: 14 });
+const WAVE = Object.freeze({ radius: 0.3, tube: 0.025, y: 0.02, from: 0.4, to: 1.2, ticks: 14 });
+const MOTIF = Object.freeze({ peakTick: 4, ticks: 16 });
+const EMBERS = Object.freeze({ count: 6, size: 0.03, from: 0.08, to: 0.26, lift: 0.16, coolTicks: 14 });
+/** Highest point any burst motif reaches; a column at the tile centre stays inside the projection. */
+export const PULSE_BURST_PEAK_HEIGHT = 0.5;
 
 const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+const easeInCubic = (t: number) => t ** 3;
+const flatPlane = (half: number, y: number) =>
+  new THREE.PlaneGeometry(half * 2, half * 2).rotateX(-Math.PI / 2).translate(0, y, 0);
+const apexUp = (geometry: THREE.BufferGeometry, height: number) => geometry.translate(0, height / 2, 0);
 
-/** Clockwise band around the pad edge; drawRange reveals it like a burning fuse. */
+/** Band plus thicker corner brackets: reads as an armed device over any floor. */
+function hazardFrameGeometry() {
+  const { outer, width, bracket, bracketWidth } = FRAME, inner = outer - width, deep = inner - bracketWidth;
+  const rects = frameRects(outer, width);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const x0 = sx * inner, x1 = sx * deep, z0 = sz * inner, z1 = sz * deep, reach = sx * (outer - bracket);
+    const zreach = sz * (outer - bracket);
+    rects.push([Math.min(x0, reach), Math.min(z0, z1), Math.max(x0, reach), Math.max(z0, z1)]);
+    rects.push([Math.min(x0, x1), Math.min(z1, zreach), Math.max(x0, x1), Math.max(z1, zreach)]);
+  }
+  return createRectsGeometry(rects).translate(0, FRAME.y, 0);
+}
+
+/** Clockwise copy of the frame band; drawRange reveals it as the burning fuse. */
 function fuseGeometry() {
-  const outer = RULES.pulseRadius - FUSE_INSET, inner = outer - FUSE_WIDTH;
+  const outer = FRAME.outer, inner = outer - FRAME.width;
   const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
   const positions: number[] = [];
   for (let side = 0; side < 4; side++) {
     const [ax, az] = corners[side], [bx, bz] = corners[(side + 1) % 4];
     for (let i = 0; i < FUSE_SEGMENTS_PER_SIDE; i++) {
       const s0 = i / FUSE_SEGMENTS_PER_SIDE, s1 = (i + 1) / FUSE_SEGMENTS_PER_SIDE;
-      const point = (s: number, r: number) => [(ax + (bx - ax) * s) * r, 0, (az + (bz - az) * s) * r];
+      const point = (s: number, r: number) => [(ax + (bx - ax) * s) * r, FUSE_Y, (az + (bz - az) * s) * r];
       const [o0, o1, i0, i1] = [point(s0, outer), point(s1, outer), point(s0, inner), point(s1, inner)];
       positions.push(...o0, ...i0, ...o1, ...o1, ...i0, ...i1);
     }
@@ -85,96 +94,163 @@ function fuseGeometry() {
 // Static pad geometry is uploaded once and shared by every pad view; colours
 // and the fuse draw range stay per pad.
 const SHARED = Object.freeze({
-  plate: new THREE.BoxGeometry(RULES.pulseRadius * 2, 0.02, RULES.pulseRadius * 2),
-  outline: createFrameGeometry(RULES.pulseRadius - OUTLINE_INSET, OUTLINE_WIDTH),
-  pilot: new THREE.CircleGeometry(PILOT_RADIUS, 20),
-  flash: new THREE.PlaneGeometry(RULES.pulseRadius * 2 - 2 * FLASH_INSET, RULES.pulseRadius * 2 - 2 * FLASH_INSET),
-  wave: new THREE.TorusGeometry(0.32, 0.02, 6, 24),
-  spark: new THREE.ConeGeometry(0.035, 0.12, 4),
+  footprint: new THREE.PlaneGeometry(R * 2, R * 2).rotateX(-Math.PI / 2),
+  keyline: createFrameGeometry(KEYLINE.outer, KEYLINE.width).translate(0, KEYLINE.y, 0),
+  frame: hazardFrameGeometry(),
+  tint: flatPlane(TINT.half, TINT.y),
+  flash: flatPlane(R - FLASH.inset, FLASH.y),
+  scorch: flatPlane(SCORCH.half, SCORCH.y),
+  glow: new THREE.CircleGeometry(GLOW.radius, 28).rotateX(-Math.PI / 2).translate(0, GLOW.y, 0),
+  wave: new THREE.TorusGeometry(WAVE.radius, WAVE.tube, 6, 28).rotateX(-Math.PI / 2).translate(0, WAVE.y, 0),
+  ember: new THREE.OctahedronGeometry(EMBERS.size),
+  column: apexUp(new THREE.ConeGeometry(0.08, PULSE_BURST_PEAK_HEIGHT, 8), PULSE_BURST_PEAK_HEIGHT),
+  petal: apexUp(new THREE.ConeGeometry(0.07, 0.26, 5), 0.26),
+  ring: new THREE.TorusGeometry(0.22, 0.02, 6, 28).rotateX(-Math.PI / 2),
+  bolt: apexUp(new THREE.CylinderGeometry(0.018, 0.03, PULSE_BURST_PEAK_HEIGHT, 5), PULSE_BURST_PEAK_HEIGHT),
+  puff: new THREE.IcosahedronGeometry(0.12, 1),
+  shard: new THREE.TetrahedronGeometry(0.05),
 });
 
-export function createPulse() {
+type Part = Readonly<{ geometry: THREE.BufferGeometry; position: readonly [number, number, number];
+  tilt?: readonly [number, number]; scale?: number }>;
+const ring = (count: number, make: (angle: number, index: number) => Part) =>
+  Array.from({ length: count }, (_, i) => make(i * Math.PI * 2 / count, i));
+/** Burst shapes per motif; each part's extreme points sit inside the projected envelope. */
+const MOTIFS: Readonly<Record<ExplosionMotif, readonly Part[]>> = Object.freeze({
+  // Scourge-like eruption: a central flame with eight petals leaning outward.
+  petals: [{ geometry: SHARED.column, position: [0, 0, 0] },
+    ...ring(8, angle => ({ geometry: SHARED.petal, position: [Math.cos(angle) * 0.12, 0, Math.sin(angle) * 0.12],
+      tilt: [Math.cos(angle) * 0.5, Math.sin(angle) * 0.5] }))],
+  // Protoss flash: two shock rings and a crackling column of bolts.
+  ring: [{ geometry: SHARED.ring, position: [0, 0.05, 0], scale: 1.4 }, { geometry: SHARED.ring, position: [0, 0.22, 0], scale: 0.9 },
+    ...ring(3, angle => ({ geometry: SHARED.bolt, position: [Math.cos(angle) * 0.04, 0, Math.sin(angle) * 0.04] }))],
+  // Zerg cloud: a large central puff over four smaller billows.
+  cloud: [{ geometry: SHARED.puff, position: [0, 0.22, 0], scale: 1.6 },
+    ...ring(4, angle => ({ geometry: SHARED.puff, position: [Math.cos(angle) * 0.17, 0.1, Math.sin(angle) * 0.17], scale: 1.2 }))],
+  // Dark Archon swirl: shards spiralling inward as they climb around a column.
+  swirl: [{ geometry: SHARED.column, position: [0, 0, 0], scale: 0.9 },
+    ...ring(8, (angle, i) => ({ geometry: SHARED.shard,
+      position: [Math.cos(angle * 1.5) * (0.3 - 0.03 * i), 0.05 + 0.05 * i, Math.sin(angle * 1.5) * (0.3 - 0.03 * i)] }))],
+});
+
+const UP = new THREE.Vector3(0, 1, 0);
+function createMotif(motif: ExplosionMotif, material: THREE.Material) {
   const group = new THREE.Group();
-  const plate = new THREE.Mesh(SHARED.plate,
-    new THREE.MeshStandardMaterial({ color: GROUND_COLORS[0], emissive: CHARGE_EMISSIVE, emissiveIntensity: 0,
-      roughness: 0.65, metalness: 0.15 }));
-  plate.position.y = 0.01; group.add(plate);
-  const outline = new THREE.Mesh(SHARED.outline, new THREE.MeshBasicMaterial({ color: OUTLINE_IDLE, toneMapped: false }));
-  outline.position.y = OUTLINE_Y; group.add(outline);
-  const pilot = new THREE.Mesh(SHARED.pilot, new THREE.MeshBasicMaterial({ color: PILOT_IDLE, toneMapped: false }));
-  pilot.rotation.x = -Math.PI / 2; pilot.position.y = PILOT_Y; group.add(pilot);
+  group.name = `motif-${motif}`;
+  for (const part of MOTIFS[motif]) {
+    const mesh = new THREE.Mesh(part.geometry, material);
+    mesh.position.set(...part.position);
+    if (part.tilt) mesh.quaternion.setFromUnitVectors(UP, new THREE.Vector3(part.tilt[0], 1, part.tilt[1]).normalize());
+    mesh.scale.setScalar(part.scale ?? 1);
+    group.add(mesh);
+  }
+  return group;
+}
+
+const basic = (color: number, extra: THREE.MeshBasicMaterialParameters = {}) =>
+  new THREE.MeshBasicMaterial({ color, toneMapped: false, ...extra });
+const fading = (color: number, extra: THREE.MeshBasicMaterialParameters = {}) =>
+  basic(color, { transparent: true, depthWrite: false, ...extra });
+
+export function createPulse(styleId: ExplosionStyleId = DEFAULT_EXPLOSION_STYLE) {
+  const style = EXPLOSION_STYLES[styleId];
+  const group = new THREE.Group();
+  const footprint = new THREE.Mesh(SHARED.footprint, basic(0xffffff));
+  footprint.name = 'footprint'; footprint.visible = false;
+  const keyline = new THREE.Mesh(SHARED.keyline, basic(FRAME_KEYLINE));
+  const frame = new THREE.Mesh(SHARED.frame, basic(style.frame));
+  group.add(footprint, keyline, frame);
 
   const warning = new THREE.Group();
-  const fuse = new THREE.Mesh(fuseGeometry(), new THREE.MeshBasicMaterial({ color: 0xffc454, toneMapped: false, side: THREE.DoubleSide }));
-  fuse.position.y = 0.023; warning.add(fuse);
-  group.add(warning);
+  const tint = new THREE.Mesh(SHARED.tint, fading(style.hot));
+  const fuse = new THREE.Mesh(fuseGeometry(), basic(style.core, { side: THREE.DoubleSide }));
+  warning.add(tint, fuse); group.add(warning);
 
   const burst = new THREE.Group();
-  const flash = new THREE.Mesh(SHARED.flash,
-    new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, depthWrite: false, toneMapped: false }));
-  flash.rotation.x = -Math.PI / 2; flash.position.y = 0.024; burst.add(flash);
-  const wave = new THREE.Mesh(SHARED.wave,
-    new THREE.MeshBasicMaterial({ color: WARM, transparent: true, depthWrite: false, toneMapped: false }));
-  wave.rotation.x = -Math.PI / 2; wave.position.y = 0.05; burst.add(wave);
-  const sparks = new THREE.Group();
-  const sparkMaterial = new THREE.MeshBasicMaterial({ color: WARM, transparent: true, depthWrite: false, toneMapped: false });
-  for (let i = 0; i < 4; i++) sparks.add(new THREE.Mesh(SHARED.spark, sparkMaterial));
-  burst.add(sparks); group.add(burst);
-  return { group, plate, outline, pilot, warning, fuse, burst, flash, wave, sparks, sparkMaterial };
+  const scorch = new THREE.Mesh(SHARED.scorch, fading(style.scorch));
+  const glow = new THREE.Mesh(SHARED.glow, fading(style.burst, { blending: THREE.AdditiveBlending }));
+  const flash = new THREE.Mesh(SHARED.flash, fading(style.core));
+  const wave = new THREE.Mesh(SHARED.wave, fading(style.hot));
+  const motifMaterial = fading(style.burst);
+  const motif = createMotif(style.motif, motifMaterial);
+  const embers = new THREE.Group();
+  const emberMaterial = fading(style.burst);
+  for (let i = 0; i < EMBERS.count; i++) embers.add(new THREE.Mesh(SHARED.ember, emberMaterial));
+  [scorch, glow, flash, wave, motif, embers].forEach((part, order) => { part.renderOrder = order; burst.add(part); });
+  group.add(burst);
+  return { group, style, footprint, keyline, frame, warning, tint, fuse, burst, scorch, glow, flash, wave,
+    motif, motifMaterial, embers, emberMaterial };
 }
 
 export type PulseView = ReturnType<typeof createPulse>;
 
+const scratch = { a: new THREE.Color(), b: new THREE.Color() };
+const mix = (target: THREE.Color, from: number, to: number, t: number) =>
+  target.lerpColors(scratch.a.setHex(from), scratch.b.setHex(to), Math.min(Math.max(t, 0), 1));
+
 export function updatePulse(view: PulseView, hazard: Pulse, tick: number, reducedMotion: boolean, enabled = true) {
+  const { style } = view;
   const sampled = hazardSample(hazard, tick);
   // A dormant pad is a static identifier, not an idle sample at local tick 0.
   const sample = enabled ? sampled : { ...sampled, active: false, warning: false, cycle: RULES.pulseEffectTicks };
   const cycle = sample.cycle;
   // 1/27 on the first warning tick, exactly 1 on the last: the fuse completes before ignition.
   const charge = sample.warning ? (cycle - hazard.period + RULES.pulseWarningTicks + 1) / RULES.pulseWarningTicks : 0;
-  const preflash = sample.warning && cycle >= hazard.period - PREFLASH_TICKS;
+  const bursting = cycle < RULES.pulseEffectTicks;
   const age = Math.min(cycle / RULES.pulseEffectTicks, 1);
-  const flashing = cycle < RULES.pulseFlashTicks;
-  const parity = (hazard.x + hazard.y) % 2;
 
-  view.plate.material.color.setHex(sample.active ? 0xff551e
-    : sample.warning ? GROUND_WARNING_COLORS[parity] : GROUND_COLORS[parity]);
-  view.plate.material.emissive.copy(preflash || sample.active ? PREFLASH_EMISSIVE : CHARGE_EMISSIVE);
-  view.plate.material.emissiveIntensity = sample.active ? GLOW_PREFLASH + 0.4
-    : preflash ? GLOW_PREFLASH + (charge - 1) * 0.5
-      : sample.warning ? GLOW_WARNING_START + GLOW_CHARGE * charge ** 2 : 0;
-  view.outline.material.color.setHex(sample.active ? 0xffefbd : sample.warning ? 0xffc454 : enabled ? OUTLINE_IDLE : OUTLINE_DORMANT);
+  // Identity: the frame over visible ground. It heats toward the fuse colour while charging.
+  view.frame.visible = !(bursting && cycle < RULES.pulseFlashTicks);
+  view.keyline.visible = view.frame.visible;
+  if (!enabled) view.frame.material.color.setHex(DORMANT_FRAME);
+  else mix(view.frame.material.color, style.frame, style.hot, charge);
 
-  // Anticipation: the fuse runs clockwise, the pilot swells and turns white-hot.
+  // Anticipation: the fuse burns clockwise round the frame while a tint rises.
   view.warning.visible = sample.warning;
   const segments = view.fuse.geometry.getAttribute('position').count / 6;
   view.fuse.geometry.setDrawRange(0, Math.ceil(charge * segments) * 6);
-  view.pilot.visible = !flashing;
-  view.outline.visible = !flashing;
-  if (enabled) view.pilot.material.color.lerpColors(PILOT_IDLE_COLOR, PILOT_HOT_COLOR, preflash ? 1 : charge ** 2 * 0.7);
-  else view.pilot.material.color.setHex(PILOT_DORMANT);
-  view.pilot.scale.setScalar(reducedMotion ? 1 : 1 + 0.6 * charge ** 2);
+  view.tint.material.opacity = sample.warning ? TINT.start + TINT.rise * charge ** 1.5 : 0;
 
-  // Sample time since ignition so a rendered frame need not land on the lethal tick.
-  view.burst.visible = cycle < RULES.pulseEffectTicks;
-  view.flash.visible = flashing;
-  view.flash.material.opacity = Math.sqrt(Math.max(1 - cycle / RULES.pulseFlashTicks, 0));
-  // Follow-through: debris cools from warm to grey-blue so it reads as spent, not fire.
-  const cooled = Math.min(cycle / AFTERMATH_COOL_TICKS, 1);
-  view.wave.material.color.lerpColors(WARM, COOL, cooled);
-  view.sparkMaterial.color.copy(view.wave.material.color);
-  view.wave.scale.setScalar(reducedMotion ? 1 : 0.5 + easeOutCubic(age) * 0.55);
-  view.wave.material.opacity = 0.75 * (1 - age) ** 1.5 * (1 - 0.35 * cooled);
-  view.sparks.visible = !reducedMotion;
-  view.sparkMaterial.opacity = 0.9 * (1 - age) ** 2;
-  view.sparks.children.forEach((spark, index) => {
-    const flight = reducedMotion ? 0 : easeOutCubic(age);
-    const angle = index * Math.PI * 2 / view.sparks.children.length;
-    const radius = 0.08 + flight * 0.18;
-    spark.position.set(Math.cos(angle) * radius, 0.06 + 4 * flight * (1 - flight) * 0.12,
-      Math.sin(angle) * radius);
-    spark.rotation.set(Math.sin(angle) * 0.5, angle, -Math.cos(angle) * 0.5);
-    spark.scale.setScalar(1 - age);
+  // Detonation, sampled by time since ignition so a frame need not land on the lethal tick.
+  view.burst.visible = bursting;
+  if (!bursting) return;
+  view.flash.visible = cycle < RULES.pulseFlashTicks;
+  view.flash.material.opacity = cycle < FLASH.holdTicks ? 1
+    : 1 - (1 - FLASH.floor) * (cycle - FLASH.holdTicks + 1) / (RULES.pulseFlashTicks - FLASH.holdTicks);
+  mix(view.flash.material.color, style.core, style.burst, (cycle - FLASH.holdTicks + 1) / (RULES.pulseFlashTicks - FLASH.holdTicks + 1));
+
+  view.glow.visible = cycle < GLOW.ticks;
+  view.glow.material.opacity = (1 - cycle / GLOW.ticks) ** 2;
+
+  view.wave.visible = cycle < WAVE.ticks;
+  const waveAge = cycle / WAVE.ticks;
+  view.wave.scale.setScalar(reducedMotion ? 1 : WAVE.from + (WAVE.to - WAVE.from) * easeOutCubic(waveAge));
+  view.wave.material.opacity = 0.9 * (1 - waveAge) ** 1.5;
+
+  // The eruption peaks after four ticks and is gone long before the aftermath ends.
+  view.motif.visible = cycle < MOTIF.ticks;
+  const rise = cycle < MOTIF.peakTick ? easeOutCubic((cycle + 1) / (MOTIF.peakTick + 1))
+    : 1 - easeInCubic((cycle - MOTIF.peakTick) / (MOTIF.ticks - MOTIF.peakTick));
+  view.motif.scale.setScalar(reducedMotion ? 1 : Math.max(rise, 0.001));
+  view.motif.rotation.y = reducedMotion || style.motif !== 'swirl' ? 0 : cycle * 0.25;
+  // Saturated against the white-hot flash, warming to the fuse colour as it collapses.
+  mix(view.motifMaterial.color, style.burst, style.hot, (cycle - MOTIF.peakTick) / (MOTIF.ticks - MOTIF.peakTick));
+  view.motifMaterial.opacity = cycle <= MOTIF.peakTick ? 1 : Math.max(rise, 0.15);
+
+  view.scorch.visible = cycle >= SCORCH.fromTick;
+  view.scorch.material.opacity = SCORCH.opacity * (1 - age);
+
+  // Follow-through: embers settle and cool to the style's debris colour, so the aftermath reads as spent.
+  view.embers.visible = !reducedMotion && cycle >= 1;
+  mix(view.emberMaterial.color, style.burst, style.debris, cycle / EMBERS.coolTicks);
+  view.emberMaterial.opacity = 0.9 * (1 - age) ** 1.5;
+  const flight = easeOutCubic(age);
+  view.embers.children.forEach((ember, index) => {
+    const angle = (index + 0.25) * Math.PI * 2 / EMBERS.count;
+    const radius = EMBERS.from + (EMBERS.to - EMBERS.from) * flight;
+    ember.position.set(Math.cos(angle) * radius, 0.02 + 4 * flight * (1 - flight) * EMBERS.lift, Math.sin(angle) * radius);
+    ember.rotation.set(angle, angle * 2, 0);
+    ember.scale.setScalar(1 - 0.6 * age);
   });
 }
 
@@ -186,22 +262,16 @@ export function pulseFieldMode(sample: ReturnType<typeof hazardSample>, enabled:
 }
 
 /**
- * Idle pads in three batched draws (plates, pilots, outlines). A pad hands
- * over to its per-pad `PulseView` only while charging or bursting, so the
- * colours here must equal the view's idle/dormant state exactly.
+ * Idle pads in two batched draws (keylines and style-coloured frames). A pad
+ * hands over to its per-pad `PulseView` only while charging or bursting, so
+ * the colours here must equal the view's idle/dormant state exactly.
  */
-export function createPulseField(pads: readonly Readonly<{ x: number; y: number }>[]) {
+export function createPulseField(pads: readonly Readonly<{ x: number; y: number; style?: ExplosionStyleId }>[]) {
   const group = new THREE.Group();
   group.name = 'pulse-field';
-  const plateGeometry = new THREE.BoxGeometry(RULES.pulseRadius * 2, 0.02, RULES.pulseRadius * 2).translate(0, 0.01, 0);
-  const plates = new THREE.InstancedMesh(plateGeometry,
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.65, metalness: 0.15 }), pads.length);
-  const pilotGeometry = new THREE.CircleGeometry(PILOT_RADIUS, 20).rotateX(-Math.PI / 2).translate(0, PILOT_Y, 0);
-  const pilots = new THREE.InstancedMesh(pilotGeometry,
-    new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), pads.length);
-  const outlines = new THREE.InstancedMesh(createFrameGeometry(RULES.pulseRadius - OUTLINE_INSET, OUTLINE_WIDTH).translate(0, OUTLINE_Y, 0),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), pads.length);
-  group.add(plates, outlines, pilots);
+  const keylines = new THREE.InstancedMesh(SHARED.keyline.clone(), basic(0xffffff), pads.length);
+  const frames = new THREE.InstancedMesh(SHARED.frame.clone(), basic(0xffffff), pads.length);
+  group.add(keylines, frames);
 
   const modes: (PulseFieldMode | null)[] = pads.map(() => null);
   const matrix = new THREE.Matrix4(), color = new THREE.Color();
@@ -209,38 +279,23 @@ export function createPulseField(pads: readonly Readonly<{ x: number; y: number 
   function setMode(index: number, mode: PulseFieldMode) {
     if (modes[index] === mode) return false;
     modes[index] = mode;
-    const pad = pads[index], x = pad.x + 0.5, z = pad.y + 0.5;
-    const shown = mode !== 'hidden';
-    if (shown) matrix.makeTranslation(x, 0, z);
-    for (const mesh of [plates, pilots, outlines]) mesh.setMatrixAt(index, shown ? matrix : HIDDEN);
-    plates.setColorAt(index, color.setHex(GROUND_COLORS[(pad.x + pad.y) % 2]));
-    pilots.setColorAt(index, color.setHex(mode === 'dormant' ? PILOT_DORMANT : PILOT_IDLE));
-    outlines.setColorAt(index, color.setHex(mode === 'dormant' ? OUTLINE_DORMANT : OUTLINE_IDLE));
-    for (const mesh of [plates, pilots, outlines]) {
+    const pad = pads[index], shown = mode !== 'hidden';
+    if (shown) matrix.makeTranslation(pad.x + 0.5, 0, pad.y + 0.5);
+    for (const mesh of [keylines, frames]) mesh.setMatrixAt(index, shown ? matrix : HIDDEN);
+    keylines.setColorAt(index, color.setHex(FRAME_KEYLINE));
+    frames.setColorAt(index, color.setHex(mode === 'dormant' ? DORMANT_FRAME : explosionStyle(pad).frame));
+    for (const mesh of [keylines, frames]) {
       mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor!.needsUpdate = true;
     }
     return true;
   }
   pads.forEach((_, index) => setMode(index, 'active'));
   // Culling bounds come from the full field; hidden instances only shrink inside them.
-  for (const mesh of [plates, pilots, outlines]) mesh.computeBoundingSphere();
-
-  const outlineColor = (index: number) => {
-    const value = new THREE.Color();
-    outlines.getColorAt(index, value);
-    return value;
-  };
-  /** Drawn perimeter of a pad's outline band; 0 while its live view owns the pad. */
-  const outlineLength = (index: number) => {
-    outlines.getMatrixAt(index, matrix);
-    return 8 * (RULES.pulseRadius - OUTLINE_INSET) * new THREE.Vector3().setFromMatrixColumn(matrix, 0).length();
-  };
+  for (const mesh of [keylines, frames]) mesh.computeBoundingSphere();
   const dispose = () => {
-    for (const object of [plates, pilots, outlines]) {
-      object.geometry.dispose(); (object.material as THREE.Material).dispose();
-    }
+    for (const mesh of [keylines, frames]) { mesh.geometry.dispose(); mesh.material.dispose(); }
   };
-  return { group, plates, pilots, outlines, setMode, outlineColor, outlineLength, dispose };
+  return { group, keylines, frames, setMode, dispose };
 }
 
 export type PulseField = ReturnType<typeof createPulseField>;

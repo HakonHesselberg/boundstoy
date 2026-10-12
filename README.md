@@ -95,7 +95,7 @@ The light and dark floor shades are the same normal ground: identical speed,
 grip and collision. The group identity persists on explosion plates and warning
 states; the bright flash still identifies the actual single lethal tick.
 Warnings last 225 ms, followed by a compact flash and harmless 300 ms aftermath.
-Flat pads with an amber pilot light, one perimeter fuse and low-profile effects keep neighboring cells readable.
+Explosive tiles are framed rather than covered, so the ground beneath stays readable; every effect stays inside its own tile.
 Legal witnesses, actual arrival-phase necessity checks and measured input margins
 do not replace the user's full-map playtest.
 
@@ -116,10 +116,11 @@ three seconds; imported JSON/drafts retain their periods and phases, but legacy
 Existing drafts and older records are preserved, but old clears do not affect
 Continue. Choose **Remix level** in the editor to copy a current layout.
 
-Explosion pads retain their muted ground shade when safe and carry an amber pilot light; pads outside
-the running puzzle are dormant and show a neutral grey mark instead. A fuse runs
-around the pad as it charges, the pad turns white-hot, then the whole square flashes. Debris cools to
-grey-blue. The outlined square is the danger footprint.
+An explosive tile shows its real ground (normal, ice or mud) inside a coloured frame with corner
+brackets. The colour groups pads that fire together: Ember (orange), Plasma (blue), Toxic (green) or
+Psionic (violet). Pads outside the running puzzle use a neutral grey frame. As it charges, the frame
+burns round as a fuse while a tint rises; then the tile turns white-hot and a coloured eruption,
+shockwave and cooling scorch follow. The framed square is the danger footprint.
 The tile is safe immediately after detonation, even while the burst dissipates
 for 300 ms. Fading debris is harmless, not continuous fire. Optional audio
 includes a low detonation thump.

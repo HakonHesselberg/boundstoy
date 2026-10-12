@@ -321,7 +321,7 @@ export class Scene {
     for (const hazard of level.hazards) {
       const group = new THREE.Group();
       if (hazard.kind === 'pulse') {
-        const view = createPulse();
+        const view = createPulse(hazard.style);
         group.add(this.track(view.group));
         this.pulses.set(this.hazards.length, view);
       } else {
@@ -586,7 +586,7 @@ export class Scene {
         return { x: group.position.x, y: group.position.z,
           visible: group.visible, enabled: group.userData.enabled === true,
           warning: pulse?.warning.visible ?? false, burst: pulse?.burst.visible ?? false,
-          glow: pulse?.plate.material.emissiveIntensity ?? 0 };
+          glow: pulse?.warning.visible ? pulse.tint.material.opacity : 0 };
       }),
     };
   }

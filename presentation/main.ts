@@ -3,6 +3,7 @@ import { LEVELS, MASTERY_TARGETS } from '../data/levels.ts';
 import { EXPLOSION_PUZZLES, type ExplosionPuzzle } from '../data/explosion-puzzles.ts';
 import { EXPLOSION_REPLAYS } from '../data/explosion-replays.ts';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
+import { EXPLOSION_STYLES, EXPLOSION_STYLE_IDS, DEFAULT_EXPLOSION_STYLE, type ExplosionStyleId } from '../data/explosion-styles.ts';
 import { createState, restartCheckpoint, step, hazardTick, ascii, DT, STILL } from '../core/simulation.ts';
 import { importLevel, parseLevel, type Level, type Point } from '../core/level.ts';
 import { checkpointPuzzles, worldSectionIndex } from '../core/world.ts';
@@ -68,6 +69,7 @@ function boot(scene: Scene) {
   let level = LEVELS[0], state = createState(level), selectedCourse = 0;
   let mode: 'play' | 'edit' = 'play', draft: Level | null = null;
   let history: Level[] = [], brush: Brush = '.', sawStart: Point | null = null;
+  let pulseStyle: ExplosionStyleId = DEFAULT_EXPLOSION_STYLE;
   let editorSection = 0;
   let painting = false, lastPaint = '', testing = false, started = false, paused = true;
   let puzzle: ExplosionPuzzle | null = null;
@@ -640,7 +642,7 @@ function boot(scene: Scene) {
     for (const [tile, terrain] of Object.entries(TERRAIN)) {
       if (level.tiles.some(row => row.includes(tile))) add(terrain.name, terrain.hint, terrain.color);
     }
-    if (level.hazards.some(hazard => hazard.kind === 'pulse')) add('Pulse pads', 'Amber warns of an instant blast. The tile is safe immediately afterwards, even while debris fades.', '#ecae6a');
+    if (level.hazards.some(hazard => hazard.kind === 'pulse')) add('Explosive tiles', 'A framed tile burns round its edge, then explodes instantly. Each colour fires as one group. The tile is safe immediately afterwards, even while debris fades.', '#ff9a2e');
     if (level.hazards.some(hazard => hazard.kind === 'saw')) add('Saws', 'Watch the patrol and cross when the way is clear.', '#e35b80');
   }
   function openMenu() {
@@ -771,7 +773,7 @@ function boot(scene: Scene) {
     { id: 'spawn', label: 'Start', color: '#3c887c', mark: 'S', help: 'Place the starting point. This also creates safe floor.' },
     { id: 'goal', label: 'Exit', color: '#9e7951', mark: 'G', help: 'Place the golden exit. This also creates safe floor.' },
     { id: 'checkpoint', label: 'Checkpoint', color: '#3c887c', mark: 'C', help: 'Place between puzzles, never next to the exit. Its ring is the collection zone. Erase removes it.' },
-    { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'An instant explosion every 3 seconds. Fading debris is harmless. JSON changes period and phase; legacy on durations become one tick.' },
+    { id: 'pulse', label: 'Pulse', color: '#943552', mark: '◉', help: 'An instant explosion every 3 seconds. Pick a colour per rhythm group; painting a pad again changes only its colour. Fading debris is harmless. JSON changes period and phase.' },
     { id: 'saw', label: 'Saw', color: '#943552', mark: 'X', help: 'Click the start, then the end of a patrol. Travels out and back every 3 seconds.' },
     { id: 'erase', label: 'Erase object', color: '#253549', mark: '×', help: 'Remove a checkpoint or hazard at its starting tile. Floor stays unchanged.' },
   ];
@@ -783,11 +785,28 @@ function boot(scene: Scene) {
     button.append(chip, document.createTextNode(definition.label));
     button.addEventListener('click', () => {
       brush = definition.id; sawStart = null; text('brush-help', definition.help);
+      element('pulse-styles').hidden = brush !== 'pulse';
       element('palette').querySelectorAll('button').forEach(node => {
         node.classList.toggle('selected', node === button); node.setAttribute('aria-pressed', String(node === button));
       });
     }, options);
     element('palette').append(button);
+  }
+  for (const id of EXPLOSION_STYLE_IDS) {
+    const style = EXPLOSION_STYLES[id], button = document.createElement('button');
+    button.dataset.style = id; button.title = `${style.name} (${style.inspiration})`;
+    button.setAttribute('aria-pressed', String(id === pulseStyle));
+    button.classList.toggle('selected', id === pulseStyle);
+    const chip = document.createElement('span'); chip.className = 'style-chip';
+    chip.style.borderColor = `#${style.frame.toString(16).padStart(6, '0')}`;
+    button.append(chip, document.createTextNode(style.name));
+    button.addEventListener('click', () => {
+      pulseStyle = id;
+      element('pulse-styles').querySelectorAll('button').forEach(node => {
+        node.classList.toggle('selected', node === button); node.setAttribute('aria-pressed', String(node === button));
+      });
+    }, options);
+    element('pulse-styles').append(button);
   }
   function paintAt(event: PointerEvent, initial: boolean) {
     if (!graphics.available || graphics.awaitingResume) return;
@@ -802,7 +821,7 @@ function boot(scene: Scene) {
       if (brush === 'saw') {
         if (!sawStart) { sawStart = point; text('brush-help', `Start at (${point.x}, ${point.y}). Click the patrol's other end.`); }
         else { commit(placeSaw(level, sawStart, point, level.version === 2 ? level.sections[editorSection].id : undefined)); sawStart = null; text('brush-help', 'Patrol placed. Click two new points to add another.'); }
-      } else commit(paint(level, point, brush, level.version === 2 ? level.sections[editorSection].id : undefined));
+      } else commit(paint(level, point, brush, level.version === 2 ? level.sections[editorSection].id : undefined, pulseStyle));
     } catch (error) { notify(error instanceof Error ? error.message : String(error), true); }
   }
   viewport.addEventListener('pointerdown', event => {

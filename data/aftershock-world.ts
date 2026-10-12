@@ -1,5 +1,6 @@
 import { parseLevel, type Hazard, type Point, type Pulse, type Saw, type World } from '../core/level.ts';
 import type { Section, WorldCheckpoint } from '../core/world.ts';
+import { DEFAULT_EXPLOSION_STYLE, type ExplosionStyleId } from './explosion-styles.ts';
 
 /**
  * Approved rough-world global-coordinate patches.
@@ -207,13 +208,43 @@ const productionFragments = [
 const historicWorld = assembleAftershock(productionFragments,
   'aftershock', 'Aftershock',
   'One world, eight sequential puzzles and seven safe checkpoints. Only the current puzzle runs. Restart or reload returns to its checkpoint; elapsed time and deaths are retained.');
+/**
+ * Rhythm groups by section: pads in a group fire as one travelling sequence or
+ * share a role (for example temporary refuges). Each group gets one colour and
+ * groups within a puzzle contrast. Purely cosmetic; timing lives above.
+ */
+const PAD_GROUPS: Readonly<Record<string, (pad: Point) => string>> = Object.freeze({
+  'aftershock-section-1': () => 'wake',
+  'aftershock-section-2': pad => pad.y === 3 ? 'lane' : 'shelter',
+  'aftershock-section-4': pad => pad.y === 3 ? 'lead' : pad.y <= 5 ? 'outer' : 'inner',
+  'aftershock-section-5': pad => pad.y === 16 ? 'upper' : pad.y === 17 ? 'direct' : 'lower',
+  'aftershock-section-6': pad => pad.y === 17 ? 'fuse' : 'arc',
+  'aftershock-section-7': () => 'front',
+  'aftershock-section-8': pad => pad.y < 38 ? 'descent' : 'basin',
+});
+const GROUP_STYLES: Readonly<Record<string, ExplosionStyleId>> = Object.freeze({
+  wake: 'ember', lane: 'ember', shelter: 'plasma', lead: 'ember', outer: 'plasma', inner: 'toxic',
+  upper: 'toxic', direct: 'ember', lower: 'plasma', fuse: 'plasma', arc: 'ember', front: 'ember',
+  descent: 'ember', basin: 'psionic',
+});
+export const AFTERSHOCK_PAD_GROUPS = (pad: Pulse) => {
+  const group = PAD_GROUPS[pad.sectionId ?? '']?.(pad);
+  if (!group) throw new Error(`No rhythm group for pad ${pad.x},${pad.y} in ${pad.sectionId}.`);
+  return group;
+};
+const styled = (pad: Pulse): Pulse => {
+  const style = GROUP_STYLES[AFTERSHOCK_PAD_GROUPS(pad)];
+  return style === DEFAULT_EXPLOSION_STYLE ? pad : { ...pad, style };
+};
+
 /** Stable production identity with a new revision for checkpoint puzzle clocks. */
 export const AFTERSHOCK_WORLD = parseLevel({
   ...historicWorld, revision: 2, puzzleMode: 'checkpoint',
-  hazards: productionFragments.flatMap((fragment, index) => fragment.hazards.map(hazard => ({
-    ...hazard, sectionId: fragment.section.id,
-    phase: (hazard.phase + CHECKPOINT_PHASE_ORIGINS[index]) % hazard.period,
-  }))),
+  hazards: productionFragments.flatMap((fragment, index) => fragment.hazards.map(hazard => {
+    const owned = { ...hazard, sectionId: fragment.section.id,
+      phase: (hazard.phase + CHECKPOINT_PHASE_ORIGINS[index]) % hazard.period };
+    return owned.kind === 'pulse' ? styled(owned) : owned;
+  })),
 }) as World;
 
 export const AFTERSHOCK_SECTION_HINTS = Object.freeze([

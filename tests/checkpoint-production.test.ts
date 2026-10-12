@@ -131,8 +131,8 @@ test('Dormant pulse at phase zero has no fake blast, warning, glow or debris', (
   updatePulse(view, pulse, 0, false, false);
   assert.equal(view.burst.visible, false);
   assert.equal(view.warning.visible, false);
-  assert.equal(view.plate.material.emissiveIntensity, 0);
-  assert.equal(view.pilot.visible, true);
+  assert.equal(view.tint.material.opacity, 0, 'no charge glow');
+  assert.equal(view.frame.visible, true, 'the pad is still identifiable');
 });
 
 test('Production sound ignores dormant hazards and clock resets', () => {

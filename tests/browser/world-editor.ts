@@ -115,8 +115,19 @@ async function checkWorldEditor({ page, origin, signal, log }: BrowserContext) {
     await click('#undo'); await draftSaved();
     assert.deepEqual((await snapshot()).level, source);
     assert.deepEqual(await exportLevel(), source, 'IDs, revision, whitespace, hazards and metadata roundtrip');
-    await click('[data-brush="pulse"]'); await paintTile({ x: 20, y: 5 });
-    await click('[data-brush="saw"]'); await paintTile({ x: 18, y: 6 }); await paintTile({ x: 21, y: 6 });
+    assert.equal(await evaluate(`document.getElementById('pulse-styles').hidden`), true, 'style chips only with the Pulse brush');
+    await click('[data-brush="pulse"]');
+    assert.equal(await evaluate(`document.getElementById('pulse-styles').hidden`), false);
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('#pulse-styles [data-style]')].map(b => b.dataset.style)`),
+      ['ember', 'plasma', 'toxic', 'psionic']);
+    await click('[data-style="plasma"]');
+    assert.equal(await evaluate(`document.querySelector('[data-style="plasma"]').getAttribute('aria-pressed')`), 'true');
+    await paintTile({ x: 20, y: 5 });
+    const styled = (await snapshot()).level.hazards.at(-1)!;
+    assert.ok(styled.kind === 'pulse' && styled.style === 'plasma', 'painted pad carries the chosen style');
+    await click('[data-brush="saw"]');
+    assert.equal(await evaluate(`document.getElementById('pulse-styles').hidden`), true);
+    await paintTile({ x: 18, y: 6 }); await paintTile({ x: 21, y: 6 });
     const edited = (await snapshot()).level;
     assert.equal(edited.hazards.length, source.hazards.length + 2);
     assert.deepEqual(await exportLevel(), edited);

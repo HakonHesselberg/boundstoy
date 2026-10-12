@@ -1,12 +1,15 @@
 import { TERRAIN, RULES, type Tile } from '../data/terrain.ts';
 import { V1_LIMITS, V2_LIMITS } from '../data/level-limits.ts';
+import { DEFAULT_EXPLOSION_STYLE, EXPLOSION_STYLE_IDS, isExplosionStyle, type ExplosionStyleId } from '../data/explosion-styles.ts';
 import { parseWorldMetadata, type World } from './world.ts';
 
 export type { World, WorldCheckpoint, Section, Bounds, SectionCamera, SectionCompletion } from './world.ts';
 
 export type Point = Readonly<{ x: number; y: number }>;
 export type Checkpoint = Point & Readonly<{ radius?: number }>;
-export type Pulse = Readonly<{ kind: 'pulse'; x: number; y: number; period: number; on: number; phase: number; sectionId?: string }>;
+/** `style` is cosmetic; absent means the default (Ember) and is the canonical form. */
+export type Pulse = Readonly<{ kind: 'pulse'; x: number; y: number; period: number; on: number; phase: number; sectionId?: string;
+  style?: ExplosionStyleId }>;
 export type Saw = Readonly<{ kind: 'saw'; from: Point; to: Point; period: number; phase: number; sectionId?: string }>;
 export type Hazard = Pulse | Saw;
 export type LevelV1 = Readonly<{
@@ -91,11 +94,14 @@ export function parseLevel(value: unknown): Level {
     const period = integer(h.period, `hazards[${i}].period`, 120, 3600);
     const phase = integer(h.phase, `hazards[${i}].phase`, 0, period - 1);
     if (h.kind === 'pulse') {
-      keys(h, ['kind', 'x', 'y', 'period', 'on', 'phase', 'sectionId'], `pulse[${i}]`);
+      keys(h, ['kind', 'x', 'y', 'period', 'on', 'phase', 'sectionId', 'style'], `pulse[${i}]`);
+      if (h.style !== undefined && !isExplosionStyle(h.style))
+        throw new Error(`pulse[${i}].style must be one of ${EXPLOSION_STYLE_IDS.join(', ')}.`);
+      const style = h.style === undefined || h.style === DEFAULT_EXPLOSION_STYLE ? {} : { style: h.style };
       // Version-1 imports keep their rhythm, but legacy flame durations become single detonations.
       integer(h.on, `pulse[${i}].on`, 1, v2 ? 1 : period - 60);
       return Object.freeze({ kind: 'pulse', ...point(h, `pulse[${i}]`), period, phase,
-        on: 1, ...ownership });
+        on: 1, ...ownership, ...style });
     }
     if (h.kind === 'saw') {
       keys(h, ['kind', 'from', 'to', 'period', 'phase', 'sectionId'], `saw[${i}]`);

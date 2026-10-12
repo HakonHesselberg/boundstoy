@@ -1,5 +1,6 @@
 import { TERRAIN, RULES, type Tile } from '../data/terrain.ts';
 import { isTile, parseLevel, type Level, type Point, type Hazard } from './level.ts';
+import { DEFAULT_EXPLOSION_STYLE, type ExplosionStyleId } from '../data/explosion-styles.ts';
 import { checkpointPuzzles } from './world.ts';
 
 export type Brush = Tile | 'spawn' | 'goal' | 'checkpoint' | 'pulse' | 'saw' | 'erase';
@@ -18,7 +19,8 @@ function ownership(level: Level, point: Point, sectionId?: string) {
   return { sectionId: owners[0].id };
 }
 
-export function paint(level: Level, point: Point, brush: Exclude<Brush, 'saw'>, sectionId?: string): Level {
+export function paint(level: Level, point: Point, brush: Exclude<Brush, 'saw'>, sectionId?: string,
+  style: ExplosionStyleId = DEFAULT_EXPLOSION_STYLE): Level {
   if (!Number.isInteger(point.x) || !Number.isInteger(point.y) || !level.tiles[point.y]?.[point.x]) {
     throw new Error('Select a tile inside the board.');
   }
@@ -36,8 +38,11 @@ export function paint(level: Level, point: Point, brush: Exclude<Brush, 'saw'>, 
     hazards = hazards.filter(h => !startsAt(h, point));
     checkpoints = checkpoints.filter(p => !sameTile(p, point));
   } else if (brush === 'pulse') {
-    hazards = [...hazards.filter(h => !startsAt(h, point)),
-      { kind: 'pulse', ...point, period: 360, on: 1, phase: 0, ...ownership(level, point, sectionId) }];
+    // Repainting a pad restyles it; its authored rhythm and ownership stay.
+    const existing = hazards.find(h => h.kind === 'pulse' && startsAt(h, point));
+    const { style: _previous, ...base } = existing?.kind === 'pulse' ? existing
+      : { kind: 'pulse' as const, ...point, period: 360, on: 1, phase: 0, ...ownership(level, point, sectionId) };
+    hazards = [...hazards.filter(h => h !== existing && !startsAt(h, point)), { ...base, style }];
   } else {
     if (brush === 'spawn') spawn = point;
     else if (brush === 'goal') goal = point;

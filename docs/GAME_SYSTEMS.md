@@ -116,13 +116,24 @@ player's center enters void/spikes. Hazard collisions use the full footprint.
   Effects sample time since ignition, so skipping the ignition render frame
   does not hide the explosion. Pause freezes the effect; reduced motion removes
   particle travel and expansion but preserves warning, flash and fade.
-  Idle pads keep the floor shade but carry a flat amber pilot light and amber
-  footprint outline. Pads outside the running world puzzle are dormant and use a
-  neutral grey pilot and outline instead. Idle pads are drawn as one instanced
-  field; a pad switches to its own animated view only while charging or bursting. During the warning a fuse fills the pad perimeter clockwise,
-  glow rises toward a white-hot pre-flash, and a full-footprint flash sheet fades
-  over six ticks; shock ring and four shards cool to grey-blue. Everything stays
-  flush and inside the projected tile; no raised vent or smoke shell.
+  Idle pads draw no plate: the actual terrain shows inside a flush frame (a
+  dark keyline, a style-coloured band and thicker corner brackets). Pads outside
+  the running world puzzle are dormant and use a neutral grey frame. Idle pads
+  are one instanced field (two draws); a pad switches to its own animated view
+  only while charging or bursting. During the warning the frame heats and a fuse
+  burns round it clockwise while a translucent tint rises to at most 0.5 opacity.
+  Ignition holds an opaque white-hot sheet for two ticks (always more salient
+  than the charge-up), with a style-coloured eruption peaking at tick 4 (at most
+  0.5 tall), an expanding shockwave, a glow, then a scorch mark and embers
+  cooling to the style's debris colour. Every vertex stays inside the projected
+  tile for all styles and ticks (`tests/mobile-readability.test.ts`).
+- Explosion style: optional cosmetic `style` on a pulse: `ember` (default and
+  omitted on export), `plasma`, `toxic` or `psionic` (`data/explosion-styles.ts`).
+  Styles change colours and burst motif (petals, rings, cloud, swirl) only, never
+  timing, footprint or lethality. Author one style per rhythm group and contrast
+  neighbouring groups; colour never carries danger alone. No red style: red is
+  reserved for spikes, saws and death feedback. The editor's Pulse brush shows
+  style chips; painting an existing pad changes only its style.
   See `docs/ANIMATION.md` and `docs/research/explosion-readability.md`.
   New editor pads use period 360 / on 1 / phase 0 (one detonation every 3 seconds).
   Version-1 imports validate the old `on` field but normalize it to `1`, retaining

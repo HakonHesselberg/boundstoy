@@ -143,7 +143,8 @@ export async function checkAftershock(context: BrowserContext) {
     const context = image.getContext('2d'); context.drawImage(canvas, 0, 0);
     const ratio = canvas.width / rect.width;
     return [0, 1].map(offset => {
-      const point = window.__BOUNDSTOY__.project({ x: ${light.x} + offset + 0.32, y: ${light.y} + 0.30 });
+      // Pad centres: the idle frame leaves the actual ground visible there.
+      const point = window.__BOUNDSTOY__.project({ x: ${light.x} + offset + 0.05, y: ${light.y} + 0.05 });
       const pixels = context.getImageData(Math.round((point.x - rect.left) * ratio) - 1,
         Math.round((point.y - rect.top) * ratio) - 1, 3, 3).data;
       return [0, 1, 2].map(channel => {
@@ -154,7 +155,7 @@ export async function checkAftershock(context: BrowserContext) {
   })()`);
   const luminance = ([r, g, b]: number[]) => r * 0.2126 + g * 0.7152 + b * 0.0722;
   assert.ok(luminance(shadePixels[0]) > luminance(shadePixels[1]) * 1.03,
-    `actual checkerboard plate pixels must preserve group contrast: ${JSON.stringify(shadePixels)}`);
+    `actual checkerboard ground pixels inside pad frames must preserve group contrast: ${JSON.stringify(shadePixels)}`);
   await capture(`${grid.id}-quiet-ground-groups`);
   for (const [width, height] of [[1280, 900], [390, 844]]) for (const reduced of [false, true]) {
     const suffix = `${width}x${height}-${reduced ? 'reduced' : 'full'}`;

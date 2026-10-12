@@ -28,6 +28,7 @@ The template's useful ideas are kept without introducing a framework:
 | `presentation/stroke-visuals.ts` | World-unit stroke and square-band geometry replacing GL lines |
 | `presentation/player-visuals.ts` | Robot model, footprint ring, heading cue and detail pixel threshold |
 | `presentation/world-camera.ts` | Checkpoint-driven fixed-scale gameplay pans; positional editor/audio framing |
+| `data/explosion-styles.ts` | Frozen registry of cosmetic explosion styles (colours and burst motif) |
 | `presentation/hazard-visuals.ts` | Testable spike geometry, tick-driven charge/blast visuals, the instanced idle pad field and saw blade/path |
 | `presentation/readability.ts` | Adaptive non-colliding locator and depth-independent route signs; camera unchanged |
 | `presentation/audio.ts` | Opt-in WebAudio effects |
@@ -481,9 +482,11 @@ Pulse collisions occur only at cycle tick zero. Burst visibility is independent:
 it samples ticks since ignition for a 36-tick one-shot effect, including when
 a rendered frame skips ignition. The plate signals safe ground immediately
 after the single lethal tick; remaining particles are harmless.
-Warnings last 27 ticks (225 ms). Idle pads are flat with an amber pilot and
-outline (neutral grey while dormant); buildup uses one perimeter fuse whose salience rises every tick.
-The full-footprint flash sheet, shock ring and four short shards stay within the pad's
+Warnings last 27 ticks (225 ms). Idle pads are a flush style-coloured frame over
+the visible terrain (neutral grey while dormant); buildup burns a fuse round that
+frame and raises a translucent tint, with salience rising every tick yet peaking
+below the white-hot ignition. Styles come from the `data/explosion-styles.ts`
+registry. The flash sheet, eruption motif, glow, shockwave, scorch and embers stay within the pad's
 projected footprint in the real camera, including reduced motion. There is no
 raised vent or overlapping smoke shell.
 

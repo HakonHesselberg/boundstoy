@@ -23,8 +23,8 @@ test('Aftershock_AllFields_VisualsMatchEveryExactWarningAndLethalBoundary', () =
       assert.equal(sample.active, tick === ignition, 'exactly one lethal tick');
       assert.equal(view.burst.visible, tick >= ignition && tick < ignition + 36,
         `${hazard.x},${hazard.y}@${tick}: cosmetic aftermath`);
-      assert.equal(view.plate.geometry.parameters.width, 2 * RULES.pulseRadius);
-      assert.equal(view.plate.geometry.parameters.depth, 2 * RULES.pulseRadius);
+      assert.equal(view.footprint.geometry.parameters.width, 2 * RULES.pulseRadius);
+      assert.equal(view.footprint.geometry.parameters.height, 2 * RULES.pulseRadius);
     }
   }
 });

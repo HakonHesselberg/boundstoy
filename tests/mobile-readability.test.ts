@@ -8,6 +8,7 @@ import { REPLAYS as RELAY_REPLAYS } from './fixtures/relay-replays.ts';
 import { createState, step } from '../core/simulation.ts';
 import { Scene } from '../presentation/scene.ts';
 import { createPulse, updatePulse } from '../presentation/hazard-visuals.ts';
+import { EXPLOSION_STYLE_IDS } from '../data/explosion-styles.ts';
 import { createPlayerLocator, placePlayerLocator, fitRouteSigns, type RouteSign } from '../presentation/readability.ts';
 
 const layouts = [
@@ -52,10 +53,10 @@ test('PlayerLocator_ActualOpaqueGeometry_IsAtLeastTwelveCssPixelsWithoutScalingT
 });
 
 test('Pulse_EveryAnimationTick_StaysInsideItsProjectedTileWithoutNeighborOverlap', () => {
-  for (const layout of layouts) for (const reducedMotion of [false, true]) {
-    const camera = cameraFor(0, layout), view = createPulse();
+  for (const layout of layouts) for (const reducedMotion of [false, true]) for (const style of EXPLOSION_STYLE_IDS) {
+    const camera = cameraFor(0, layout), view = createPulse(style);
     const hazard = { kind: 'pulse' as const, x: 0, y: 0, on: 1, phase: 0, period: 360 };
-    const footprint = projectedGeometry(view.plate, camera, layout).box;
+    const footprint = projectedGeometry(view.footprint, camera, layout).box;
     for (let tick = 0; tick < hazard.period; tick++) {
       updatePulse(view, hazard, tick, reducedMotion);
       view.group.updateMatrixWorld(true);
@@ -64,7 +65,7 @@ test('Pulse_EveryAnimationTick_StaysInsideItsProjectedTileWithoutNeighborOverlap
         const { box } = projectedGeometry(object, camera, layout);
         assert.ok(box.min.x >= footprint.min.x - 1e-6 && box.max.x <= footprint.max.x + 1e-6
           && box.min.y >= footprint.min.y - 1e-6 && box.max.y <= footprint.max.y + 1e-6,
-        `${layout.name}/reduced=${reducedMotion}/tick=${tick}: blast or warning spills outside its own footprint`);
+        `${layout.name}/${style}/reduced=${reducedMotion}/tick=${tick}: ${object.name || 'mesh'} spills outside its own footprint`);
       });
     }
   }
@@ -97,9 +98,9 @@ test('PlayerLocator_ChaseElbowsAndRiser_LeaveEveryLethalFootprintExposed', () =>
     assert.equal(locator.visible, true);
     for (const hazard of level.hazards) {
       if (hazard.kind !== 'pulse') continue;
-      const { plate } = createPulse();
-      plate.position.x = hazard.x + 0.5; plate.position.z = hazard.y + 0.5;
-      const danger = projectedGeometry(plate, camera, layout).box;
+      const { footprint } = createPulse();
+      footprint.position.x = hazard.x + 0.5; footprint.position.z = hazard.y + 0.5;
+      const danger = projectedGeometry(footprint, camera, layout).box;
       assert.ok(box.max.x <= danger.min.x || box.min.x >= danger.max.x
         || box.max.y <= danger.min.y || box.min.y >= danger.max.y,
       `${layout.name}/${x},${y}: locator covers pulse footprint ${hazard.x},${hazard.y}`);

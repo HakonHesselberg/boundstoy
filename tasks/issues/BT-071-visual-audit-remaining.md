@@ -3,14 +3,14 @@
   "id": "BT-071",
   "title": "Apply the visual audit's remaining desktop recommendations",
   "type": "feature",
-  "status": "review",
+  "status": "blocked",
   "priority": "P2",
   "depends_on": ["BT-070"],
   "parent": null,
   "scope": ["presentation/scene.ts", "presentation/hazard-visuals.ts", "presentation/readability.ts", "presentation/wall-visuals.ts", "presentation/marker-visuals.ts", "presentation/terrain-visuals.ts", "presentation/stroke-visuals.ts", "presentation/player-visuals.ts", "tests/", "docs/", "README.md"],
   "approval": "2026-10-12 user: \"Do the remaining recommendations. Ignore mobile for now\" (visual audit R7, R8, R10, R11, R12, R14, R15; R6 mobile excluded).",
-  "assignment": {"owner": "visual-audit-remaining", "run": "bcce7959-a91e-47b4-8581-c09208d371d4", "branch": null, "worktree": "."},
-  "blocked_reason": null
+  "assignment": null,
+  "blocked_reason": "Implementation is committed and resources cleaned; user visual assessment remains pending. Released the completed worker's primary-worktree assignment for approved puzzle authoring."
 }
 ---
 # BT-071: Apply the visual audit's remaining desktop recommendations
@@ -125,4 +125,9 @@ world-editor and journey. Then take before/after headless captures and metrics.
 
 ## Result
 
-Pending.
+Visual acceptance remains pending, not marked done. On 2026-10-12 the puzzle
+orchestrator reconciled the handoff: implementation is present in `b4d50e2`
+and `fe21040`, the primary worktree was clean, the baseline passed 474/474,
+and the worker reports all owned resources cleaned. Released the completed
+`visual-audit-remaining` assignment (run
+`bcce7959-a91e-47b4-8581-c09208d371d4`) without changing rendering work.

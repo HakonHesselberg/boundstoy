@@ -36,6 +36,8 @@ Explosions are lethal for exactly one simulation tick; lingering effects are
 harmless. Do not restore sustained flames or stack consecutive detonations to
 disguise a continuous damage window. Warnings last 27 ticks (225 ms); keep effects
 compact and inside their projected tile footprint. Keep the four movement rules unchanged.
+Explosion colour is cosmetic: give each rhythm group one style, contrast neighbouring
+groups, and never let colour alone carry danger. No red explosion style.
 Changes to routes require exact legal replays, necessity checks and measured
 input margins; these checks are not a substitute for worthwhile gameplay.
 Do not restore the obsolete six-lesson/Pocket wave preservation constraints.

@@ -92,8 +92,10 @@ export async function checkCheckpointCamera(context: BrowserContext) {
     }
     await d.evaluate("document.getElementById('overlay').style.visibility = ''");
     const beforeReload = (await d.snapshot()).state;
-    await d.evaluate("document.getElementById('menu-toggle').click()");
+    await d.evaluate("document.getElementById('home-settings').click()");
     await d.saved(); await d.reload();
+    // Reload lands on Home; compare the camera in the play layout (advance(0) only switches screens).
+    await d.evaluate('__BOUNDSTOY__.advance(0); new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
     const afterReload = await d.snapshot();
     assert.deepEqual(afterReload.state, restartCheckpoint(afterReload.level, beforeReload),
       'reload retains totals but returns to the current checkpoint and resets its pattern');

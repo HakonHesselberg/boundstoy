@@ -7,7 +7,9 @@ The template's useful ideas are kept without introducing a framework:
 | `data/terrain.ts` | Frozen terrain registry and balance constants |
 | `data/levels.ts`, `data/aftershock-world.ts` | One frozen, validated eight-section world and section hints |
 | `data/replays.ts`, `data/aftershock-world-replays.ts` | Exact ordinary/faster continuous-world keyboard witnesses |
-| `data/explosion-puzzles.ts`, `data/explosion-replays.ts` | Six isolated normal-ground explosion playtests, hints and exact reference inputs |
+| `data/explosion-puzzles.ts`, `data/explosion-replays.ts` | Six isolated normal-ground explosion playtests, hints and exact reference inputs; exports the shared trial builder |
+| `data/classic-bounds.ts`, `data/classic-bound-replays.ts` | Six hard trials adapted from decoded StarCraft bounds obstacles, source credits, exact witnesses and re-sync timing windows |
+| `data/ice-escapes.ts`, `data/ice-escape-replays.ts` | Six hard soft-ice trials inspired by Warcraft III ice escapes: ASCII maps, creep (saw) rhythms, checkpoints, credits, exact witnesses and switch-model windows |
 | `data/benchmarks.ts`, `data/benchmark-replays.ts` | Archived 24-trial surface comparison registry and reference inputs, not in the menu |
 | `data/aftershock.ts`, `data/aftershock-replays.ts` | Retired V1 prototypes and compatibility witnesses, not selector entries |
 | `tests/fixtures/relay-*.ts` | Retired campaign data for movement/recovery regressions, not game content |
@@ -33,7 +35,14 @@ The template's useful ideas are kept without introducing a framework:
 | `presentation/glow-textures.ts` | Data-built soft masks (radial, edge glow, flash, ring, scorch) for pad art |
 | `presentation/hazard-visuals.ts` | Testable spike geometry, tick-driven charge/blast visuals, the instanced idle pad field and saw blade/path |
 | `presentation/readability.ts` | Adaptive non-colliding locator and depth-independent route signs; camera unchanged |
-| `presentation/audio.ts` | Opt-in WebAudio effects |
+| `data/sounds.ts`, `data/sound-demo.ts` | Frozen sound palette, mix limits and isolated sound-garden showcase |
+| `presentation/audio.ts` | Pure transition-to-cue selection and opt-in bounded WebAudio sample playback |
+| `data/ice-palette.ts` | Twelve demo-only ice choices, sound families and loop/mix settings |
+| `data/ice-audio.ts` | Legacy wind/pad experiment settings retained for compatibility |
+| `data/explosion-palette.ts` | Eight offline-authored buildup/explosion listening pairs and timing/mastering settings |
+| `data/sound-board.ts` | Sixteen offline-authored choices, including approved retry/button sounds, tactile alternatives and timed jingles; board reuses other current cues and ice files |
+| `public/audio/audition-player.js` | Shared finite, opt-in playback for isolated ice/explosion listening pages |
+| `public/audio/output.js` | Shared +12 dB output calibration, soft peak ceiling and final user-volume stage; typed adapter for gameplay |
 | `astro/Boundstoy.astro` | Static iframe wrapper, no hydration |
 
 The core never imports the DOM, Three.js, storage or the presentation layer.
@@ -64,6 +73,32 @@ The parked exact in-memory world remains available; reload uses its normal
 durable checkpoint snapshot. Session trial summaries are bounded by the six
 IDs, not a new persistence format. Trial checkpoint feedback says reached,
 not saved.
+
+The Sound garden uses the same isolated playtest path, without joining
+`EXPLOSION_PUZZLES` or `LEVELS`. It adds no save schema and never populates puzzle
+trial summaries. Its two sections showcase materials and explosion feedback.
+Data owns the sound registry; the presentation adapter derives material, warning
+and impact cues from state transitions. Local CC0 samples are decoded once per
+audio instance after consent, with explicit loading errors, bounded voices,
+cooldowns and lifecycle cleanup. See [AUDIO.md](AUDIO.md) for provenance and mix.
+An optional single-section ice room belongs to the same isolated sound-demo
+registry, not the production/trial registries. Both sound scenes offer twelve
+original tonal ice choices through a grouped, session-only selector. Each
+selected sample loads lazily and is cached; actual motion drives one sustained
+loop, with crossfades between choices and finite 12-second previews. Active and
+retiring loops share the eight-source limit with one-shot cues; pause/navigation
+clears them. Explicit loading errors support retry without stale playback.
+Legacy wind/pad playback remains supported by the engine, but is not offered
+in the selector. Normal gameplay keeps its existing one-shot material cues.
+
+The separate explosion listening page is linked from Sound garden. Eight
+original pairs offer solo buildups, solo impacts, exact 225 ms warning-to-impact
+pairs and four finite repetitions. These files never enter the runtime sample
+bank. Both standalone listening pages share a bounded player with lazy caching,
+atomic multi-file loading, cancellation generations, mono/volume controls and
+blur/hidden/pagehide cleanup. They neither read nor write game persistence.
+Synthesis and event-context loudness matching happen offline; there is no new
+runtime dependency or production sound selection.
 
 Reference witnesses are authored inputs, not a browser solver. Tests replay
 each witness and remeasure independent late-input tolerances, plus necessity
@@ -209,7 +244,8 @@ ordered definitions after translating all coordinates. Structural tests use a
 cardinal safe-terrain graph; they prove neither input feasibility nor human
 solvability. They deliberately do not alter soft-ice or hazard rules.
 
-The provisional V2 budgets are 160×128 cells, 640 hazards, 64 sections/63
+The provisional V2 budgets are 20,480 cells (up to 320 columns and 128 rows, so
+long thin worlds fit), 640 hazards, 64 sections/63
 checkpoints and 1,000,000 UTF-8 input bytes. These bound allocations and authoring
 complexity: 20,480 cells, eight times the old hazard budget, and room for verbose
 JSON. They are **not** user-required dimensions or hardware performance proof.
@@ -532,11 +568,24 @@ The application intentionally has no event bus, ECS, physics package, UI
 framework or plugin system. New behaviour should first extend the narrow,
 typed core interfaces rather than introducing an abstraction.
 
-The player interface is a playfield plus a small HUD/contextual hint. A compact
-menu owns level selection, sound, fullscreen, help and secondary editor entry.
-Counts and next/final progression derive from `LEVELS.length`, not a fixed
-first/second-level flow. There is one generic initial Play gate, not a tutorial
-modal per level. Deliberate level selection, next, retry and editor-return
+The player interface is one persistent WebGL board plus screens that only
+change which CSS grid area it occupies (`#boundstoy[data-screen]`): **home**
+(world card over the board), **levels** (tabbed tile grid beside or below a
+live preview), **play** (full-bleed board with an overlaid HUD) and **edit**
+(developer-only). The board never unmounts, so the renderer and its context
+survive navigation. One overlay card serves ready, pause and results states;
+one settings dialog owns sound, fullscreen, saved-game options and help.
+`application/level-catalogue.ts` is the single registry of trial sets (tabs);
+new levels register there, and developer sets/editor entry require `?dev` or
+`?debug`. `application/menu-model.ts` derives the home world card, section pips
+and controls hint as pure, tested functions.
+Home and Levels redraw the board only on change (resize, level load), never as
+a continuous idle loop. Nothing over the board uses `backdrop-filter`: a
+full-screen blur over WebGL stalled software-GL boots by seconds (BT-086) and
+is costly on mobile GPUs; overlays use opaque tints instead.
+Counts and next/final progression derive from `LEVELS.length` and the
+catalogue, not a fixed first/second-level flow. There is no tutorial modal per
+level. Deliberate level selection, next, retry and editor-return
 actions load directly into play; debug loads use an explicit paused entry mode
 so witness checks cannot race live ticks. Focus moves to the game before the
 activating control is hidden. The debug API remains opt-in and has no permanent

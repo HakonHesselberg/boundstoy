@@ -20,13 +20,16 @@ npm run dev
 # http://127.0.0.1:4321
 ```
 
-Click **Start**, then use **WASD / arrow keys**. Returning players get
-**Continue** from the latest saved checkpoint, initially paused.
-There is no section selector or checkpoint skipping. Hints stay below the board;
-full level instructions are available in **Menu → How to play**.
-**Space** pauses, **R** restarts the current puzzle at its checkpoint, and
-**Escape** opens the menu. **Menu → New run** starts over, with confirmation
-before replacing an unfinished run. Only the current puzzle's timed hazards
+The game opens on **Home**: the Aftershock card shows your section, run time,
+retries, best time and deathless status. **Play** starts, **Continue** resumes
+the saved run exactly, and **New run** starts over after confirmation. There is
+no section selector or checkpoint skipping. **Levels** opens the short trial
+levels, grouped in tabs with a live board preview.
+In play the board fills the screen; pause, title, section progress, time,
+retries and restart float over it. Each section's hint shows briefly and stays
+in the pause card. **Space** or **Escape** pauses, **R** restarts the current
+puzzle at its checkpoint. The pause card offers Resume, Restart, Settings and
+Home (or Levels). Only the current puzzle's timed hazards
 run; completed and future puzzles are inactive. Death returns to the latest
 checkpoint without resetting elapsed time, deaths or the active hazard rhythm.
 Restart and reload reset that rhythm, but retain elapsed time and deaths.
@@ -38,10 +41,17 @@ In multi-puzzle custom maps, a tinted floor zone shows each generous collection
 area between puzzles, painted only on ground connected to the checkpoint; the final puzzle ends at the exit, not another checkpoint.
 Pause, restart and level changes clear held controls; release and press again
 to move after those transitions.
-Mobile layouts include hold-to-move direction buttons. **Menu** contains level
-selection, sound, fullscreen, help and the editor. Sound starts muted on the
-first visit; the optional intro sound toggle and menu volume preference are
-remembered thereafter. Restored sound waits for an explicit play/level-choice gesture.
+Touch layouts show a cross-shaped hold-to-move pad: below the board in
+portrait, floating bottom-left over a full-height board in landscape.
+**Settings** (gear on Home, or from the pause card) holds sound, volume,
+fullscreen, saved-game options and How to play. Sound starts muted on the
+first visit; the sound and volume preferences are remembered thereafter.
+Restored sound waits for an explicit play/level-choice gesture.
+The level editor and sound garden are developer tools, shown under
+**Settings → Developer** only when the URL has `?dev` (or `?debug`).
+**Settings → Developer → Sound garden** opens a separate playable audio demo. Expand
+**Audition sounds & volume** to enable the mix or hear individual cues.
+The demo leaves your world and editor draft alone.
 Results compare total time first, using fewer deaths to break exact ties.
 Deathless completion is retained independently of a faster assisted best.
 There are no preset mastery targets. Records are isolated by world ID and
@@ -63,8 +73,9 @@ not part of the normal play screen.
   feedback, and a campaign completion screen with run and best-time results.
 - Paint-and-play editor: ground, hazards, start, exit, checkpoints, undo,
   local draft saving, and validated JSON import/export/download.
-- Original procedural 3D geometry, studio reflections, neon accents and audio.
-  No downloaded fonts, textures, models or sound files.
+- Original procedural 3D geometry and studio reflections; no downloaded fonts,
+  textures or models. A compact [CC0 physical sound palette](docs/AUDIO.md) combines
+  recorded contacts with custom friction, fuse, pressure and status effects.
 - Pure TypeScript simulation with immutable state updates, 120 Hz fixed steps,
   reference input replays, and an optional browser inspection API.
 
@@ -146,7 +157,7 @@ built-in runner. Vite warns
 about its uncompressed size because the WebGL renderer lives in the same bundle.
 We keep one preloaded bundle instead of adding lazy network loads during play.
 
-Small systems (physics, editor, validation, saves, input and synth audio) are
+Small systems (physics, editor, validation, saves, input and sample audio) are
 implemented here, without extra libraries. Three.js remains a pinned dependency
 rather than a hand-vendored renderer fork: copying part of its tightly connected
 engine would increase maintenance and make fixes harder. The built output is
@@ -183,7 +194,8 @@ dependency. See [Astro verification](docs/ASTRO_CHECKS.md) for its scope.
 
 ## Level editor
 
-Open **Menu → Level editor** to remix the selected level or restore your last draft.
+The editor is hidden from players for now. Open the game with `?dev`, then
+**Settings → Developer → Level editor** to remix the selected level or restore your last draft.
 Choose a brush, then click/drag on the board. For a saw, click its start and end.
 **Erase object** removes a hazard at its start cell or a checkpoint, not the
 ground. Start/exit/checkpoints require safe floor; painting unsafe terrain under
@@ -191,8 +203,8 @@ one is rejected. Move the marker or erase the checkpoint first.
 
 **New blank** and **Remix level** can be undone. Up to 40 edits are kept in
 session memory. **Playtest level** starts immediately from the draft's spawn;
-return with **Back to editor** or **Menu → Level editor**. **Restart game level**
-is called **Back to world** for this campaign and returns to its preserved run.
+return with **Back to editor**. **Back to world** returns Home, where
+Continue resumes the preserved run.
 Playtests never alter built-in records or active world saves. World marker and
 section metadata are edited together in validated JSON; section focus changes
 only the editor view, never the playtest spawn or progress.
@@ -297,7 +309,8 @@ tracker does not create commits or approve its own backlog.
 
 ## License
 
-MIT for Boundstoy code and original procedural art/audio. Three.js and the
+MIT for Boundstoy code and original procedural art. The recorded and synthesized
+audio samples are CC0 1.0; see [audio provenance](docs/AUDIO.md). Three.js and the
 template are MIT licensed too. Upstream attribution and full license text are
 preserved in [third-party notices](public/THIRD_PARTY_NOTICES.txt); the upstream
 template's placeholder copyright line is retained verbatim.

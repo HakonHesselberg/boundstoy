@@ -28,7 +28,7 @@ export function parseOptions(args: string[]): Options {
 
 export function chromiumArgs(profile: string): string[] {
   return [
-    '--headless=new', '--enable-automation', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
+    '--headless=new', '--mute-audio', '--enable-automation', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
     '--disable-background-networking', '--disable-component-update', '--disable-sync',
     '--metrics-recording-only', '--password-store=basic', '--use-mock-keychain',
     '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1280,900',

@@ -43,10 +43,12 @@ export async function checkRoughJourney(context: BrowserContext) {
 
   assert.match(await d.text('controls-note'), /R.*checkpoint/i);
   assert.match(await d.evaluate<string>("document.getElementById('viewport').getAttribute('aria-label')"), /checkpoint/i);
-  assert.equal(await d.text('intro-audio'), 'Sound off');
-  await d.click('intro-audio');
-  assert.equal(await d.evaluate('document.activeElement.id'), 'intro-audio');
-  await d.click('menu-toggle');
+  assert.equal(await d.evaluate("document.getElementById('boundstoy').dataset.screen"), 'home');
+  await d.click('home-settings');
+  assert.equal(await d.text('audio'), 'Sound off');
+  await d.click('audio');
+  assert.equal(await d.evaluate('document.activeElement.id'), 'audio');
+  await d.until('Sound preference saved', `JSON.parse(localStorage.getItem(${JSON.stringify(PREFERENCES_KEY)}))?.sound === true`);
   await d.evaluate(`const slider = document.getElementById('sound-volume');
     slider.value = '25'; slider.dispatchEvent(new Event('input', {bubbles:true}));
     slider.dispatchEvent(new Event('change', {bubbles:true}));`);
@@ -60,14 +62,16 @@ export async function checkRoughJourney(context: BrowserContext) {
     await d.reload();
     assert.equal(await d.evaluate('window.__audioContexts'), 0, 'Saved sound never autoplays on boot');
     assert.equal(await d.evaluate("document.getElementById('sound-volume').value"), '25');
-    assert.equal(await d.text('intro-audio'), 'Sound on');
-    await d.click('primary-action'); await playing();
+    assert.equal(await d.text('audio'), 'Sound on');
+    await d.click('home-play'); await playing();
     await d.until('Remembered sound requires fresh intent', 'window.__audioContexts === 1');
-    await d.click('menu-toggle'); await d.click('audio');
-    assert.equal(await d.evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(PREFERENCES_KEY)})).sound`), false);
-    await d.click('help');
+    await d.click('pause'); await d.click('overlay-settings');
+    await d.until('Sound idle before muting', "document.getElementById('audio').getAttribute('aria-disabled') === 'false'");
+    await d.click('audio');
+    await d.until('Mute saved', `JSON.parse(localStorage.getItem(${JSON.stringify(PREFERENCES_KEY)})).sound === false`);
     assert.match(await d.text('help-description'), /Aftershock|world|section/i);
-    await d.click('help-back'); await d.click('menu-close');
+    await d.click('settings-close');
+    assert.equal(await d.evaluate('document.activeElement.id'), 'overlay-settings', 'closing settings returns focus');
   } finally { await page.call('Page.removeScriptToEvaluateOnNewDocument', audioProbe); }
   log('PASS production sound opt-in/volume/mute persistence, no autoplay, focused controls and world help.');
 
@@ -88,7 +92,8 @@ export async function checkRoughJourney(context: BrowserContext) {
   await press('Tab'); await frozen();
   await d.click('primary-action'); await playing();
   await press('Escape'); await frozen();
-  await d.click('menu-play'); await playing();
+  assert.equal(await d.evaluate('document.activeElement.id'), 'primary-action');
+  await d.click('primary-action'); await playing();
   const resumedTick = (await d.snapshot()).state.tick;
   await d.until('Resumed frame clock advances before injected stall',
     `__BOUNDSTOY__.snapshot().state.tick >= ${resumedTick + 8}`);
@@ -124,7 +129,7 @@ export async function checkRoughJourney(context: BrowserContext) {
 
   await d.newRun();
   await d.run(sliceRoute(EIGHT_SECTION_ROUTES.ordinary, 0, 850));
-  await d.click('menu-toggle'); await d.saved();
+  await d.click('overlay-settings'); await d.saved();
   const campaignBytes = await readStored(page, RUN_STORAGE_KEY, signal);
   await d.click('editor-tab');
   await d.evaluate(`document.querySelector('.json-panel').open = true;
@@ -169,7 +174,7 @@ export async function checkRoughJourney(context: BrowserContext) {
     assert.equal(respawn.patternOffset, death.patternOffset, 'ordinary respawn preserves the active clock');
     assert.equal(hazardTick(respawn), hazardTick(death) + 54);
     assert.deepEqual(JSON.parse((await d.saved()).active), savedDeath, 'respawn completion is not a save boundary');
-    await d.click('menu-toggle');
+    await d.click('overlay-settings');
     const pausedSave = JSON.parse((await d.saved()).active);
     assert.deepEqual(pausedSave, createCheckpointSnapshot(world, savedDeath.runId, respawn));
     await d.reload();
@@ -185,13 +190,14 @@ export async function checkRoughJourney(context: BrowserContext) {
 
   await page.call('Page.navigate', { url: `${origin}/?ordinary-world` });
   await d.until('Ordinary production boot', `location.search === '?ordinary-world'
-    && document.getElementById('primary-action') && !document.getElementById('primary-action').disabled
+    && document.getElementById('home-play') && !document.getElementById('home-play').disabled
     && document.getElementById('save-status').textContent !== 'Loading save...'`);
   assert.equal(await d.evaluate('typeof window.__BOUNDSTOY__'), 'undefined');
+  assert.equal(await d.evaluate("document.getElementById('dev-tools').hidden"), true, 'editor stays hidden without ?dev');
   await wait(250);
   await page.call('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   const baselineRequests = requests.length;
-  await d.click('primary-action');
+  await d.click('home-play');
   await d.until('Ordinary world starts', "document.getElementById('overlay').hidden");
   const timer = await d.text('timer');
   await key('KeyD', true);

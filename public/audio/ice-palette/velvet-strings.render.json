@@ -1,0 +1,29 @@
+{
+  "engine": "@strudel/web@1.3.0",
+  "bundleSha256": "50beb01abd04589333a10e078dce182c82e2de75b43e9bbe81a34bd069948931",
+  "browser": "Chrome/151.0.7922.137",
+  "method": "renderPatternAudio / OfflineAudioContext",
+  "seed": 7901,
+  "cps": 0.5,
+  "sampleRate": 48000,
+  "seconds": 28,
+  "channels": 2,
+  "encoding": "PCM16 lossless WAV",
+  "pattern": "velvet-strings.strudel.js",
+  "patternSha256": "5af3f3d2e5df438d330d3941cb54eb50509979a259928e2556bba2bd198d1097",
+  "rawSha256": "b0f623faa3a993f86d7e6ca9ae1e1718dbd50cf9d4a9d33ca74c5054cd916cf7",
+  "onsets": 3,
+  "peak": 0.0654296875,
+  "requests": [
+    "http://127.0.0.1:39103/",
+    "http://127.0.0.1:39103/strudel.js"
+  ],
+  "logs": [
+    "%c🌀 @strudel/core loaded 🌀 background-color: black;color:white;border-radius:15px",
+    "%c[eval] code updated background-color: black;color:white;border-radius:15px",
+    "%c[superdough] AudioWorklets loaded background-color: black;color:white;border-radius:15px",
+    "%c[superdough] ready background-color: black;color:white;border-radius:15px",
+    "%c[webaudio] preloading background-color: black;color:white;border-radius:15px",
+    "%c[webaudio] start rendering background-color: black;color:white;border-radius:15px"
+  ]
+}

@@ -78,6 +78,8 @@ export function parseLevel(value: unknown): Level {
     return row;
   });
   if (tiles.some(row => row.length !== tiles[0].length)) throw new Error('All tiles rows must have the same width.');
+  if ('maxCells' in limits && tiles.length * tiles[0].length > limits.maxCells)
+    throw new Error(`tiles may contain at most ${limits.maxCells} cells.`);
   const point = (value: unknown, label: string, safe = false): Point => {
     const p = record(value, label);
     const x = integer(p.x, `${label}.x`, 0, tiles[0].length - 1);

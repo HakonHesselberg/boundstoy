@@ -91,7 +91,7 @@ async function checkWorldEditor({ page, origin, signal, log }: BrowserContext) {
   for (const [width, height] of [[1280, 900], [390, 844]]) {
     const tag = `${width}x${height}`;
     await page.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-    await evaluate(`document.getElementById('menu-toggle').click(); document.getElementById('editor-tab').click()`);
+    await evaluate(`document.getElementById('home-settings').click(); document.getElementById('editor-tab').click()`);
     await importSource(JSON.stringify(source));
     await draftSaved();
     assert.deepEqual((await snapshot()).level, source);
@@ -184,7 +184,7 @@ async function checkWorldEditor({ page, origin, signal, log }: BrowserContext) {
     await capture(`${tag}-returned`);
     assert.equal(await readStored(page, RUN_STORAGE_KEY, signal), bytes, 'playtest cannot change active run or records');
     assert.equal(await readStored(page, PROGRESS_KEY, signal), progress);
-    await evaluate(`document.getElementById('play-tab').click(); document.getElementById('pause').click()`);
+    await evaluate(`document.getElementById('play-tab').click(); document.getElementById('home-play').click(); document.getElementById('pause').click()`);
     await saved();
     assert.deepEqual((await snapshot()).state, campaign.state);
     assert.equal(await readStored(page, RUN_STORAGE_KEY, signal), bytes);

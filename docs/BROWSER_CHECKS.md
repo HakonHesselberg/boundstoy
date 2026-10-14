@@ -95,7 +95,7 @@ marker and global painting behavior.
 After `npm run build`, run
 `node tests/browser/graphics-recovery.ts --timeout 300000`.
 This uses the same isolated Chromium harness and owned ephemeral preview.
-`WEBGL_lose_context` exercises play, pause, editor, initial-menu and touch loss;
+`WEBGL_lose_context` exercises play, pause, editor, Home-settings and touch loss;
 normal and synthetic actions must not advance either clock while unavailable.
 Restoration redraws the same state on the same canvas and requires a fresh
 explicit resume. Repeated cycles check resource/listener stability and identical
@@ -204,8 +204,17 @@ does not run that POSIX-specific case.
   auto-repeat; continued touch contact after restart cannot restore cleared
   movement. A 4x CPU throttle and 200 ms main-thread stall exercise bounded
   frame recovery and clean pause.
+- Screen flow (BT-086): boot shows Home; Play/Continue, confirmed New run,
+  Levels (tabs, tile preview, Play, Next level, Escape back) and the pause card
+  (Resume, Restart, Settings, Home/Levels) are driven through real controls.
+  `tests/browser/explosion-puzzles.ts` asserts the level select fits without
+  scrolling at all three sizes; `?dev`/`?debug` alone expose the editor and
+  sound garden, and the ordinary journey checks they stay hidden.
+  `node tests/browser/ui-flow.ts` (after `npm run build`) writes named captures
+  of home, play, pause, settings, levels and results at 1280×800, 390×844 and
+  844×390 to `artifacts/ui-flow/` and logs the board's share of the screen.
 - **1280×800 desktop, 390×844 portrait and 844×390 landscape**: required
-  navigation controls fit on screen (scrolling menus/editor panels as needed),
+  navigation controls fit on screen (scrolling settings/editor panels as needed),
   have at least 44×44 CSS-pixel targets and are not obscured. Selection,
   next/retry/final transitions, pause/resume, Help and editor playtest/return
   run in each layout. Portrait/landscape use real CDP touch events, including

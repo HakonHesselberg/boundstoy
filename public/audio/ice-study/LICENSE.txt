@@ -1,0 +1,10 @@
+Boundstoy ice study - CC0 1.0
+============================
+wind/sound.wav and pad/sound.wav are original deterministic synthesis by
+Boundstoy contributors (2026), dedicated to Creative Commons Zero 1.0:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No third-party recordings, instruments, samples or sound libraries are used.
+The TypeScript generator remains under the project's MIT license.
+Reproduce with: node scripts/prepare-ice-audio.ts
+Design and comparison instructions: docs/AUDIO.md.

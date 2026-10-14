@@ -2,115 +2,180 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b101b" />
     <meta name="description" content="Aftershock: one continuous eight-section escape world. Read travelling blasts and saw patrols, reach safe checkpoints and chase your personal best." />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <title>Boundstoy — Aftershock</title>
   </head>
   <body>
-    <div id="boundstoy">
-      <header class="site-header">
-        <span class="brand" aria-label="Boundstoy">
-          <svg viewBox="0 0 36 40" fill="none" aria-hidden="true"><path d="M18 2 34 11v18L18 38 2 29V11Z" stroke="currentColor" stroke-width="2"/><path d="m10 14 8-5 8 5-8 5-8-5Zm0 12 8-5 8 5-8 5-8-5Z" fill="currentColor"/></svg>
-          <span>bounds<span class="brand-light">toy</span></span>
-        </span>
-        <div class="level-heading"><span id="course-number" class="eyebrow"></span><h1 id="course-title">Boundstoy</h1></div>
-        <span class="test-badge" id="test-badge" hidden>PLAYTEST</span>
-        <button id="editor-return" hidden>Back to editor</button>
-        <button id="puzzle-return" hidden>Puzzles</button>
-        <button id="menu-toggle" aria-haspopup="dialog" aria-controls="game-menu" aria-expanded="false">Menu <span aria-hidden="true">☰</span></button>
-      </header>
-
-      <main class="workspace">
-        <section class="game-column" aria-label="Game">
-          <div id="puzzle-info" class="puzzle-info" hidden>
-            <code id="puzzle-id"></code><span id="puzzle-status"></span>
-          </div>
-          <div class="play-bar">
-            <div class="counters"><span><small>Time</small><b id="timer">00:00.00</b></span><span><small>Retries</small><b id="deaths">00</b></span></div>
-            <span id="run-status" class="run-status">Ready</span>
-            <div class="run-actions"><button id="restart" title="Restart level (R)" aria-label="Restart level">↻</button><button id="puzzle-start" hidden>Start trial →</button><button id="pause" title="Pause game (Space)">Pause <span aria-hidden="true">Ⅱ</span></button></div>
-          </div>
-          <div id="viewport" class="viewport" tabindex="0" role="application" aria-label="Boundstoy level. Use WASD or arrow keys to move. R to restart, Space to pause." aria-describedby="controls-note">
-            <div id="overlay" class="overlay">
-              <section class="overlay-card" aria-labelledby="overlay-title" aria-describedby="overlay-copy">
-                <span class="eyebrow" id="overlay-kicker">READ THE RHYTHM. MAKE YOUR MOVE.</span>
-                <h2 id="overlay-title">One world. Eight sections.</h2>
-                <p id="overlay-copy">Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Hazards keep their rhythm through retries. R starts a new run.</p>
-                <p id="mastery-target" class="finish-comparison"></p>
-                <div id="finish-stats" class="finish-stats" hidden><div><small>Time</small><strong id="finish-time"></strong></div><div><small>Retries</small><strong id="finish-retries"></strong></div><div><small>Best clean</small><strong id="finish-best"></strong></div></div>
-                <p id="finish-mastery" class="finish-comparison" hidden></p>
-                <p id="finish-comparison" class="finish-comparison" role="status" hidden></p>
-                <button id="primary-action" class="primary">Play →</button>
-                <button id="intro-audio" class="secondary-action" aria-label="Enable sound" aria-pressed="false">Sound off</button>
-                <button id="retry-course" class="secondary-action" hidden>Retry level ↻</button>
-                <span class="overlay-foot" id="overlay-foot">NO LIVES. NO RUSH. ONE MORE TRY.</span>
-              </section>
+    <div id="boundstoy" data-screen="home">
+      <section id="home-screen" class="home-screen" aria-labelledby="home-world-title">
+        <div class="home-top">
+          <span class="brand" aria-label="Boundstoy">
+            <svg viewBox="0 0 36 40" fill="none" aria-hidden="true"><path d="M18 2 34 11v18L18 38 2 29V11Z" stroke="currentColor" stroke-width="2"/><path d="m10 14 8-5 8 5-8 5-8-5Zm0 12 8-5 8 5-8 5-8-5Z" fill="currentColor"/></svg>
+            <span>bounds<span class="brand-light">toy</span></span>
+          </span>
+          <button id="home-settings" class="icon-button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.4-2.5a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="home-body">
+          <article class="world-card" aria-describedby="home-world-copy">
+            <span class="eyebrow">THE WORLD</span>
+            <h1 id="home-world-title">Aftershock</h1>
+            <p id="home-world-copy" class="world-copy">One continuous escape. Read the blasts, reach each checkpoint, find the golden exit.</p>
+            <ol id="home-pips" class="section-pips" aria-label="Section progress"></ol>
+            <p id="home-progress" class="world-line"></p>
+            <p class="world-line muted"><span id="home-best"></span> <span id="home-deathless" class="badge" hidden>Deathless</span></p>
+            <div class="world-actions">
+              <button id="home-play" class="primary">Play →</button>
+              <button id="new-run" class="secondary-action" hidden>New run</button>
             </div>
-            <div id="game-feedback" class="game-feedback" role="status" aria-live="polite" hidden></div>
-            <span class="editor-coordinates" id="editor-coordinates" hidden>SELECT A TILE</span>
-          </div>
-          <div class="stage-footer">
-            <p id="route-hint" class="route-hint" aria-label="Current level hint"></p>
-            <div id="touch-controls" class="touch-controls" role="group" aria-label="Touch movement controls">
-              <button data-direction="up" aria-label="Move up">↑</button><button data-direction="left" aria-label="Move left">←</button>
-              <button data-direction="down" aria-label="Move down">↓</button><button data-direction="right" aria-label="Move right">→</button>
-            </div>
-            <button id="save-status" class="secondary-action" aria-haspopup="dialog">Loading save...</button>
-          </div>
-          <p id="controls-note" class="sr-only">WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons to move.</p>
-        </section>
+          </article>
+          <section id="course-strip" class="course-strip" aria-labelledby="course-strip-title" hidden>
+            <div class="course-strip-head"><h2 id="course-strip-title">Worlds</h2><span id="completion-count" class="count-label"></span></div>
+            <div id="course-list" class="course-list"></div>
+          </section>
+          <button id="home-levels" class="levels-link"><span><strong>Levels</strong><small id="home-levels-count"></small></span><span aria-hidden="true">→</span></button>
+          <button id="home-help" class="text-button">How to play</button>
+        </div>
+      </section>
 
-        <aside id="editor-panel" class="editor-panel" aria-label="Level editor" hidden>
-          <div class="panel-heading"><h2>Level editor</h2><button id="play-tab">Restart game level</button></div>
-          <label class="field-label" for="level-name">Level name</label><input id="level-name" maxlength="60" value="My course" />
-          <div id="section-focus-field" hidden>
-            <label class="field-label" for="section-focus">Editor section view</label>
-            <select id="section-focus" aria-describedby="section-focus-help" disabled></select>
-            <p id="section-focus-help" class="brush-help">View only, not a playtest start. Edit section, start, exit, checkpoint and camera metadata together in validated JSON. Invalid edits keep your draft.</p>
+      <section id="levels-screen" class="levels-screen" aria-labelledby="levels-title" hidden>
+        <div class="levels-head">
+          <button id="levels-back" class="icon-button" aria-label="Back to home">←</button>
+          <h2 id="levels-title">Levels</h2>
+        </div>
+        <div id="level-tabs" class="level-tabs" role="tablist" aria-label="Level sets"></div>
+        <p id="level-set-summary" class="level-set-summary"></p>
+        <div id="level-grid" class="level-grid" role="tabpanel" aria-labelledby="levels-title"></div>
+        <div id="level-detail" class="level-detail" aria-live="polite">
+          <h3 id="level-detail-title"></h3>
+          <p id="level-detail-copy"></p>
+          <p id="level-detail-credit" class="level-credit"></p>
+          <p id="level-detail-result" class="level-result"></p>
+          <button id="level-play" class="primary">Play →</button>
+        </div>
+      </section>
+
+      <main id="stage" class="stage" aria-label="Game">
+        <div id="viewport" class="viewport" tabindex="0" role="application" aria-label="Boundstoy level. Use WASD or arrow keys to move. R to restart, Space to pause." aria-describedby="controls-note">
+          <header id="hud" class="hud">
+            <div class="hud-left">
+              <button id="pause" class="icon-button" title="Pause (Space or Esc)" aria-label="Pause"><span aria-hidden="true">Ⅱ</span></button>
+              <div class="hud-title"><span id="course-number" class="eyebrow"></span><span id="course-title" class="hud-name">Boundstoy</span><ol id="section-pips" class="section-pips" aria-hidden="true"></ol></div>
+            </div>
+            <div class="hud-right">
+              <button id="save-warning" class="save-warning" aria-haspopup="dialog" hidden>Not saved</button>
+              <button id="editor-return" hidden>Back to editor</button>
+              <div class="counters"><span><small>Time</small><b id="timer">00:00.00</b></span><span><small>Retries</small><b id="deaths">00</b></span></div>
+              <button id="restart" class="icon-button" title="Restart (R)" aria-label="Restart"><span aria-hidden="true">↻</span></button>
+            </div>
+          </header>
+          <div id="overlay" class="overlay" hidden>
+            <section class="overlay-card" aria-labelledby="overlay-title" aria-describedby="overlay-copy">
+              <span class="eyebrow" id="overlay-kicker"></span>
+              <h2 id="overlay-title"></h2>
+              <p id="overlay-copy"></p>
+              <p id="mastery-target" class="finish-comparison" hidden></p>
+              <div id="finish-stats" class="finish-stats" hidden><div><small>Time</small><strong id="finish-time"></strong></div><div><small>Retries</small><strong id="finish-retries"></strong></div><div><small>Best</small><strong id="finish-best"></strong></div></div>
+              <p id="finish-mastery" class="finish-comparison" hidden></p>
+              <p id="finish-comparison" class="finish-comparison" role="status" hidden></p>
+              <button id="primary-action" class="primary">Resume →</button>
+              <button id="retry-course" class="secondary-action" hidden>Restart</button>
+              <div class="overlay-row">
+                <button id="overlay-settings" class="secondary-action" aria-haspopup="dialog" aria-controls="settings">Settings</button>
+                <button id="overlay-exit" class="secondary-action">Home</button>
+              </div>
+            </section>
           </div>
-          <div class="editor-toolbar"><button id="undo">Undo</button><button id="new-course">New blank</button><button id="copy-course">Remix level</button></div>
-          <span class="eyebrow palette-heading">GROUND &amp; OBSTACLES</span>
-          <div id="palette" class="palette" role="group" aria-label="Editor brushes"></div>
-          <div id="pulse-styles" class="pulse-styles" role="group" aria-label="Explosion style" hidden></div>
-          <p class="brush-help" id="brush-help">Paint normal ground. Click or drag over the board.</p>
-          <button id="playtest" class="primary">Playtest level →</button>
-          <p class="editor-save" id="draft-status">Draft stays in this browser.</p>
-          <details class="json-panel"><summary>Import / export JSON</summary>
-            <label class="field-label" for="level-json">Portable level data</label>
-            <textarea id="level-json" rows="6" spellcheck="false" placeholder="Export your level or paste one here."></textarea>
-            <div class="editor-toolbar"><button id="export">Export</button><button id="import">Import</button><button id="download">Download</button></div>
-          </details>
-        </aside>
+          <div id="game-feedback" class="game-feedback" role="status" aria-live="polite" hidden></div>
+          <p id="route-hint" class="route-hint" aria-label="Current level hint"></p>
+          <span class="editor-coordinates" id="editor-coordinates" hidden>SELECT A TILE</span>
+        </div>
+        <div id="touch-controls" class="touch-controls" role="group" aria-label="Movement: hold a direction">
+          <button data-direction="up" class="dpad-up" aria-label="Move up">▲</button>
+          <button data-direction="left" class="dpad-left" aria-label="Move left">◀</button>
+          <button data-direction="right" class="dpad-right" aria-label="Move right">▶</button>
+          <button data-direction="down" class="dpad-down" aria-label="Move down">▼</button>
+        </div>
+        <details id="sound-demo-controls" class="sound-demo-controls" hidden>
+          <summary>Audition sounds &amp; volume</summary>
+          <p><a id="explosion-listening-room" href="./audio/explosion-candidates/index.html">Explore 8 buildup &amp; explosion pairs</a> in a separate listening room.</p>
+          <p><a id="other-sounds-board" href="./audio/sound-board/index.html">Compare other sounds: steps, warnings, feedback &amp; ice</a>.</p>
+          <div class="sound-settings">
+            <button id="demo-audio" aria-label="Enable sound" aria-pressed="false">Sound off</button>
+            <label id="demo-volume-label" for="demo-volume">Volume 50%</label>
+            <input id="demo-volume" type="range" min="0" max="100" step="1" value="50" />
+          </div>
+          <p>Enable sound, then take a walk. Tap a cue to pause and hear it alone.</p>
+          <label class="field-label" for="ice-sound">12 ice sounds · choose to listen</label>
+          <select id="ice-sound" aria-describedby="ice-description"></select>
+          <p id="ice-description"></p>
+          <div class="sound-auditions" role="group" aria-label="Ice sound comparison">
+            <button id="ice-prev">Previous sound</button>
+            <button id="ice-next">Next sound</button>
+            <button id="ice-preview">Preview · 12 seconds</button>
+            <button id="ice-stop">Stop / pause</button>
+          </div>
+          <p>Choose a sound for a 12-second preview while paused, or switch while skating. Enter the ice room for long glides, turns and nearby explosions. All choices are session-only.</p>
+          <div class="sound-auditions" role="group" aria-label="Sound garden rooms">
+            <button id="ice-room-open">Enter ice room</button>
+            <button id="sound-lane-open">Materials walk</button>
+          </div>
+          <div id="sound-auditions" class="sound-auditions" role="group" aria-label="Audition individual sound effects"></div>
+          <p id="sound-last">Twelve original tonal ice sounds. No cloth or wind bed. Other cues retain physical palette v2. All dangers remain visible.</p>
+          <p class="sound-credit">Original CC0 Strudel synthesis. <a id="ice-source" href="./audio/ice-palette/weightless.strudel.js" download>Selected Strudel patch</a> · <a href="./audio/ice-palette/LICENSE.txt">Credits</a>.</p>
+          <p class="sound-credit">CC0 recordings by <a href="https://opengameart.org/content/fantozzis-footsteps-grasssand-stone" target="_blank" rel="noopener noreferrer">Fantozzi / qubodup</a> and <a href="https://opengameart.org/content/100-cc0-sfx" target="_blank" rel="noopener noreferrer">rubberduck</a>, with custom Boundstoy synthesis. <a href="./audio/physical-v2/audition.strudel.js" download>Strudel audition pattern</a>. Your world and editor draft stay separate.</p>
+        </details>
+        <p id="controls-note" class="sr-only">WASD or arrow keys to move. Space or Escape pauses and resumes. R restarts. On touch screens, hold the direction buttons to move.</p>
       </main>
 
-      <dialog id="game-menu" class="game-menu" aria-labelledby="menu-title">
-        <div class="menu-heading"><h2 id="menu-title" tabindex="-1">Take a breather.</h2><button id="menu-close" aria-label="Close menu">×</button></div>
-        <div id="menu-home">
-          <button id="menu-play" class="primary">Play →</button>
-          <button id="new-run" class="secondary-action" hidden>New run ↻</button>
-          <div class="panel-heading"><h3>Your world</h3><span id="completion-count" class="count-label"></span></div>
-          <div class="course-list" id="course-list" aria-label="Continue or start Aftershock"></div>
-          <div class="menu-settings"><button id="audio" aria-label="Enable sound" aria-pressed="false">Sound off</button><button id="fullscreen" aria-label="Enter fullscreen">Fullscreen ⛶</button><button id="help">How to play</button></div>
+      <aside id="editor-panel" class="editor-panel" aria-label="Level editor" hidden>
+        <div class="panel-heading"><h2>Level editor</h2><button id="play-tab">Back to world</button></div>
+        <label class="field-label" for="level-name">Level name</label><input id="level-name" maxlength="60" value="My course" />
+        <div id="section-focus-field" hidden>
+          <label class="field-label" for="section-focus">Editor section view</label>
+          <select id="section-focus" aria-describedby="section-focus-help" disabled></select>
+          <p id="section-focus-help" class="brush-help">View only, not a playtest start. Edit section, start, exit, checkpoint and camera metadata together in validated JSON. Invalid edits keep your draft.</p>
+        </div>
+        <div class="editor-toolbar"><button id="undo">Undo</button><button id="new-course">New blank</button><button id="copy-course">Remix level</button></div>
+        <span class="eyebrow palette-heading">GROUND &amp; OBSTACLES</span>
+        <div id="palette" class="palette" role="group" aria-label="Editor brushes"></div>
+        <div id="pulse-styles" class="pulse-styles" role="group" aria-label="Explosion style" hidden></div>
+        <p class="brush-help" id="brush-help">Paint normal ground. Click or drag over the board.</p>
+        <button id="playtest" class="primary">Playtest level →</button>
+        <p class="editor-save" id="draft-status">Draft stays in this browser.</p>
+        <details class="json-panel"><summary>Import / export JSON</summary>
+          <label class="field-label" for="level-json">Portable level data</label>
+          <textarea id="level-json" rows="6" spellcheck="false" placeholder="Export your level or paste one here."></textarea>
+          <div class="editor-toolbar"><button id="export">Export</button><button id="import">Import</button><button id="download">Download</button></div>
+        </details>
+      </aside>
+
+      <dialog id="settings" class="game-menu" aria-labelledby="settings-title">
+        <div class="menu-heading"><h2 id="settings-title" tabindex="-1">Settings</h2><button id="settings-close" class="icon-button" aria-label="Close settings">×</button></div>
+        <section class="settings-group" aria-labelledby="sound-heading">
+          <h3 id="sound-heading">Sound &amp; display</h3>
+          <div class="setting-row"><button id="audio" aria-label="Enable sound" aria-pressed="false">Sound off</button><button id="fullscreen" aria-label="Enter fullscreen">Fullscreen</button></div>
           <label class="field-label" id="sound-volume-label" for="sound-volume">Volume 50%</label>
           <input id="sound-volume" type="range" min="0" max="100" step="1" value="50" />
-          <button id="puzzles-open" class="secondary-action">Explosion puzzles · 6 levels</button>
-          <button id="editor-tab" class="secondary-action">Level editor ↗</button>
-        </div>
-        <section id="puzzle-panel" aria-label="Explosion puzzle collection" hidden>
-          <p>Six short explosion puzzles. Read the pattern, choose your moment and reach the exit. The final level has a checkpoint between its two puzzles.</p>
-          <div id="puzzle-list" class="course-list" aria-label="Choose an explosion puzzle"></div>
-          <p class="puzzle-note">Trial results last for this session. Your Aftershock run and editor draft are kept separate.</p>
-          <button id="puzzles-back" class="secondary-action">Back to menu</button>
         </section>
-        <section id="help-panel" aria-label="How to play" hidden>
-          <p>Reach the golden exit. Numbered checkpoints save your place if you fall or hit a hazard.</p>
-          <dl class="controls-help"><dt>Move</dt><dd><kbd>WASD</kbd> / <kbd>Arrows</kbd> / hold touch arrows</dd><dt>Pause / resume</dt><dd><kbd>Space</kbd></dd><dt id="help-restart-label">Restart</dt><dd><kbd>R</kbd><span id="help-restart-note"></span></dd><dt>Menu</dt><dd><kbd>Esc</kbd></dd></dl>
-          <h3 id="help-level-title">This level</h3>
-          <p id="help-description"></p>
+        <section class="settings-group" aria-labelledby="save-heading">
+          <h3 id="save-heading">Saved game</h3>
+          <p class="settings-note">Your world saves at checkpoints, retries, pauses and when you leave.</p>
+          <button id="save-status" class="secondary-action" aria-haspopup="dialog">Loading save...</button>
+        </section>
+        <section id="help-panel" class="settings-group" aria-labelledby="help-heading">
+          <h3 id="help-heading" tabindex="-1">How to play</h3>
+          <p class="settings-note">Reach the golden exit. Numbered checkpoints save your place if you fall or hit a hazard.</p>
+          <dl class="controls-help"><dt>Move</dt><dd><kbd>WASD</kbd> / <kbd>Arrows</kbd> / hold the touch arrows</dd><dt>Pause</dt><dd><kbd>Space</kbd> / <kbd>Esc</kbd></dd><dt id="help-restart-label">Restart</dt><dd><kbd>R</kbd><span id="help-restart-note"></span></dd></dl>
+          <h4 id="help-level-title">This level</h4>
+          <p id="help-description" class="settings-note"></p>
           <ul id="help-terrain" class="help-terrain"></ul>
-          <button id="help-back" class="primary">Back to menu ←</button>
+        </section>
+        <section id="dev-tools" class="settings-group" aria-labelledby="dev-heading" hidden>
+          <h3 id="dev-heading">Developer</h3>
+          <div class="setting-row"><button id="editor-tab">Level editor</button><button id="sounds-open">Sound garden</button></div>
         </section>
       </dialog>
       <dialog id="save-recovery" class="game-menu" aria-labelledby="save-title" aria-describedby="save-copy">

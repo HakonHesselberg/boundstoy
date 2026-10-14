@@ -2,11 +2,11 @@ import { parseLevel, type Point, type Pulse, type World } from '../core/level.ts
 
 type Rect = readonly [left: number, top: number, right: number, bottom: number];
 export type ExplosionPuzzle = Readonly<{ question: string; hints: readonly string[]; level: World }>;
-type Layout = Readonly<{
+export type PuzzleLayout = Readonly<{
   id: string; name: string; hint: string; width: number; height: number;
   floor: readonly Rect[]; spawn: Point; goal: Point; hazards: readonly Pulse[];
   checkpoints?: World['checkpoints']; sections?: World['sections'];
-  hints?: readonly string[];
+  hints?: readonly string[]; revision?: number;
 }>;
 
 function pulses(rect: Rect, period: number, flash: (x: number, y: number) => number, sectionId = 'trial'): Pulse[] {
@@ -16,7 +16,7 @@ function pulses(rect: Rect, period: number, flash: (x: number, y: number) => num
   return result;
 }
 
-const layouts: readonly Layout[] = [
+const layouts: readonly PuzzleLayout[] = [
   {
     id: 'wave', name: 'Follow the wave',
     hint: 'Let the first column burst, then follow the wave across.',
@@ -82,13 +82,14 @@ const layouts: readonly Layout[] = [
   },
 ];
 
-export const EXPLOSION_PUZZLES: readonly ExplosionPuzzle[] = Object.freeze(layouts.map(layout => {
+/** Builds an isolated, normal-ground trial world from a compact layout. */
+export function buildExplosionPuzzle(layout: PuzzleLayout, idPrefix = 'puzzle'): ExplosionPuzzle {
   const tiles = Array.from({ length: layout.height }, () => Array<string>(layout.width).fill('#'));
   for (const [left, top, right, bottom] of layout.floor)
     for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) tiles[y][x] = '.';
   const bounds = { x: 1, y: 1, width: layout.width - 2, height: layout.height - 2 };
   const level = parseLevel({
-    version: 2, revision: 1, id: `puzzle-${layout.id}`, name: layout.name, description: layout.hint,
+    version: 2, revision: layout.revision ?? 1, id: `${idPrefix}-${layout.id}`, name: layout.name, description: layout.hint,
     puzzleMode: 'checkpoint', resetPatternOnRetry: false, tiles: tiles.map(row => row.join('')),
     spawn: layout.spawn, goal: layout.goal, checkpoints: layout.checkpoints ?? [], hazards: layout.hazards,
     sections: layout.sections ?? [{
@@ -99,4 +100,6 @@ export const EXPLOSION_PUZZLES: readonly ExplosionPuzzle[] = Object.freeze(layou
   });
   if (level.version !== 2) throw new Error('Explosion puzzle must be a world.');
   return Object.freeze({ question: layout.hint, hints: Object.freeze(layout.hints ?? [layout.hint]), level });
-}));
+}
+
+export const EXPLOSION_PUZZLES: readonly ExplosionPuzzle[] = Object.freeze(layouts.map(layout => buildExplosionPuzzle(layout)));

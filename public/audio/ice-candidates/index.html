@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>Soft ice listening room · Boundstoy</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #263c4a; background: radial-gradient(ellipse at top, #e4f3f4, #f7f6f0); font: 17px/1.55 system-ui, sans-serif; }
+    main { max-width: 980px; margin: auto; padding: 42px 24px; }
+    h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.15; margin: .3em 0; }
+    h2 { font-size: 1.2rem; margin-top: 0; }
+    a { color: #28546b; text-underline-offset: .2em; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 24px; padding: 10px 17px; background: #315e70; color: white; }
+    button.secondary { background: #e0ebed; color: #263c4a; }
+    button:disabled { opacity: .5; cursor: wait; }
+    button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #94692e; outline-offset: 4px; }
+    .controls, article { padding: 24px; border-radius: 24px; background: #ffffffb8; box-shadow: 0 10px 35px #385d6e0c; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin: 25px 0; }
+    .volume { display: grid; gap: 5px; }
+    #candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    article { display: flex; flex-direction: column; gap: 12px; }
+    article p { margin: 0; }
+    article .description { flex: 1; }
+    article[data-playing] { background: #fff; box-shadow: 0 10px 35px #385d6e25; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    small { font-size: .8rem; }
+    #status { min-height: 2em; }
+    footer { margin-top: 30px; font-size: .9rem; }
+    @media (max-width: 760px) { #candidates { grid-template-columns: 1fr; } main { padding: 24px 18px; } }
+  </style>
+  <script type="module" src="./audition.js"></script>
+</head>
+<body>
+  <main>
+    <a href="../../index.html">Back to the game</a>
+    <h1>Soft ice listening room</h1>
+    <p>Three different directions for a gentle, graceful glide. These are listening sketches, not final game sounds.</p>
+    <p>Each preview lasts 12 seconds and fades out. Compare at the same volume.
+      <strong>With cues</strong> adds the same wall contact at 4 seconds and warning/explosion at 7 seconds.</p>
+    <div class="controls">
+      <button id="stop" class="secondary" type="button">Stop</button>
+      <label class="volume">Listening volume <input id="volume" type="range" min="0" max="100" value="70" aria-label="Listening volume"></label>
+      <label><input id="mono" type="checkbox"> Listen in mono</label>
+    </div>
+    <p id="status" role="status" aria-live="polite">Loading the shortlist…</p>
+    <div id="candidates"></div>
+    <footer>
+      <p>Listen for softness, weightlessness and fatigue—not just loudness. The two pads have no wind bed.
+        The cloth option is deliberately separate. Only one preview plays at a time; leaving this page stops playback.</p>
+      <p>Approximately matched to −30 LUFS before the listening-volume control.
+        No choice is saved and nothing here changes the game, progress or editor drafts.</p>
+      <p>A and C: original CC0 Strudel compositions. B: <a href="https://opengameart.org/content/cloth-swing-sounds">Cloth swing sounds by Vinrax</a>,
+        edited under CC BY 3.0. <a href="./LICENSE.txt">Credits and terms</a> · <a href="./manifest.json">Measurements and provenance</a></p>
+    </footer>
+  </main>
+</body>
+</html>

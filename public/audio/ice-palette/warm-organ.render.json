@@ -1,0 +1,29 @@
+{
+  "engine": "@strudel/web@1.3.0",
+  "bundleSha256": "50beb01abd04589333a10e078dce182c82e2de75b43e9bbe81a34bd069948931",
+  "browser": "Chrome/151.0.7922.137",
+  "method": "renderPatternAudio / OfflineAudioContext",
+  "seed": 7901,
+  "cps": 0.5,
+  "sampleRate": 48000,
+  "seconds": 28,
+  "channels": 2,
+  "encoding": "PCM16 lossless WAV",
+  "pattern": "warm-organ.strudel.js",
+  "patternSha256": "0693f90e77f9b17ef6277624327736af40e4a49308045689366d09ff2266c090",
+  "rawSha256": "133cce612926a84187587319627e6401368a7caca104919a6eed4f653d47832f",
+  "onsets": 3,
+  "peak": 0.066619873046875,
+  "requests": [
+    "http://127.0.0.1:44051/",
+    "http://127.0.0.1:44051/strudel.js"
+  ],
+  "logs": [
+    "%c🌀 @strudel/core loaded 🌀 background-color: black;color:white;border-radius:15px",
+    "%c[eval] code updated background-color: black;color:white;border-radius:15px",
+    "%c[superdough] AudioWorklets loaded background-color: black;color:white;border-radius:15px",
+    "%c[superdough] ready background-color: black;color:white;border-radius:15px",
+    "%c[webaudio] preloading background-color: black;color:white;border-radius:15px",
+    "%c[webaudio] start rendering background-color: black;color:white;border-radius:15px"
+  ]
+}

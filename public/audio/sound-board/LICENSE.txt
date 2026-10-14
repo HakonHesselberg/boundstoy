@@ -1,0 +1,27 @@
+Boundstoy other-sounds board
+
+The sixteen WAV files in this directory are original Boundstoy sound designs
+by Boundstoy contributors (2026), dedicated to CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No external recordings, samples, instrument banks or third-party compositions
+are used in these designs. They are original seeded offline synthesis, including
+the original checkpoint/exit note sequences.
+death-feather.wav and ui-tick.wav are approved for gameplay. The other fourteen
+files remain listening suggestions, not gameplay selections.
+
+Editable source: data/sound-board.ts and scripts/prepare-sound-board.ts.
+Rebuild with Node 24+ and FFmpeg: node scripts/prepare-sound-board.ts
+The manifest records source hashes, asset hashes and per-role measurements.
+Measurements use fixed original physical-palette references and gains, not
+previously generated candidates. They include gameplay attack/release in six
+events, at least 1.2 seconds apart (longer for jingles; see each group's
+authoringReference). These are not isolated short-clip integrated loudness.
+
+Other current game cues, approved Airy puff and existing ice choices are
+referenced without copying or modifying their files. All are also CC0; see:
+  ../physical-v2/LICENSE.txt
+  ../explosion-candidates/LICENSE.txt
+  ../ice-palette/LICENSE.txt
+
+Sound-board and generator code retain the repository's MIT license.

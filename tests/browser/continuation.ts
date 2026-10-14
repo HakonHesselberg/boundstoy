@@ -26,7 +26,7 @@ async function checkContinuation({ page, origin, signal, log }: BrowserContext) 
       `Boolean(window.__BOUNDSTOY__) && ${ready ? 'window.__BOUNDSTOY__.persistence().ready' : 'true'}`), 15000, signal);
   };
   assert.equal(await evaluate(`typeof window.__BOUNDSTOY__.persistence`), 'function');
-  assert.equal(await evaluate(`document.getElementById('completion-count').textContent`), '0 / 1 cleared');
+  assert.equal(await evaluate(`document.getElementById('home-best').textContent`), 'No record yet');
   assert.equal(await evaluate(`document.getElementById('mastery-target').hidden`), true);
   await evaluate(`document.getElementById('primary-action').click()`);
   await saved();
@@ -49,10 +49,10 @@ async function checkContinuation({ page, origin, signal, log }: BrowserContext) 
   await delay(250, undefined, { signal });
   assert.deepEqual((await snapshot()).state, before.state, 'paused reload never catches up with wall time');
   const bytes = await readStored(page, RUN_STORAGE_KEY, signal);
-  await evaluate(`document.getElementById('menu-toggle').click(); document.getElementById('editor-tab').click();
+  await evaluate(`document.getElementById('home-settings').click(); document.getElementById('editor-tab').click();
     document.getElementById('playtest').click(); window.__BOUNDSTOY__.advance(120);
     document.getElementById('editor-return').click(); document.getElementById('play-tab').click();
-    document.getElementById('pause').click();`);
+    document.getElementById('home-play').click(); document.getElementById('pause').click();`);
   await saved();
   assert.deepEqual((await snapshot()).state, before.state);
   assert.equal(await readStored(page, RUN_STORAGE_KEY, signal), bytes);

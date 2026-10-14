@@ -47,6 +47,7 @@ test('ChromiumArgs_IsolatedProfile_NoSandboxBypassOrSharedDebuggingPort', () => 
   assert.ok(args.includes('--remote-debugging-port=0'));
   assert.ok(args.includes('--remote-debugging-address=127.0.0.1'));
   assert.ok(args.includes('--disable-extensions'));
+  assert.ok(args.includes('--mute-audio'), 'Automated browser checks must not play through the user speakers');
   assert.equal(args.some(arg => /no-sandbox|disable.*sandbox|load-extension/.test(arg)), false);
   assert.equal(args.at(-1), 'about:blank');
   const env = chromiumEnvironment(profile);

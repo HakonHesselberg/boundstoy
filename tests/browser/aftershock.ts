@@ -44,7 +44,7 @@ export async function checkAftershock(context: BrowserContext) {
     })()`);
   assert.deepEqual(LEVELS.map(level => level.name), ['Borrowed Ground', 'Crosscurrent', 'Checkerboard']);
   await page.call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.course-card strong')].map(node => node.textContent)"),
+  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('#course-list .course-name')].map(node => node.textContent)"),
     LEVELS.map(level => level.name), 'only the new levels appear in the playable selector');
 
   for (const [index, level] of LEVELS.entries()) {
@@ -186,8 +186,8 @@ export async function checkAftershock(context: BrowserContext) {
   });
   await reload('records');
   for (const level of LEVELS) {
-    const card = await page.evaluate<string>(`[...document.querySelectorAll('.course-card')]
-      .find(node => node.querySelector('strong').textContent === ${JSON.stringify(level.name)}).textContent`);
+    const card = await page.evaluate<string>(`[...document.querySelectorAll('#course-list [data-level]')]
+      .find(node => node.querySelector('.course-name').textContent === ${JSON.stringify(level.name)}).textContent`);
     assert.match(card, /Mastered.*Clean/);
   }
   for (const [width, height] of [[390, 844], [844, 390]]) {

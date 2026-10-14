@@ -1,0 +1,256 @@
+{
+  "selected": {
+    "blast": "airy-puff",
+    "warning": null
+  },
+  "sampleRate": 48000,
+  "warningSeconds": 0.225,
+  "patternInterval": 1.2,
+  "patternCount": 4,
+  "startDelay": 0.04,
+  "rapidInterval": 0.25,
+  "rapidCount": 8,
+  "measurement": "Each component repeated six times at 1.2-second intervals, silence-padded; EBU R128 integrated event-train loudness, not standalone short-clip LUFS.",
+  "targetLufs": {
+    "warning": -40,
+    "blast": -33
+  },
+  "mastering": "Static component gain, smooth endpoints, centred stereo PCM16. No limiter or dynamic normalization.",
+  "source": "scripts/prepare-explosion-palette.ts + data/explosion-palette.ts",
+  "sourceSha256": "efe5d460b097f6562d59ab6939f3d14fd52459aec02ea6f66733c48a1328a289",
+  "registrySha256": "b14a1c815d323e6ff6e697c5a6633d17322cbfbe0da36817dddbcc84816edc54",
+  "candidates": [
+    {
+      "id": "soft-magic",
+      "label": "Soft magic",
+      "frequency": 523.25,
+      "decay": 0.56,
+      "description": "A gentle, tonal direction to sit beside the Weightless ice pad.",
+      "warningDescription": "A short gathering of rounded harmonics.",
+      "blastDescription": "A soft, open fifth that blooms and falls away; no jingle.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "soft-magic-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -27.6,
+        "gainDb": -26.5,
+        "sha256": "46220ef64d3f243e071c9482046700f26a6837d2e79adcd4bc12386614906060"
+      },
+      "blast": {
+        "file": "soft-magic-blast.wav",
+        "seconds": 0.56,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -20.5,
+        "gainDb": -19.5,
+        "sha256": "47bc27be10c78e7d0f0203af0253fa3f8cef57a1410d3ebb24a7a32c2ada1429"
+      }
+    },
+    {
+      "id": "airy-puff",
+      "label": "Airy puff",
+      "frequency": 900,
+      "decay": 0.2,
+      "description": "The preferred direction, softened for frequent bursts: less hiss, less bite and a shorter tail.",
+      "warningDescription": "A subdued intake of air, without a bright hiss.",
+      "blastDescription": "A soft, rounded breath that clears quickly; 3 dB gentler than the other sketches.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "airy-puff-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -43,
+        "eventLufs": -43,
+        "truePeakDb": -25.4,
+        "gainDb": -14.600000000000001,
+        "sha256": "2e50c0ce093a254d97a0c5c8036a0b1ae53407258fda1063342689f550c177cc"
+      },
+      "blast": {
+        "file": "airy-puff-blast.wav",
+        "seconds": 0.2,
+        "targetEventLufs": -36,
+        "eventLufs": -36,
+        "truePeakDb": -17.3,
+        "gainDb": -3.5,
+        "sha256": "de5a2d70ebfab6ee40a315a2e707ed6a8c2e2c19776edb75417a2094e635cec2"
+      }
+    },
+    {
+      "id": "rounded-pop",
+      "label": "Rounded pop",
+      "frequency": 280,
+      "decay": 0.3,
+      "description": "A small elastic gesture: more bubble than bomb.",
+      "warningDescription": "A quiet, rising hollow tone.",
+      "blastDescription": "A quick pitch drop into a cushioned pop.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "rounded-pop-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -29.6,
+        "gainDb": -29.3,
+        "sha256": "92172df9fe66bbbfaf6cada0621d8f7aaa400812406b36d3fa0474c39c7c3950"
+      },
+      "blast": {
+        "file": "rounded-pop-blast.wav",
+        "seconds": 0.3,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -19.6,
+        "gainDb": -18.6,
+        "sha256": "04de96ae0fe5008e693db8527ec99c75a77f508441ea1bed72446bbd1a74e42e"
+      }
+    },
+    {
+      "id": "glass-bloom",
+      "label": "Glass bloom",
+      "frequency": 659.25,
+      "decay": 0.62,
+      "description": "Delicate glass-like colour, with the hard edge softened.",
+      "warningDescription": "Fine resonances gathering into focus.",
+      "blastDescription": "A diffuse cluster of upper harmonics, not shattering glass.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "glass-bloom-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -28,
+        "gainDb": -25.9,
+        "sha256": "69a6e80995d62efcb9756b35c9a606bb6dfb0f1a8e991770421481357450acb3"
+      },
+      "blast": {
+        "file": "glass-bloom-blast.wav",
+        "seconds": 0.62,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -20.3,
+        "gainDb": -18.1,
+        "sha256": "a7b447cf6a45ba0a7042919f3116a163a592992c1576a160e007beade1c71ffa"
+      }
+    },
+    {
+      "id": "wooden-knock",
+      "label": "Wooden knock",
+      "frequency": 230,
+      "decay": 0.28,
+      "description": "Dry, organic and rhythmic; a less magical alternative.",
+      "warningDescription": "A short brushed-wood swell.",
+      "blastDescription": "A muted, hollow wooden tap with almost no lingering tail.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "wooden-knock-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -25,
+        "gainDb": -23.9,
+        "sha256": "1a00b25759d04a9d75f4ddadd1228b7a26dec127057bed0d7b0a9ede49e3645b"
+      },
+      "blast": {
+        "file": "wooden-knock-blast.wav",
+        "seconds": 0.28,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -16.5,
+        "gainDb": -14.5,
+        "sha256": "1d1fa191fbec340f37b5e5230549c1e6efb02d712a23752f319425206567a892"
+      }
+    },
+    {
+      "id": "deep-cushion",
+      "label": "Deep cushion",
+      "frequency": 135,
+      "decay": 0.48,
+      "description": "A soft lower-register impact; fuller rather than louder.",
+      "warningDescription": "A warm, low-mid pressure swell.",
+      "blastDescription": "A rounded low pulse with enough upper body for small speakers.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "deep-cushion-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -27.6,
+        "gainDb": -27.1,
+        "sha256": "7eb0b4795c1c3a121ebbbf83e755b12910ba39c11df77879a4a6531de393ecfb"
+      },
+      "blast": {
+        "file": "deep-cushion-blast.wav",
+        "seconds": 0.48,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -19.7,
+        "gainDb": -18.8,
+        "sha256": "5c65a2f93ade124cfd53e9123fe460d4e6f8e8eccded7fb8be070850d5b40779"
+      }
+    },
+    {
+      "id": "electric-snap",
+      "label": "Electric snap",
+      "frequency": 440,
+      "decay": 0.34,
+      "description": "A brighter synthetic contrast, kept short rather than buzzy.",
+      "warningDescription": "A compact harmonic charge-up.",
+      "blastDescription": "A softened FM snap with a fast falling centre.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "electric-snap-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -31.8,
+        "gainDb": -31.5,
+        "sha256": "c7428ad82c6311b31ea77a3f861bb3f6dbdb5d15b993fd77c626de7da4fd074f"
+      },
+      "blast": {
+        "file": "electric-snap-blast.wav",
+        "seconds": 0.34,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -21.5,
+        "gainDb": -20.9,
+        "sha256": "de62476442fe99f6309c465804a8c3e79395ae1ea6cb248c17a37a715f874e88"
+      }
+    },
+    {
+      "id": "arcade-burst",
+      "label": "Arcade burst",
+      "frequency": 350,
+      "decay": 0.4,
+      "description": "The punchier reference: stylised energy, not a realistic weapon.",
+      "warningDescription": "A smooth, ascending hollow pulse.",
+      "blastDescription": "A band-limited tonal burst with a little filtered impact texture.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy seeded offline synthesis; no recordings, external samples or third-party compositions.",
+      "warning": {
+        "file": "arcade-burst-warning.wav",
+        "seconds": 0.225,
+        "targetEventLufs": -40,
+        "eventLufs": -40,
+        "truePeakDb": -31.6,
+        "gainDb": -25.3,
+        "sha256": "0be3b2ba50e8fc38ea7bc163b19afc18b0ab79bc6da0eb6c6979fc90770d987c"
+      },
+      "blast": {
+        "file": "arcade-burst-blast.wav",
+        "seconds": 0.4,
+        "targetEventLufs": -33,
+        "eventLufs": -33,
+        "truePeakDb": -19.1,
+        "gainDb": -16.4,
+        "sha256": "a634bf3f118f49a0957a086628970ec43d147f0f2127ba62ffdaf37cdecae1f1"
+      }
+    }
+  ]
+}

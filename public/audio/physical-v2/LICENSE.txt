@@ -1,0 +1,31 @@
+Boundstoy Physical v2 sound palette
+=================================
+
+All WAVs in this folder are offered under Creative Commons Zero 1.0:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+step/sound.wav and mud/sound.wav:
+Recordings by Fantozzi, edited into individual footsteps by qubodup.
+Originals: Fantozzi-StoneL1.flac and Fantozzi-SandL2.flac.
+https://opengameart.org/content/fantozzis-footsteps-grasssand-stone
+https://freesound.org/people/Fantozzi/packs/10338/
+The source pack explicitly identifies these recordings as CC0.
+
+bump/sound.wav and ui/sound.wav:
+Recordings by rubberduck, from "100 CC0 SFX".
+Originals: hit_01.ogg and switch_01.ogg.
+https://opengameart.org/content/100-cc0-sfx
+The source pack is explicitly CC0.
+
+soft, hard, warning, blast, death, checkpoint and win:
+Original deterministic sound synthesis by Boundstoy contributors (2026).
+The generated WAVs are dedicated to CC0 1.0. The generator source code remains
+under the project's MIT license.
+
+Changes to external recordings: mono/32 kHz conversion, rumble filtering,
+high-frequency filtering, light compression, duration editing, endpoint fades
+and peak mastering.
+No endorsement by the original creators is implied.
+
+Provenance, source hashes and reproduction: docs/AUDIO.md and
+scripts/prepare-audio.ts. No Kenney material is included.

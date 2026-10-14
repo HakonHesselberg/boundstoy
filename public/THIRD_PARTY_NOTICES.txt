@@ -1,7 +1,7 @@
 Boundstoy third-party notices
 ============================
 
-Boundstoy code, artwork, geometry and synthesized audio are MIT licensed,
+Boundstoy code, artwork and geometry are MIT licensed,
 under the same MIT permission and warranty terms reproduced below.
 Copyright (c) 2026 Boundstoy contributors.
 The project began as a copy of HakonHesselberg/ai-game-template:
@@ -9,6 +9,85 @@ https://github.com/HakonHesselberg/ai-game-template
 Template commit: a58a7a79a47615c280fa81a9ab43c9aea6bbe46a
 
 The template's copyright line is reproduced verbatim below.
+
+Physical v2 audio - Creative Commons Zero (CC0 1.0)
+-------------------------------------------------
+Fantozzi recordings, edited by qubodup:
+https://opengameart.org/content/fantozzis-footsteps-grasssand-stone
+rubberduck recordings, from "100 CC0 SFX":
+https://opengameart.org/content/100-cc0-sfx
+License: https://creativecommons.org/publicdomain/zero/1.0/
+
+Four edited recordings: Fantozzi-StoneL1.flac, Fantozzi-SandL2.flac,
+hit_01.ogg and switch_01.ogg.
+Filtering, compression, trimming, fades, mono conversion and normalization
+by Boundstoy. Seven additional WAVs are original deterministic synthesis;
+these generated sound assets are dedicated to CC0 by Boundstoy contributors.
+The generator code remains MIT licensed.
+Detailed credits: audio/physical-v2/LICENSE.txt.
+Source archive hashes and reproduction: docs/AUDIO.md.
+No attribution is required by CC0; these credits are retained voluntarily.
+
+Atmospheric ice study - Creative Commons Zero (CC0 1.0)
+------------------------------------------------------
+Two additional original periodic loops by Boundstoy contributors (2026),
+wind and pad, dedicated to CC0 1.0. No external recordings or instruments.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Credits: audio/ice-study/LICENSE.txt.
+Reproduction: scripts/prepare-ice-audio.ts (MIT-licensed source code).
+
+Soft ice listening candidates - mixed licenses
+---------------------------------------------
+audio/ice-candidates/weightless.wav and veil.wav:
+Original CC0 1.0 compositions and Strudel synthesis by Boundstoy contributors.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Strudel is an offline authoring tool and is not distributed with the game.
+
+audio/ice-candidates/silk.wav:
+Derived from "Cloth swing sounds" by Vinrax.
+Author: https://opengameart.org/users/vinrax
+Source: https://opengameart.org/content/cloth-swing-sounds
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+https://creativecommons.org/licenses/by/3.0/
+Edited, filtered, time-stretched and loudness-matched by Boundstoy.
+Attribution is required; no endorsement is implied.
+Detailed per-file credits and source hash: audio/ice-candidates/LICENSE.txt.
+These are separate listening previews, not selected gameplay sounds.
+
+Sound garden ice palette - Creative Commons Zero (CC0 1.0)
+--------------------------------------------------------
+Twelve original compositions and synthesized loops by Boundstoy contributors.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+No external recordings or sampled instruments. The rejected cloth candidate
+is not part of this palette. Strudel was used only as an external authoring
+tool; the game does not contain its engine.
+Per-file render evidence, source patches and mastering:
+audio/ice-palette/LICENSE.txt and audio/ice-palette/manifest.json.
+
+Explosion and buildup listening candidates - Creative Commons Zero (CC0 1.0)
+--------------------------------------------------------------------------
+Sixteen original synthesized sound files by Boundstoy contributors (2026),
+forming eight buildup/explosion pairs. No external recordings, samples,
+instrument banks or third-party compositions.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+The softened airy-puff-blast.wav is the approved gameplay explosion.
+Other files remain listening alternatives; the Airy puff buildup is not selected.
+Credits and reproducible source: audio/explosion-candidates/LICENSE.txt.
+Per-file measurements and hashes: audio/explosion-candidates/manifest.json.
+The offline generator and listening-page code remain MIT licensed.
+
+Other-sounds comparison board - Creative Commons Zero (CC0 1.0)
+-------------------------------------------------------------
+Sixteen original seeded synthesized sound designs by Boundstoy contributors
+(2026), in audio/sound-board/. No external recordings or sampled instruments.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+death-feather.wav (Falling feather) and ui-tick.wav (Soft tick) are approved
+gameplay sounds. The remaining fourteen files, including original warm
+checkpoint and triumphant exit jingles, remain listening suggestions.
+Other current game cues and existing ice files are referenced unchanged,
+under the CC0 licenses above. Source and credits: audio/sound-board/LICENSE.txt.
+Measurements and hashes: audio/sound-board/manifest.json.
+The offline generator and board code remain MIT licensed.
 
 ai-game-template
 ----------------

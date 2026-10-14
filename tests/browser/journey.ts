@@ -51,9 +51,10 @@ export async function checkJourney(context: BrowserContext) {
   await page.evaluate('localStorage.clear()');
   await seedStored(page, PROGRESS_KEY, null, signal);
   await reload();
-  assert.match(await text('overlay-copy'), /WASD.*golden EXIT.*Retries repeat the pattern/);
+  assert.equal(await page.evaluate("document.getElementById('boundstoy').dataset.screen"), 'home');
+  assert.match(await text('controls-note'), /WASD.*Space.*R restarts/);
   assert.equal(await text('course-title'), LEVELS[0].name);
-  assert.equal(await page.evaluate("document.getElementById('intro-audio').getAttribute('aria-pressed')"), 'false');
+  assert.equal(await page.evaluate("document.getElementById('audio').getAttribute('aria-pressed')"), 'false');
   log('PASS: first encounter exposes controls, goal, recovery and sound opt-in.');
 
   const legacy = { 'retired-prototype-v0': { ticks: 484, deaths: 0 } };
@@ -63,7 +64,7 @@ export async function checkJourney(context: BrowserContext) {
   await save(partial);
   await reload();
   assert.equal(await text('course-title'), LEVELS[missing].name);
-  assert.match(await text('primary-action'), /Continue/);
+  assert.equal(await text('home-world-title'), LEVELS[missing].name, 'Home offers the missing course');
   await replay(missing);
   assert.equal(await text('overlay-title'), 'Campaign complete.');
   assert.match(await text('finish-comparison'), /First clear/);
@@ -71,8 +72,7 @@ export async function checkJourney(context: BrowserContext) {
   assert.equal(preserved['retired-prototype-v0'].ticks, 484);
   assert.equal(preserved[LEVELS[missing].id].ticks, total(missing));
   await click('primary-action');
-  assert.equal(await page.evaluate("document.getElementById('game-menu').open"), true);
-  await click('menu-close');
+  assert.equal(await page.evaluate("document.getElementById('boundstoy').dataset.screen"), 'home');
   log('PASS: legacy scores remain separate, Continue finds missing course and out-of-order completion opens level selection.');
 
   await replay(0);
@@ -87,10 +87,10 @@ export async function checkJourney(context: BrowserContext) {
   log('PASS: first clears, faster/equal/slower results compare against the prior record.');
 
   await reload();
-  await click('intro-audio');
+  await click('home-settings');
+  await click('audio');
   await waitFor('Sound preference saved', () => page.evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(PREFERENCES_KEY)}))?.sound === true`), 5000, signal);
-  assert.equal(await page.evaluate('document.activeElement.id'), 'intro-audio', 'Sound toggle must retain keyboard focus');
-  await click('menu-toggle');
+  assert.equal(await page.evaluate('document.activeElement.id'), 'audio', 'Sound toggle must retain keyboard focus');
   await page.evaluate(`(() => {
     const slider = document.getElementById('sound-volume');
     slider.value = '25';
@@ -105,16 +105,17 @@ export async function checkJourney(context: BrowserContext) {
     };
   ` });
   await reload();
-  assert.equal(await page.evaluate("document.getElementById('intro-audio').getAttribute('aria-pressed')"), 'true');
+  assert.equal(await page.evaluate("document.getElementById('audio').getAttribute('aria-pressed')"), 'true');
   assert.equal(await page.evaluate("document.getElementById('sound-volume').value"), '25');
   assert.equal(await page.evaluate('window.__audioContexts'), 0, 'Saved sound does not autoplay on page load');
-  await click('restart');
-  await waitFor('Restart activates remembered sound', () => page.evaluate('window.__audioContexts === 1'), 5000, signal);
-  await click('menu-toggle');
+  await click('home-play');
+  await waitFor('Play activates remembered sound', () => page.evaluate('window.__audioContexts === 1'), 5000, signal);
+  await click('pause');
+  await click('overlay-settings');
   await click('audio');
   await waitFor('Mute settles', () => page.evaluate("document.getElementById('audio').getAttribute('aria-pressed') === 'false'"), 5000, signal);
-  assert.equal(await page.evaluate('document.activeElement.id'), 'audio', 'Menu sound toggle must retain keyboard focus');
-  await click('menu-close');
+  assert.equal(await page.evaluate('document.activeElement.id'), 'audio', 'Settings sound toggle must retain keyboard focus');
+  await click('settings-close');
   log('PASS: explicit sound opt-in and volume survive reload; mute remains available.');
 
   const directory = fileURLToPath(new URL('../../artifacts/release/', import.meta.url));
@@ -130,9 +131,9 @@ export async function checkJourney(context: BrowserContext) {
   for (const [width, height] of [[390, 844], [844, 390], [720, 450]]) {
     await page.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
     await reload();
-    await page.evaluate("document.getElementById('primary-action').scrollIntoView({ block: 'center' })");
+    await page.evaluate("document.getElementById('home-play').scrollIntoView({ block: 'center' })");
     const layout = await page.evaluate<{ width: number; scroll: number; buttonVisible: boolean }>(`(() => {
-      const r = document.getElementById('primary-action').getBoundingClientRect();
+      const r = document.getElementById('home-play').getBoundingClientRect();
       return { width: innerWidth, scroll: document.documentElement.scrollWidth,
         buttonVisible: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
     })()`);

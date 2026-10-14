@@ -78,6 +78,7 @@ export async function main(args = process.argv.slice(2), check: (context: Browse
     const launched = await page.call<{ arguments: string[] }>('Browser.getBrowserCommandLine');
     assert.ok(!launched.arguments.some(arg => /^--(?:no-sandbox|disable[^=]*sandbox|load-extension)(?:=|$)/.test(arg)), 'Browser launcher injected sandbox bypass or extensions.');
     assert.deepEqual(launched.arguments.filter(arg => arg.startsWith('--user-data-dir=')), [`--user-data-dir=${profile}`]);
+    assert.ok(launched.arguments.includes('--mute-audio'), 'Automated playback must use a muted browser output.');
     resources.arguments = launched.arguments;
     const pending = new Set<string>();
     page.on('Runtime.exceptionThrown', event => problem(`Uncaught browser exception: ${JSON.stringify(event.exceptionDetails)}`));

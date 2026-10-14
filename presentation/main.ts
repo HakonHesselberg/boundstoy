@@ -1,7 +1,9 @@
 import './style.css';
 import { LEVELS, MASTERY_TARGETS } from '../data/levels.ts';
-import { EXPLOSION_PUZZLES, type ExplosionPuzzle } from '../data/explosion-puzzles.ts';
-import { EXPLOSION_REPLAYS } from '../data/explosion-replays.ts';
+import type { ExplosionPuzzle } from '../data/explosion-puzzles.ts';
+import { SOUND_DEMO, SOUND_ICE_DEMO, isSoundDemo } from '../data/sound-demo.ts';
+import { ICE_PALETTE, ICE_PALETTE_IDS, ICE_PALETTE_AUDIO, isIceSound, type IceSoundId } from '../data/ice-palette.ts';
+import { SOUNDS, SOUND_IDS } from '../data/sounds.ts';
 import { TERRAIN, type Tile } from '../data/terrain.ts';
 import { EXPLOSION_STYLES, EXPLOSION_STYLE_IDS, DEFAULT_EXPLOSION_STYLE, type ExplosionStyleId } from '../data/explosion-styles.ts';
 import { createState, restartCheckpoint, step, hazardTick, ascii, DT, STILL } from '../core/simulation.ts';
@@ -14,7 +16,9 @@ import { openBrowserRunStorage } from '../application/run-storage.ts';
 import { createCheckpointSnapshot, createRunSnapshot, type RunSnapshot } from '../application/run-snapshot.ts';
 import { RunContinuation, shouldSave, type SaveStatus } from '../application/run-continuation.ts';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences } from '../application/preferences.ts';
-import { Audio, localBlast } from './audio.ts';
+import { trialSets, findTrial, nextTrial, trialCredit, isDevMode } from '../application/level-catalogue.ts';
+import { worldSummary, sectionProgress, sectionPips, controlsHint, formatTime, ROUTE_HINT_TICKS } from '../application/menu-model.ts';
+import { Audio, iceMotion, soundEvents } from './audio.ts';
 import { courseGuide, deathMessage } from '../application/guidance.ts';
 import { createRenderLoop, fixedSteps } from '../application/render-loop.ts';
 import { Scene } from './scene.ts';
@@ -29,15 +33,12 @@ const text = (id: string, value: string) => {
   const node = element(id);
   if (node.textContent !== value) node.textContent = value;
 };
-const timeLabel = (ticks: number) => {
-  const hundredths = Math.floor(ticks * DT * 100);
-  return `${String(Math.floor(hundredths / 6000)).padStart(2, '0')}:${String(Math.floor(hundredths / 100) % 60).padStart(2, '0')}.${String(hundredths % 100).padStart(2, '0')}`;
-};
+const timeLabel = formatTime;
 let noticeTimer = 0;
 function notify(message: string, error = false) {
   clearTimeout(noticeTimer);
-  const menu = element<HTMLDialogElement>('game-menu');
-  (menu.open ? menu : element('boundstoy')).append(element('notice'));
+  const settings = element<HTMLDialogElement>('settings');
+  (settings.open ? settings : element('boundstoy')).append(element('notice'));
   text('notice-text', message);
   element('notice').hidden = false;
   element('notice').classList.toggle('error', error);
@@ -64,7 +65,14 @@ function showGraphicsFailure(message?: string) {
 }
 
 function boot(scene: Scene) {
-  const viewport = element('viewport'), menu = element<HTMLDialogElement>('game-menu'), audio = new Audio();
+  const viewport = element('viewport'), settingsDialog = element<HTMLDialogElement>('settings'), audio = new Audio(import.meta.env.BASE_URL);
+  const root = element('boundstoy');
+  const dev = isDevMode(location.search), sets = trialSets({ dev });
+  const coarsePointer = matchMedia('(pointer: coarse)');
+  /** Which full-screen surface is shown. The board stays mounted for every screen. */
+  let screen: 'home' | 'levels' | 'play' | 'edit' = 'home';
+  let levelSet = sets[0].id, settingsReturn: HTMLElement | null = null;
+  let hintSection = -1, hintUntil = 0, pipsKey = '';
   const abort = new AbortController(), options = { signal: abort.signal };
   let level = LEVELS[0], state = createState(level), selectedCourse = 0;
   let mode: 'play' | 'edit' = 'play', draft: Level | null = null;
@@ -103,6 +111,20 @@ function boot(scene: Scene) {
   let result: ReturnType<typeof finishResult> | null = null;
   let progressSaved = true;
   let preferences = DEFAULT_PREFERENCES, audioBusy = false, audioReady = false;
+  let iceVariant: IceSoundId = 'weightless';
+  const iceSelect = element<HTMLSelectElement>('ice-sound');
+  const iceGroups = new Map<string, HTMLOptGroupElement>();
+  for (const [index, id] of ICE_PALETTE_IDS.entries()) {
+    const sound = ICE_PALETTE[id];
+    let group = iceGroups.get(sound.family);
+    if (!group) {
+      group = document.createElement('optgroup'); group.label = sound.family;
+      iceGroups.set(sound.family, group); iceSelect.append(group);
+    }
+    const option = document.createElement('option');
+    option.value = id; option.textContent = `${String(index + 1).padStart(2, '0')} — ${sound.label}`;
+    group.append(option);
+  }
   const loop = createRenderLoop({
     request: callback => requestAnimationFrame(callback),
     cancel: id => cancelAnimationFrame(id),
@@ -110,6 +132,7 @@ function boot(scene: Scene) {
   });
   const graphics = new GraphicsRecovery(() => {
     suspension++;
+    audio.stop();
     paused = true; accumulator = 0; clearInput(); loop.setActive(false);
     scene.releaseGraphics();
   }, graphicsUnavailable);
@@ -142,30 +165,51 @@ function boot(scene: Scene) {
   audio.setVolume(preferences.volume);
 
   function soundControls() {
-    for (const id of ['audio', 'intro-audio']) {
+    for (const id of ['audio', 'demo-audio']) {
       const button = element<HTMLButtonElement>(id);
-      text(id, preferences.sound ? 'Sound on' : 'Sound off');
+      text(id, audioBusy ? 'Updating sound...' : preferences.sound ? 'Sound on' : 'Sound off');
+      // Keep the toggle focusable while busy (disabling it drops keyboard focus); setSound ignores repeats.
       button.setAttribute('aria-pressed', String(preferences.sound));
       button.setAttribute('aria-label', preferences.sound ? 'Mute sound' : 'Enable sound');
       button.setAttribute('aria-disabled', String(audioBusy));
     }
-    element<HTMLInputElement>('sound-volume').value = String(preferences.volume * 100);
-    text('sound-volume-label', `Volume ${Math.round(preferences.volume * 100)}%`);
+    for (const id of ['sound-volume', 'demo-volume']) {
+      element<HTMLInputElement>(id).value = String(preferences.volume * 100);
+      text(`${id}-label`, `Volume ${Math.round(preferences.volume * 100)}%`);
+    }
+    iceControls();
+  }
+  function iceControls() {
+    iceSelect.value = iceVariant; iceSelect.disabled = audioBusy;
+    for (const id of ['ice-prev', 'ice-next', 'ice-preview']) element<HTMLButtonElement>(id).disabled = audioBusy;
+    text('ice-description', ICE_PALETTE[iceVariant].description);
+    element<HTMLAnchorElement>('ice-source').href = `${import.meta.env.BASE_URL}audio/ice-palette/${iceVariant}.strudel.js`;
   }
   function savePreferences() {
     try { localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences)); }
     catch (error) { report('Could not save sound preferences', error); }
   }
-  async function setSound(enabled: boolean) {
-    if (audioBusy) return;
-    audioBusy = true; soundControls();
+  /** The player's latest request; a toggle pressed mid-change is applied when the change settles. */
+  let soundTarget: boolean | null = null, soundInFlight = false;
+  async function setSound(enabled: boolean, variant = iceVariant) {
+    if (audioBusy) { soundTarget = enabled; return false; }
+    audioBusy = true; soundTarget = null; soundInFlight = enabled; soundControls();
+    let failed = false;
     try {
-      await audio.setEnabled(enabled); audioReady = enabled;
+      await audio.setEnabled(enabled, isSoundDemo(puzzle) ? variant : undefined); audioReady = enabled;
       preferences = { ...preferences, sound: enabled };
       savePreferences();
-      if (enabled) audio.play('checkpoint');
-    } catch (error) { report('Could not change sound', error); }
-    finally { audioBusy = false; soundControls(); }
+      return true;
+    } catch (error) {
+      failed = true;
+      audioReady = audio.inspect().enabled; preferences = { ...preferences, sound: audioReady };
+      report('Could not change sound', error); return false;
+    }
+    finally {
+      audioBusy = false; soundControls();
+      const queued = soundTarget; soundTarget = null;
+      if (!failed && queued !== null && queued !== preferences.sound) void setSound(queued, variant);
+    }
   }
   function activateSound() {
     if (preferences.sound && !audioReady) void setSound(true);
@@ -206,7 +250,7 @@ function boot(scene: Scene) {
     text('save-status', memoryOnly ? 'Not saving' : status.phase === 'saving' ? 'Saving...'
       : status.phase === 'saved' ? 'Saved' : status.phase === 'error' ? 'Not saved' : 'Save options');
     if (status.phase === 'error') storageFailure(status.reason ?? 'Saving failed.');
-    overlay();
+    overlay(); hud();
   }
   function saveCurrent() {
     if (testing || mode !== 'play' || level.version !== 2 || !currentRunId) return;
@@ -272,7 +316,7 @@ function boot(scene: Scene) {
     if (!canPlay() || next.version !== 2) return;
     const begin = () => {
       if (!canPlay()) return;
-      selectedCourse = index; mode = 'play'; testing = false; puzzle = null; load(next, 'paused');
+      selectedCourse = index; mode = 'play'; testing = false; puzzle = null; screen = 'play'; load(next, 'paused');
       currentRunId = crypto.randomUUID();
       const snapshot = createRunSnapshot(next, currentRunId, state);
       activeRun = snapshot;
@@ -284,7 +328,7 @@ function boot(scene: Scene) {
         storageBusy = false;
         if (pageGone || currentRunId !== snapshot.runId) return;
         if (answer.status === 'ok' && entry === 'play' && suspension === intent
-          && !document.hidden && !menu.open && !graphics.awaitingResume) play();
+          && !document.hidden && !settingsDialog.open && !graphics.awaitingResume) play();
         overlay(); hud();
       });
     };
@@ -328,8 +372,10 @@ function boot(scene: Scene) {
   }
   function syncRendering() {
     // A modal freezes all background visuals, including entry/editor/victory.
+    // Home and Levels show a static backdrop/preview: redraw on change only, never a continuous idle loop.
     loop.setActive(persistenceReady && !storageBusy && !saveDialog.open && !newRunDialog.open
-      && graphics.available && !graphics.awaitingResume && !menu.open && (!started || mode === 'edit' || state.won || !paused));
+      && graphics.available && !graphics.awaitingResume && !settingsDialog.open && (screen === 'play' || screen === 'edit')
+      && (!started || mode === 'edit' || state.won || !paused));
   }
   function saveDraft() {
     if (!draft) return;
@@ -342,111 +388,175 @@ function boot(scene: Scene) {
         text('draft-status', answer.status === 'ok' ? 'Draft saved.' : 'Not saved. Export JSON to keep your work.');
     });
   }
-  function courseCards() {
-    text('completion-count', `${LEVELS.filter(course => recordFor(course)).length} / ${LEVELS.length} cleared`);
-    const list = element('course-list'); list.replaceChildren();
-    LEVELS.forEach((course, index) => {
-      const button = document.createElement('button');
-      button.className = `course-card${selectedCourse === index && !testing ? ' selected' : ''}`;
-      button.dataset.level = String(index);
-      button.setAttribute('aria-pressed', String(selectedCourse === index && !testing));
-      const number = document.createElement('span'); number.className = 'course-number'; number.textContent = String(index + 1).padStart(2, '0');
-      const body = document.createElement('span'), title = document.createElement('strong'), subtitle = document.createElement('small');
-      title.textContent = course.name;
-      const best = recordFor(course);
-      const clean = bestClean(best), target = MASTERY_TARGETS[course.id];
-      subtitle.textContent = course.version === 2 ? `${best ? `Best ${timeLabel(best.ticks)} · ${best.deaths} retries` : 'No record'}${clean !== undefined ? ' · Deathless' : ''}${activeRun?.worldId === course.id ? ' · Continue' : ''}`
-        : `${runRank(best, target)} · ${clean === undefined ? 'Mastery' : 'Clean'} ${
-        timeLabel(clean ?? target)}${clean === undefined ? ' clean' : ` · Target ${timeLabel(target)}`}`;
-      body.append(title, subtitle);
-      const arrow = document.createElement('span'); arrow.textContent = best ? '✓' : '↗';
-      button.append(number, body, arrow); list.append(button);
-    });
+  function showScreen(next: typeof screen) {
+    screen = next;
+    updateLayout(); syncRendering();
   }
-  function puzzleLabel(item: ExplosionPuzzle) {
-    const witness = EXPLOSION_REPLAYS[item.level.id];
-    if (!witness) return 'No verified route';
-    const margin = Math.min(...witness.lateMargins);
-    return `Verified route · min margin ${margin}${margin === 24 ? '+' : ''} ticks`;
-  }
-  function puzzleCards() {
-    const list = element('puzzle-list'); list.replaceChildren();
-    for (const item of EXPLOSION_PUZZLES) {
-      const button = document.createElement('button'), body = document.createElement('span');
-      button.className = `course-card${puzzle === item ? ' selected' : ''}`;
-      button.id = `choose-${item.level.id}`; button.dataset.puzzle = item.level.id;
-      button.setAttribute('aria-pressed', String(puzzle === item));
-      const number = document.createElement('span'); number.className = 'course-number';
-      number.textContent = String(EXPLOSION_PUZZLES.indexOf(item) + 1).padStart(2, '0');
-      const title = document.createElement('strong'), status = document.createElement('small'), id = document.createElement('code');
-      title.textContent = item.level.name;
-      status.textContent = item.question; id.textContent = `${item.level.id} · r${item.level.revision}`;
-      body.append(title, status, id);
-      const trial = puzzleTrials.get(item.level.id);
-      if (trial) {
-        const result = document.createElement('small');
-        result.textContent = `This session: ${timeLabel(trial.ticks)} · ${trial.deaths} retries`;
-        body.append(result);
-      }
-      const arrow = document.createElement('span'); arrow.textContent = '↗';
-      button.append(number, body, arrow); list.append(button);
-    }
-  }
-  function openPuzzles() {
+  /** World backdrop for Home: the saved run (paused) or a fresh, unstarted world. */
+  function goHome() {
     if (!canPlay()) return;
-    if (!menu.open) openMenu();
-    showHelp(false); element('menu-home').hidden = true; element('puzzle-panel').hidden = false;
-    text('menu-title', 'Explosion puzzles');
-    puzzleCards(); menu.scrollTop = 0;
-    element(`choose-${puzzle?.level.id ?? EXPLOSION_PUZZLES[0].level.id}`).focus({ preventScroll: true });
+    setPaused(true);
+    const world = LEVELS[selectedCourse];
+    if (mode === 'edit' || puzzle || testing || level !== world) {
+      mode = 'play'; testing = false; puzzle = null; screen = 'home';
+      if (activeRun && world.version === 2 && activeRun.worldId === world.id && activeRun.revision === world.revision) restoreRun(activeRun);
+      else load(world);
+    }
+    showScreen('home');
+    element('home-play').focus({ preventScroll: true });
+  }
+  function homeWorldRun() {
+    const world = LEVELS[selectedCourse];
+    if (world.version !== 2) return null;
+    if (level === world && currentRunId && !state.won) return { state };
+    return activeRun?.worldId === world.id && activeRun.revision === world.revision ? activeRun : null;
+  }
+  function renderHome() {
+    const world = LEVELS[selectedCourse], record = recordFor(world);
+    text('home-world-title', world.name);
+    text('home-world-copy', world.version === 2
+      ? `One continuous escape in ${world.sections.length} sections. Read the blasts, reach each checkpoint, find the golden exit.`
+      : world.description);
+    const summary = world.version === 2 ? worldSummary(world, homeWorldRun(), record) : null;
+    const pips = element('home-pips');
+    pips.replaceChildren(...sectionPips(summary?.section ?? null).map(kind => {
+      const item = document.createElement('li'); item.className = kind; return item;
+    }));
+    pips.setAttribute('aria-label', summary?.section ? `Section ${summary.section.index + 1} of ${summary.section.total}` : 'Section progress');
+    text('home-progress', summary?.progressLine ?? '');
+    text('home-best', summary?.bestLine ?? (record ? `Best ${timeLabel(record.ticks)}` : 'No record yet'));
+    element('home-deathless').hidden = !(summary?.deathless ?? bestClean(record) !== undefined);
+    text('home-play', `${summary?.primaryLabel ?? (record ? 'Play again' : 'Play')} →`);
+    element('new-run').hidden = !summary?.canNewRun;
+    // Several worlds (fixtures today) get a selector; worlds start at their own entry, never mid-section.
+    element('course-strip').hidden = LEVELS.length < 2;
+    text('completion-count', `${LEVELS.filter(course => recordFor(course)).length} / ${LEVELS.length} cleared`);
+    if (LEVELS.length > 1) element('course-list').replaceChildren(...LEVELS.map((course, index) => {
+      const button = document.createElement('button'), number = document.createElement('span');
+      button.dataset.level = String(index);
+      button.setAttribute('aria-pressed', String(index === selectedCourse));
+      const name = document.createElement('span');
+      number.className = 'course-number'; number.textContent = String(index + 1).padStart(2, '0');
+      name.className = 'course-name'; name.textContent = course.name;
+      button.append(number, name, recordFor(course) ? ' ✓' : '');
+      const target = MASTERY_TARGETS[course.id];
+      if (course.version === 1 && typeof target === 'number') {
+        // Retired V1 courses keep their mastery rank; worlds have no preset targets.
+        const best = recordFor(course), clean = bestClean(best), rank = document.createElement('small');
+        rank.className = 'course-rank';
+        rank.textContent = `${runRank(best, target)} · ${clean === undefined ? 'Mastery' : 'Clean'} ${timeLabel(clean ?? target)}`;
+        button.append(rank);
+      }
+      return button;
+    }));
+    const playerSets = sets.filter(set => set.id !== 'sound');
+    text('home-levels-count', `${playerSets.reduce((sum, set) => sum + set.items.length, 0)} short levels in ${playerSets.length} sets`);
+  }
+  function renderLevels() {
+    const set = sets.find(candidate => candidate.id === levelSet) ?? sets[0];
+    const tabs = element('level-tabs');
+    tabs.replaceChildren(...sets.map(candidate => {
+      const tab = document.createElement('button');
+      tab.id = `tab-${candidate.id}`; tab.dataset.set = candidate.id; tab.textContent = candidate.title;
+      tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', 'level-grid');
+      tab.setAttribute('aria-selected', String(candidate === set)); tab.tabIndex = candidate === set ? 0 : -1;
+      return tab;
+    }));
+    element('level-grid').setAttribute('aria-labelledby', `tab-${set.id}`);
+    text('level-set-summary', set.summary);
+    element('level-grid').replaceChildren(...set.items.map((item, index) => {
+      const tile = document.createElement('button'), done = puzzleTrials.has(item.level.id);
+      tile.className = 'level-tile'; tile.id = `choose-${item.level.id}`; tile.dataset.puzzle = item.level.id;
+      tile.setAttribute('aria-pressed', String(puzzle === item));
+      tile.setAttribute('aria-label', `${index + 1}. ${item.level.name}${done ? ', cleared' : ''}`);
+      const number = document.createElement('span'), name = document.createElement('span');
+      number.className = 'tile-number'; number.textContent = String(index + 1);
+      name.className = 'tile-name'; name.textContent = item.level.name;
+      tile.append(number, name);
+      if (done) { const mark = document.createElement('span'); mark.className = 'tile-mark'; mark.textContent = '✓'; tile.append(mark); }
+      return tile;
+    }));
+    const selected = puzzle && set.items.includes(puzzle) ? puzzle : null;
+    element('level-detail').hidden = !selected;
+    if (!selected) return;
+    text('level-detail-title', selected.level.name);
+    text('level-detail-copy', selected.question);
+    text('level-detail-credit', trialCredit(selected) ?? '');
+    const best = puzzleTrials.get(selected.level.id);
+    text('level-detail-result', best ? `Best this session ${timeLabel(best.ticks)} · ${best.deaths} ${best.deaths === 1 ? 'retry' : 'retries'}` : '');
+    text('level-play', isSoundDemo(selected) ? 'Start walk →' : 'Play →');
+  }
+  /** Load a trial without starting it. On the level screen this is the live preview. */
+  function previewTrial(id: string) {
+    if (!canPlay()) return;
+    const entry = findTrial(sets, id);
+    if (!entry) throw new Error('Unknown puzzle.');
+    saveCurrent();
+    puzzle = entry.puzzle; levelSet = entry.set.id; testing = true; mode = 'play';
+    load(entry.puzzle.level);
+    if (isSoundDemo(entry.puzzle) && audioReady) void setSound(true);
+  }
+  function openLevels(focus = true) {
+    if (!canPlay()) return;
+    setPaused(true);
+    const current = puzzle && findTrial(sets, puzzle.level.id) ? puzzle.level.id
+      : (sets.find(set => set.id === levelSet) ?? sets[0]).items[0].level.id;
+    screen = 'levels';
+    previewTrial(current);
+    showScreen('levels');
+    if (focus) element(`choose-${current}`).focus({ preventScroll: true });
   }
   function loadExplosionPuzzle(id: string) {
-    if (!canPlay()) return;
-    const next = EXPLOSION_PUZZLES.find(b => b.level.id === id);
-    if (!next) throw new Error('Unknown puzzle.');
-    saveCurrent();
-    puzzle = next; testing = true; mode = 'play';
-    closeMenu(); load(next.level); element('puzzle-start').focus({ preventScroll: true });
+    if (settingsDialog.open) closeSettings();
+    screen = 'play';
+    previewTrial(id);
+    element('primary-action').focus({ preventScroll: true });
   }
   function overlay() {
+    const card = element('overlay');
     element('restart').setAttribute('aria-label', checkpointPuzzles(level) && !state.won ? 'Restart puzzle'
       : level.version === 2 && !testing ? 'New run' : 'Restart level');
     element('restart').title = checkpointPuzzles(level) && !state.won
       ? 'Restart puzzle (R) — return to checkpoint, keeping time and retries'
       : level.version === 2 && !testing ? 'New run (R) — asks before replacing your run' : 'Restart level (R)';
+    const exit = puzzle ? 'Levels' : testing ? 'Editor' : 'Home';
     if (graphics.awaitingResume) {
-      element('overlay').hidden = menu.open;
-      element('overlay').classList.remove('won');
-      for (const id of ['finish-stats', 'finish-comparison', 'finish-mastery', 'mastery-target', 'intro-audio', 'retry-course']) element(id).hidden = true;
+      card.hidden = settingsDialog.open || screen !== 'play' && mode !== 'edit';
+      card.classList.remove('won');
+      for (const id of ['finish-stats', 'finish-comparison', 'finish-mastery', 'mastery-target', 'retry-course', 'overlay-settings', 'overlay-exit']) element(id).hidden = true;
       text('overlay-kicker', 'GRAPHICS RESTORED');
       text('overlay-title', 'Still paused.');
       text('overlay-copy', 'Your state is unchanged. Resume when you are ready.');
       text('primary-action', mode === 'edit' ? 'Resume editor →' : 'Resume →');
-      text('overlay-foot', 'WAITING FOR YOUR NEXT ACTION');
       return;
     }
     const target = MASTERY_TARGETS[level.id], ranked = level.version === 1 && !testing && typeof target === 'number';
-    element('overlay').hidden = menu.open || mode === 'edit' || Boolean(puzzle && !started) || started && !paused && !state.won;
-    element('overlay').classList.toggle('won', state.won);
+    card.hidden = screen !== 'play' || mode === 'edit' || started && !paused && !state.won;
+    card.classList.toggle('won', state.won);
     element('finish-stats').hidden = !state.won;
     element('finish-comparison').hidden = !state.won || testing;
     element('finish-mastery').hidden = !state.won || !ranked;
     element('mastery-target').hidden = state.won || !ranked || mode === 'edit';
     if (ranked) text('mastery-target', `Mastery: ${timeLabel(target)} or faster, with zero retries.`);
-    element('intro-audio').hidden = started || mode === 'edit';
     element('retry-course').hidden = !started || mode === 'edit';
     text('retry-course', puzzle && state.won ? 'New trial ↻' : checkpointPuzzles(level) && !state.won ? 'Restart puzzle ↻'
       : level.version === 2 && (!testing || checkpointPuzzles(level)) ? 'New run ↻' : 'Retry level ↻');
+    element('overlay-settings').hidden = state.won;
+    element('overlay-exit').hidden = false;
+    text('overlay-exit', exit);
     if (mode === 'edit') return;
+    const guide = courseGuide(level, state);
     if (state.won) {
       const next = nextCourse(LEVELS, campaignProgress(), selectedCourse);
       const complete = !testing && next === null;
       text('overlay-kicker', testing ? 'PLAYTEST COMPLETE' : state.deaths === 0 ? 'CLEAN RUN · ZERO RETRIES' : 'NICE FINISH');
       text('overlay-title', level.version === 2 && !testing ? 'World complete.' : complete ? 'Campaign complete.' : 'Level clear.');
       text('overlay-copy', testing ? 'Back to the editor, or give it another run.'
-        : level.version === 2 ? 'World complete. Try for a faster time or a deathless run.'
+        : level.version === 2 ? 'Try for a faster time or a deathless run.'
         : complete ? `All ${LEVELS.length} encounters cleared. Chase the mastery targets.`
         : next !== null ? `Up next: ${LEVELS[next].name}.` : 'Choose another route to master.');
+      if (!testing) text('overlay-copy', `${element('overlay-copy').textContent} ${progressSaved ? 'Record saved.'
+        : continuation?.status.phase === 'saving' ? 'Saving record…' : 'Record not saved.'}`);
       text('finish-time', timeLabel(state.tick));
       text('finish-retries', String(state.deaths));
       const best = recordFor(level), clean = bestClean(best);
@@ -466,114 +576,126 @@ function boot(scene: Scene) {
         : result.kind === 'best' ? result.deltaTicks < 0 ? `Personal best! ${delta}s faster.` : `Personal best! ${result.fewerRetries} fewer retries.`
         : result.kind === 'equal' ? 'Matched your personal best.'
         : result.deltaTicks > 0 ? `${delta}s from your best. Find your next clean line.` : 'Matched your best time. Try fewer retries.');
-      text('primary-action', testing ? 'Back to editor ↗' : level.version === 2 ? 'World menu →' : complete ? 'Choose a level →' : 'Next level →');
-      text('overlay-foot', testing ? 'PLAYTESTS DO NOT CHANGE LEVEL RECORDS'
-        : progressSaved ? 'RECORD SAVED' : continuation?.status.phase === 'saving' ? 'SAVING RECORD...' : 'NOT SAVED');
+      text('primary-action', testing ? 'Back to editor ↗' : level.version === 2 ? 'Home →' : complete ? 'Choose a level →' : 'Next level →');
+      element('overlay-exit').hidden = !testing || !puzzle;
     } else if (started) {
-      text('overlay-kicker', 'TAKE YOUR TIME');
-      text('overlay-title', 'Paused.');
-      text('overlay-copy', lastDeath ? `Last retry: ${lastDeath}` : level.version === 2
-        ? 'Continue from this exact position. Time and hazards stay paused until you resume.'
-        : 'Your next move can wait. R restarts the whole level.');
-      text('primary-action', level.version === 2 ? 'Continue →' : 'Resume →'); text('overlay-foot', 'SPACE TO RESUME');
+      text('overlay-kicker', 'PAUSED');
+      text('overlay-title', level.version === 2 && level.sections.length > 1 ? `Section ${guide.index + 1}: ${guide.title}` : level.name);
+      text('overlay-copy', lastDeath ? `Last retry: ${lastDeath}` : puzzle ? puzzle.hints[guide.index] ?? puzzle.question : guide.hint);
+      text('primary-action', 'Resume →');
     } else {
-      const continuing = LEVELS.some(course => recordFor(course));
-      text('overlay-kicker', 'READ THE RHYTHM. MAKE YOUR MOVE.');
-      text('overlay-title', level.version === 2 ? 'One world. Eight sections.' : continuing ? 'Find your next flow.' : 'Small tracks. Big flow.');
-      text('overlay-copy', level.version === 2
-        ? checkpointPuzzles(level)
-          ? 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Only the current puzzle runs. R restarts it from your checkpoint; New run starts the world over.'
-          : 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Hazards keep their rhythm through retries. R starts a new run.'
-        : 'Move with WASD, arrow keys or the touch arrows. Reach the golden EXIT. Retries repeat the pattern. R resets the run.');
-      text('primary-action', level.version === 2 && !testing ? continuing ? 'New run →' : 'Start →' : continuing ? 'Continue →' : 'Play →');
-      text('overlay-foot', 'NO LIVES. NO RUSH. ONE MORE TRY.');
+      text('overlay-kicker', 'READY');
+      text('overlay-title', level.name);
+      text('overlay-copy', `${puzzle ? puzzle.question : level.description} ${controlsHint(coarsePointer.matches)}`);
+      text('primary-action', 'Start →');
     }
     if (puzzle) {
-      text('overlay-kicker', state.won ? 'PUZZLE COMPLETE' : 'READ THE EXPLOSIONS');
       if (state.won) {
+        const next = nextTrial(sets, level.id);
+        text('overlay-kicker', 'LEVEL COMPLETE');
         text('overlay-title', 'Trial complete.');
-        text('overlay-copy', 'Choose another explosion puzzle, or start a fresh trial.');
-        text('primary-action', 'Choose a puzzle →');
-        element('finish-best').previousElementSibling!.textContent = 'Reference route';
-        const witness = EXPLOSION_REPLAYS[level.id];
-        text('finish-best', witness ? timeLabel(witness.ticks) : 'Unverified');
-      } else if (!started) {
-        text('overlay-title', level.name);
-        text('overlay-copy', puzzle.question);
-        text('primary-action', 'Start trial →');
+        text('overlay-copy', next ? `Up next: ${next.level.name}.` : 'That was the last level in this set.');
+        text('primary-action', next ? 'Next level →' : 'All levels →');
+        element('overlay-exit').hidden = !next;
+        element('finish-best').previousElementSibling!.textContent = 'Session best';
+        const best = puzzleTrials.get(level.id);
+        text('finish-best', best ? timeLabel(best.ticks) : '—');
       }
-      text('overlay-foot', `${puzzleLabel(puzzle)} · ${puzzle.level.id}`);
+      if (isSoundDemo(puzzle)) {
+        text('overlay-kicker', 'SOUND GARDEN');
+        if (!started) text('primary-action', 'Start walk →');
+        if (state.won) {
+          text('overlay-title', 'The listening walk is complete.');
+          text('overlay-copy', 'That was the full mix. Walk again or audition individual sounds.');
+          text('primary-action', 'Walk again →');
+          element('finish-best').previousElementSibling!.textContent = 'Sound palette';
+          text('finish-best', 'CC0');
+        }
+      }
     }
   }
   function hud() {
-    element('puzzle-start').hidden = !puzzle || started;
-    element('pause').hidden = Boolean(puzzle && !started);
     text('timer', timeLabel(state.tick)); text('deaths', String(state.deaths).padStart(2, '0'));
-    text('run-status', mode === 'edit' ? 'Click or drag to paint' : state.won ? 'Complete' : !started ? 'Ready' : paused ? 'Paused' : '');
     const guide = courseGuide(level, state);
+    if (guide.index !== hintSection) { hintSection = guide.index; hintUntil = state.tick + ROUTE_HINT_TICKS; }
     if (level.version === 2 && mode === 'play' && !testing)
       text('course-number', `SECTION ${guide.index + 1} / ${guide.total} · ${guide.title}`);
-    text('route-hint', puzzle ? puzzle.hints[guide.index]
-      : state.won ? 'A clean line. A better time. Your next challenge is yours.' : guide.hint);
+    const pips = level.version === 2 && level.sections.length > 1 && mode === 'play' ? sectionPips(sectionProgress(level, state)) : [];
+    if (pips.join() !== pipsKey) {
+      pipsKey = pips.join();
+      element('section-pips').replaceChildren(...pips.map(kind => {
+        const item = document.createElement('li'); item.className = kind; return item;
+      }));
+    }
+    const intro = guide.index === 0 && state.visited.length === 0 && state.tick < ROUTE_HINT_TICKS / 2;
+    text('route-hint', intro ? controlsHint(coarsePointer.matches) : puzzle ? puzzle.hints[guide.index] ?? '' : guide.hint);
     const hint = element('route-hint'), feedback = element('game-feedback'), pause = element<HTMLButtonElement>('pause');
     if (hint.title !== guide.title) hint.title = guide.title;
+    hint.classList.toggle('faded', !started || paused || state.won || state.tick >= hintUntil || !hint.textContent);
     const hideFeedback = state.tick >= feedbackUntil || mode === 'edit' || state.won;
     if (feedback.hidden !== hideFeedback) feedback.hidden = hideFeedback;
     const disablePause = mode === 'edit' || !started || state.won;
     if (pause.disabled !== disablePause) pause.disabled = disablePause;
+    const unsaved = !puzzle && !testing && (memoryOnly || continuation?.status.phase === 'error');
+    if (element('save-warning').hidden === unsaved) element('save-warning').hidden = !unsaved;
     document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
-      const disabled = mode !== 'play' || !started || paused || state.won || menu.open;
+      const disabled = mode !== 'play' || !started || paused || state.won || settingsDialog.open;
       if (button.disabled !== disabled) button.disabled = disabled;
     });
   }
   function updateLayout() {
+    if (mode === 'edit') screen = 'edit';
+    else if (screen === 'edit') screen = 'play';
+    if (root.dataset.screen !== screen) root.dataset.screen = screen;
+    element('home-screen').hidden = screen !== 'home';
+    element('levels-screen').hidden = screen !== 'levels';
+    element('editor-panel').hidden = screen !== 'edit';
     text('course-title', mode === 'edit' ? 'Level editor' : level.name);
-    text('course-number', puzzle ? `PUZZLE ${EXPLOSION_PUZZLES.indexOf(puzzle) + 1} / ${EXPLOSION_PUZZLES.length} · r${level.version === 2 ? level.revision : 1}`
-      : mode === 'edit' || testing ? 'YOUR LEVEL' : `AFTERSHOCK ${selectedCourse + 1} / ${LEVELS.length}`);
-    text('play-tab', level.version === 2 ? 'Back to world' : 'Restart game level');
-    element('new-run').hidden = level.version !== 2 || testing || mode === 'edit';
+    const trial = puzzle ? findTrial(sets, puzzle.level.id) : undefined;
+    text('course-number', puzzle === SOUND_ICE_DEMO ? 'SOUND GARDEN · ICE SOUNDS'
+      : isSoundDemo(puzzle) ? 'SOUND GARDEN · MATERIALS & RHYTHM'
+      : trial ? `${trial.set.title} · ${trial.index + 1} / ${trial.set.items.length}`
+      : mode === 'edit' || testing ? 'YOUR LEVEL' : `${selectedCourse + 1} / ${LEVELS.length}`);
     text('help-restart-label', checkpointPuzzles(level) ? 'Restart puzzle' : level.version === 2 && !testing ? 'New run' : 'Restart level');
     text('help-restart-note', puzzle ? ' (returns to the start or checkpoint and resets the pattern, keeping time and retries)'
       : checkpointPuzzles(level)
-      ? ' (returns to checkpoint and resets its pattern, keeping time and retries; use New run to start over)'
+      ? ' (returns to checkpoint and resets its pattern, keeping time and retries; use New run on Home to start over)'
       : level.version === 2 && !testing ? ' (asks before replacing an unfinished world run)' : ' (resets the level)');
-    document.querySelector('.workspace')!.classList.toggle('editing', mode === 'edit');
-    element('editor-panel').hidden = mode !== 'edit';
-    element('test-badge').hidden = !testing || mode === 'edit';
-    text('test-badge', puzzle ? 'PUZZLE' : 'PLAYTEST');
-    element('puzzle-return').hidden = !puzzle;
-    element('puzzle-info').hidden = !puzzle;
-    element('save-status').hidden = Boolean(puzzle);
-    if (puzzle) {
-      text('puzzle-id', `${level.id} · r${puzzle.level.revision}`);
-      text('puzzle-status', puzzleLabel(puzzle));
-    }
+    element('sound-demo-controls').hidden = !isSoundDemo(puzzle);
+    element<HTMLButtonElement>('ice-room-open').disabled = puzzle === SOUND_ICE_DEMO;
+    element<HTMLButtonElement>('sound-lane-open').disabled = puzzle === SOUND_DEMO;
+    element('dev-tools').hidden = !dev;
     element('editor-coordinates').hidden = mode !== 'edit';
     element('touch-controls').hidden = mode === 'edit';
     element('route-hint').hidden = mode === 'edit';
     element('editor-return').hidden = !testing || Boolean(puzzle);
     element<HTMLButtonElement>('restart').disabled = mode === 'edit';
-    text('controls-note', mode === 'edit' ? 'Choose a brush, then click or drag on the board. Control or Command Z undoes a change. Escape opens the menu.'
-      : puzzle ? 'WASD or arrows to move. Space pauses. R restarts at the start or checkpoint, keeping time and retries. Puzzles chooses another explosion puzzle. Escape opens the menu.'
+    text('controls-note', mode === 'edit' ? 'Choose a brush, then click or drag on the board. Control or Command Z undoes a change. Escape opens settings.'
+      : isSoundDemo(puzzle) ? 'WASD or arrows to move. Space or Escape pauses. R restarts. Open Audition sounds to compare twelve ice sounds, choose the ice room or hear individual cues.'
+      : puzzle ? 'WASD or arrows to move. Space or Escape pauses. R restarts at the start or checkpoint, keeping time and retries.'
       : checkpointPuzzles(level)
-      ? 'WASD or arrow keys to move. Space pauses and resumes. R restarts the current puzzle at its checkpoint, keeping time and retries. New run in the menu starts the world over. Escape opens the menu. On touch screens, hold the direction buttons to move.'
+      ? 'WASD or arrow keys to move. Space or Escape pauses and resumes. R restarts the current puzzle at its checkpoint, keeping time and retries. New run on the home screen starts the world over. On touch screens, hold the direction buttons to move.'
       : level.version === 2 && !testing
-      ? 'WASD or arrow keys to move. Space pauses and resumes. R requests a new run, with confirmation before replacing an unfinished run. Escape opens the menu. On touch screens, hold the direction buttons to move.'
-      : 'WASD or arrow keys to move. Space pauses and resumes. R restarts the level. Escape opens the menu. On touch screens, hold the direction buttons to move.');
+      ? 'WASD or arrow keys to move. Space or Escape pauses and resumes. R requests a new run, with confirmation before replacing an unfinished run. On touch screens, hold the direction buttons to move.'
+      : 'WASD or arrow keys to move. Space or Escape pauses and resumes. R restarts the level. On touch screens, hold the direction buttons to move.');
     viewport.setAttribute('aria-label', mode === 'edit' ? 'Level editor. Choose a brush, then click or drag on the board.'
       : checkpointPuzzles(level) ? 'Boundstoy world. WASD or arrows to move; R to restart the current puzzle at its checkpoint; Space to pause.'
       : level.version === 2 && !testing ? 'Boundstoy world. WASD or arrows to move; R to request a new run; Space to pause.'
       : 'Boundstoy course. WASD or arrows to move; R to restart; Space to pause.');
-    editorControls(); courseCards(); overlay(); hud();
+    editorControls();
+    if (screen === 'home') renderHome();
+    if (screen === 'levels') renderLevels();
+    overlay(); hud();
   }
   function load(next: Level, entry: 'ready' | 'play' | 'paused' = 'ready') {
     if (!graphics.resume()) return;
+    audio.stop();
     currentRunId = null;
     level = next; state = createState(level); started = entry !== 'ready'; paused = entry !== 'play';
-    accumulator = 0; feedbackUntil = 0; lastDeath = ''; result = null; manualClock = false;
+    accumulator = 0; feedbackUntil = 0; lastDeath = ''; result = null; manualClock = false; hintSection = -1;
     clearInput(); scene.setLevel(level); scene.highlight(null);
     // Transfer focus before hiding the action that started this run.
-    if (!paused) viewport.focus({ preventScroll: true });
+    if (!paused && screen === 'play') viewport.focus({ preventScroll: true });
     updateLayout();
     syncRendering();
     if (entry === 'play') activateSound();
@@ -589,31 +711,39 @@ function boot(scene: Scene) {
       } else beginWorld(index, entry);
       return;
     }
-    selectedCourse = index; mode = 'play'; testing = false; puzzle = null; load(LEVELS[index], entry);
+    selectedCourse = index; mode = 'play'; testing = false; puzzle = null; screen = 'play'; load(LEVELS[index], entry);
     if (entry === 'paused') element('primary-action').focus({ preventScroll: true });
   }
   function play() {
-    if (!canPlay() || menu.open) return;
+    if (!canPlay() || settingsDialog.open) return;
     if (mode === 'edit') {
       if (graphics.awaitingResume) { graphics.resume(); clearInput(); overlay(); syncRendering(); viewport.focus(); }
       return;
     }
     graphics.resume();
     activateSound();
+    if (screen !== 'play') showScreen('play');
     if (state.won) {
-      if (puzzle) { openPuzzles(); return; }
+      if (isSoundDemo(puzzle)) { load(level); return; }
+      if (puzzle) {
+        const next = nextTrial(sets, level.id);
+        if (next) { previewTrial(next.level.id); play(); } else openLevels();
+        return;
+      }
       if (testing) { enterEditor(); return; }
       const next = nextCourse(LEVELS, campaignProgress(), selectedCourse);
-      if (next === null) openMenu();
+      if (next === null) goHome();
       else loadCourse(next);
       return;
     }
     if (level.version === 2 && !testing && !currentRunId) { beginWorld(selectedCourse, 'play'); return; }
+    if (isSoundDemo(puzzle)) audio.stop();
     clearInput(); started = true; paused = false; accumulator = 0; manualClock = false;
     viewport.focus({ preventScroll: true }); overlay(); hud();
     syncRendering();
   }
   function setPaused(value: boolean) {
+    if (value || isSoundDemo(puzzle)) audio.stop();
     if (!graphics.available) return;
     if (value) suspension++;
     else if (!canPlay()) return;
@@ -623,12 +753,6 @@ function boot(scene: Scene) {
     if (!value) viewport.focus({ preventScroll: true });
     overlay(); hud(); syncRendering();
     if (value) saveCurrent();
-  }
-  function showHelp(show: boolean) {
-    element('menu-home').hidden = show; element('help-panel').hidden = !show;
-    element('puzzle-panel').hidden = true;
-    text('menu-title', show ? 'How to play' : 'Take a breather.');
-    menu.scrollTop = 0;
   }
   function fillHelp() {
     text('help-level-title', level.name);
@@ -645,29 +769,42 @@ function boot(scene: Scene) {
     if (level.hazards.some(hazard => hazard.kind === 'pulse')) add('Explosive tiles', 'A framed tile burns round its edge, then explodes instantly. Each colour fires as one group. The tile is safe immediately afterwards, even while debris fades.', '#ff9a2e');
     if (level.hazards.some(hazard => hazard.kind === 'saw')) add('Saws', 'Watch the patrol and cross when the way is clear.', '#e35b80');
   }
-  function openMenu() {
-    if (!canPlay() || menu.open) return;
-    clearInput(); setPaused(true); showHelp(false); courseCards();
-    text('menu-play', mode === 'edit' ? 'Back to editor →' : state.won ? 'View results →' : started ? 'Resume →' : 'Play →');
-    menu.append(element('notice'));
-    menu.showModal(); element('menu-toggle').setAttribute('aria-expanded', 'true');
-    overlay(); hud(); element('menu-play').focus({ preventScroll: true });
+  function openSettings(focus: HTMLElement = element('settings-title')) {
+    if (!canPlay() || settingsDialog.open) return;
+    settingsReturn = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    clearInput(); setPaused(true); fillHelp();
+    settingsDialog.append(element('notice'));
+    settingsDialog.showModal(); settingsDialog.scrollTop = 0;
+    overlay(); hud(); focus.focus({ preventScroll: focus === element('settings-title') });
     syncRendering();
   }
-  function closeMenu(target: HTMLElement = element('menu-toggle')) {
-    menu.close(); element('menu-toggle').setAttribute('aria-expanded', 'false');
-    element('boundstoy').append(element('notice'));
-    overlay(); hud(); target.focus({ preventScroll: true });
-    syncRendering();
+  function closeSettings() {
+    settingsDialog.close();
+    root.append(element('notice'));
+    overlay(); hud(); syncRendering();
+    const target = settingsReturn && settingsReturn.isConnected && settingsReturn.getClientRects().length ? settingsReturn
+      : screen === 'home' ? element('home-play') : screen === 'levels' ? element('level-play') : element('primary-action');
+    settingsReturn = null;
+    target.focus({ preventScroll: true });
   }
   function tick(input: Point) {
     if (!canPlay() || graphics.awaitingResume) return;
-    const previousTick = hazardTick(state), before = state;
+    const before = state;
     state = step(level, state, input);
     scene.record(before, state, input);
-    if (state.patternOffset === before.patternOffset
-      && localBlast(level, state.position, previousTick, hazardTick(state), state)) audio.play('blast');
-    if (state.event !== 'none') audio.play(state.event);
+    if (isSoundDemo(puzzle)) {
+      const motion = iceMotion(level, before, state);
+      if (!motion) audio.updateGlide(null, iceVariant);
+      else if (audioReady && !audioBusy) {
+        if (audio.isGlideReady(iceVariant)) audio.updateGlide(motion, iceVariant);
+        else void setSound(true);
+      }
+    }
+    for (const cue of soundEvents(level, before, state)) {
+      if (isSoundDemo(puzzle) && (cue === 'soft' || cue === 'hard')) continue;
+      audio.play(cue);
+      if (isSoundDemo(puzzle)) text('sound-last', `${SOUNDS[cue].label}: ${SOUNDS[cue].description}`);
+    }
     if (state.event === 'death' && state.deathCause) {
       lastDeath = deathMessage(state.deathCause);
       text('game-feedback', `Retry ${state.deaths}: ${lastDeath}`);
@@ -681,7 +818,7 @@ function boot(scene: Scene) {
     }
     if (state.event === 'win') {
       clearInput();
-      if (puzzle) puzzleTrials.set(level.id, { ticks: state.tick, deaths: state.deaths });
+      if (puzzle && !isSoundDemo(puzzle)) puzzleTrials.set(level.id, { ticks: state.tick, deaths: state.deaths });
       if (!testing) {
         progressSaved = false;
         if (level.version === 2) {
@@ -695,7 +832,6 @@ function boot(scene: Scene) {
             void continuation.execute(lease => lease.recordLegacyFinish(id, tick, deaths));
           }
         }
-        courseCards();
       }
       overlay();
       element('primary-action').focus({ preventScroll: true });
@@ -825,7 +961,7 @@ function boot(scene: Scene) {
     } catch (error) { notify(error instanceof Error ? error.message : String(error), true); }
   }
   viewport.addEventListener('pointerdown', event => {
-    if (event.target !== scene.renderer.domElement) return;
+    if (event.target !== scene.renderer.domElement || screen === 'home' || screen === 'levels') return;
     viewport.focus();
     if (mode !== 'edit' || event.button !== 0) return;
     painting = true; paintingPointer = event.pointerId; lastPaint = ''; viewport.setPointerCapture(event.pointerId); paintAt(event, true);
@@ -839,10 +975,10 @@ function boot(scene: Scene) {
   viewport.addEventListener('lostpointercapture', stopPainting, options);
   viewport.addEventListener('pointerleave', () => { if (!painting) scene.highlight(null); }, options);
   viewport.addEventListener('keydown', event => {
-    if (!graphics.available || event.target !== viewport) return;
+    if (!graphics.available || event.target !== viewport || screen === 'home' || screen === 'levels') return;
     if (event.code in keyDirections && mode === 'play') {
       event.preventDefault();
-      if (!event.repeat && started && !paused && !state.won && !menu.open) keys.add(event.code);
+      if (!event.repeat && started && !paused && !state.won && !settingsDialog.open) keys.add(event.code);
     } else if (event.code === 'Space' && mode === 'play') {
       event.preventDefault();
       if (!event.repeat) { if (!started) play(); else setPaused(!paused); }
@@ -868,7 +1004,7 @@ function boot(scene: Scene) {
   document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach(button => {
     button.addEventListener('pointerdown', event => {
       event.preventDefault();
-      if (!graphics.available || mode !== 'play' || state.won || !started || paused || menu.open) return;
+      if (!graphics.available || mode !== 'play' || state.won || !started || paused || settingsDialog.open) return;
       touchPointers.set(event.pointerId, button.dataset.direction!);
       button.classList.add('pressed'); button.setPointerCapture(event.pointerId);
     }, options);
@@ -901,69 +1037,164 @@ function boot(scene: Scene) {
     return source;
   }
   element('primary-action').addEventListener('click', play, options);
-  element('puzzle-start').addEventListener('click', play, options);
   element('retry-course').addEventListener('click', restartRun, options);
-  element('pause').addEventListener('click', () => {
-    setPaused(true); element('primary-action').focus({ preventScroll: true });
+  element('overlay-settings').addEventListener('click', () => openSettings(), options);
+  element('overlay-exit').addEventListener('click', () => {
+    if (puzzle) openLevels(); else if (testing) enterEditor(); else goHome();
   }, options);
+  function togglePause() {
+    if (!started || state.won || mode !== 'play') return;
+    if (paused) play();
+    else { setPaused(true); element('primary-action').focus({ preventScroll: true }); }
+  }
+  // The HUD button only pauses (repeat presses are harmless); Resume lives on the pause card.
+  element('pause').addEventListener('click', () => {
+    if (!started || state.won || mode !== 'play') return;
+    setPaused(true);
+    element('primary-action').focus({ preventScroll: true });
+  }, options);
+  // Pressing a HUD button must not blur the board: focus loss would pause
+  // before the click and turn Pause into an immediate Resume.
+  for (const id of ['pause', 'restart']) element(id).addEventListener('mousedown', event => event.preventDefault(), options);
   element('restart').addEventListener('click', () => {
     if (mode === 'edit') return;
     restartRun();
   }, options);
+  element('home-play').addEventListener('click', () => {
+    if (!canPlay()) return;
+    screen = 'play';
+    loadCourse(selectedCourse);
+  }, options);
   element('new-run').addEventListener('click', () => {
     if (!canPlay() || mode === 'edit' || testing || level.version !== 2) return;
-    closeMenu(); beginWorld(selectedCourse, 'play');
+    beginWorld(selectedCourse, 'play');
   }, options);
-  element('play-tab').addEventListener('click', () => loadCourse(selectedCourse), options);
+  element('home-levels').addEventListener('click', () => openLevels(), options);
+  element('course-list').addEventListener('click', event => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-level]');
+    if (!button || !canPlay()) return;
+    screen = 'play';
+    loadCourse(Number(button.dataset.level));
+  }, options);
+  element('levels-back').addEventListener('click', goHome, options);
+  element('home-settings').addEventListener('click', () => openSettings(), options);
+  element('home-help').addEventListener('click', () => openSettings(element('help-heading')), options);
+  element('save-warning').addEventListener('click', () => element('save-status').click(), options);
+  element('play-tab').addEventListener('click', goHome, options);
   element('editor-return').addEventListener('click', enterEditor, options);
-  element('menu-toggle').addEventListener('click', openMenu, options);
-  element('menu-close').addEventListener('click', () => closeMenu(), options);
-  menu.addEventListener('cancel', event => { event.preventDefault(); closeMenu(); }, options);
-  menu.addEventListener('keydown', event => {
+  element('settings-close').addEventListener('click', closeSettings, options);
+  settingsDialog.addEventListener('cancel', event => { event.preventDefault(); closeSettings(); }, options);
+  settingsDialog.addEventListener('keydown', event => {
     if (event.code !== 'Tab') return;
-    const buttons = [...menu.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)')].filter(button => button.getClientRects().length);
+    const buttons = [...settingsDialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)')].filter(button => button.getClientRects().length);
     const first = buttons[0], last = buttons.at(-1);
-    if (event.shiftKey && (document.activeElement === first || document.activeElement === element('menu-title'))) {
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === element('settings-title'))) {
       event.preventDefault(); last?.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
       event.preventDefault(); first?.focus();
     }
   }, options);
-  element('menu-play').addEventListener('click', () => {
-    closeMenu(mode === 'edit' ? viewport : element('primary-action'));
-    if (graphics.awaitingResume || mode === 'play' && !state.won) play();
-  }, options);
-  element('help').addEventListener('click', () => {
-    fillHelp(); showHelp(true); element('menu-title').focus({ preventScroll: true });
-  }, options);
-  element('help-back').addEventListener('click', () => {
-    showHelp(false); element('help').focus();
-  }, options);
   element('editor-tab').addEventListener('click', () => {
-    closeMenu(); if (mode !== 'edit') enterEditor(); else viewport.focus();
+    if (!dev) return;
+    closeSettings(); if (mode !== 'edit') enterEditor(); else viewport.focus();
   }, options);
   document.addEventListener('keydown', event => {
-    if (event.code !== 'Escape' || menu.open || event.repeat) return;
-    event.preventDefault(); openMenu();
+    if (event.code !== 'Escape' || event.repeat || settingsDialog.open || newRunDialog.open || saveDialog.open || recoveryDialog.open) return;
+    if (screen === 'levels') { event.preventDefault(); goHome(); }
+    else if (screen === 'edit') { event.preventDefault(); openSettings(); }
+    else if (screen === 'play' && started && !state.won) { event.preventDefault(); togglePause(); }
   }, options);
-  element('course-list').addEventListener('click', event => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-level]');
-    if (button) { closeMenu(); loadCourse(Number(button.dataset.level)); }
+  element('level-tabs').addEventListener('click', event => {
+    const tab = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-set]');
+    const set = sets.find(candidate => candidate.id === tab?.dataset.set);
+    if (!set || set.id === levelSet) return;
+    levelSet = set.id; previewTrial(set.items[0].level.id);
+    element(`tab-${set.id}`).focus({ preventScroll: true });
   }, options);
-  for (const id of ['puzzles-open', 'puzzle-return']) element(id).addEventListener('click', openPuzzles, options);
-  element('puzzles-back').addEventListener('click', () => {
-    showHelp(false); element('puzzles-open').focus({ preventScroll: true });
+  element('level-tabs').addEventListener('keydown', event => {
+    if (event.code !== 'ArrowRight' && event.code !== 'ArrowLeft') return;
+    event.preventDefault();
+    const index = sets.findIndex(set => set.id === levelSet), step = event.code === 'ArrowRight' ? 1 : -1;
+    const set = sets[(index + step + sets.length) % sets.length];
+    levelSet = set.id; previewTrial(set.items[0].level.id);
+    element(`tab-${set.id}`).focus({ preventScroll: true });
   }, options);
-  element('puzzle-list').addEventListener('click', event => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-puzzle]');
-    if (button?.dataset.puzzle) loadExplosionPuzzle(button.dataset.puzzle);
+  element('level-grid').addEventListener('click', event => {
+    const tile = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-puzzle]');
+    if (!tile?.dataset.puzzle) return;
+    if (puzzle?.level.id !== tile.dataset.puzzle) previewTrial(tile.dataset.puzzle);
+    element(`choose-${tile.dataset.puzzle}`).focus({ preventScroll: true });
   }, options);
-  for (const id of ['audio', 'intro-audio']) element(id).addEventListener('click', () => { void setSound(!preferences.sound); }, options);
-  element('sound-volume').addEventListener('input', () => {
-    const volume = Number(element<HTMLInputElement>('sound-volume').value) / 100;
-    audio.setVolume(volume); preferences = { ...preferences, volume }; soundControls();
+  element('level-grid').addEventListener('dblclick', event => {
+    if ((event.target as HTMLElement).closest('[data-puzzle]')) play();
   }, options);
-  element('sound-volume').addEventListener('change', savePreferences, options);
+  element('level-play').addEventListener('click', play, options);
+  element('sounds-open').addEventListener('click', () => loadExplosionPuzzle(SOUND_DEMO.level.id), options);
+  element('ice-room-open').addEventListener('click', () => loadExplosionPuzzle(SOUND_ICE_DEMO.level.id), options);
+  element('sound-lane-open').addEventListener('click', () => loadExplosionPuzzle(SOUND_DEMO.level.id), options);
+  async function chooseIce(variant: IceSoundId, preview = false) {
+    if (!canPlay() || audioBusy || !isSoundDemo(puzzle)) return;
+    if (preview) setPaused(true);
+    const stamp = suspension, room = puzzle, wasPaused = paused || !started || state.won;
+    if (!await setSound(true, variant)) { iceControls(); return; }
+    iceVariant = variant; iceControls();
+    if (pageGone || document.hidden || suspension !== stamp || puzzle !== room || !canPlay()) return;
+    if (wasPaused) audio.auditionGlide('soft', variant);
+    else {
+      const glide = audio.inspect().glide;
+      if (glide) audio.updateGlide(glide.surface, variant);
+    }
+    text('sound-last', preferences.volume === 0 ? 'Volume is zero. Raise it to hear the sound.'
+      : `${ICE_PALETTE[variant].label}: ${wasPaused ? '12-second preview.' : 'Selected for your glide.'}`);
+  }
+  iceSelect.addEventListener('change', () => {
+    const id = iceSelect.value;
+    if (!isIceSound(id)) { report('Could not select ice sound', new Error('Unknown ice sound.')); iceControls(); return; }
+    void chooseIce(id);
+  }, options);
+  for (const [id, direction] of [['ice-prev', -1], ['ice-next', 1]] as const) {
+    element(id).addEventListener('click', () => {
+      const index = (ICE_PALETTE_IDS.indexOf(iceVariant) + direction + ICE_PALETTE_IDS.length) % ICE_PALETTE_IDS.length;
+      void chooseIce(ICE_PALETTE_IDS[index]);
+    }, options);
+  }
+  element('ice-preview').addEventListener('click', () => { void chooseIce(iceVariant, true); }, options);
+  element('ice-stop').addEventListener('click', () => {
+    setPaused(true); text('sound-last', 'Stopped. Start the walk or tap a cue to listen again.');
+  }, options);
+  for (const id of ['audio', 'demo-audio']) element(id).addEventListener('click', () => {
+    void setSound(!(audioBusy ? soundTarget ?? soundInFlight : preferences.sound));
+  }, options);
+  for (const id of ['sound-volume', 'demo-volume']) {
+    element(id).addEventListener('input', () => {
+      const volume = Number(element<HTMLInputElement>(id).value) / 100;
+      audio.setVolume(volume); preferences = { ...preferences, volume }; soundControls();
+    }, options);
+    element(id).addEventListener('change', savePreferences, options);
+  }
+  for (const cue of SOUND_IDS) {
+    const button = document.createElement('button');
+    button.id = `audition-${cue}`; button.textContent = SOUNDS[cue].label;
+    button.title = cue === 'soft' || cue === 'hard' ? `${ICE_PALETTE_AUDIO.previewSeconds}-second preview of the selected ice sound.` : SOUNDS[cue].description;
+    button.addEventListener('click', async () => {
+      if (!canPlay() || audioBusy || !isSoundDemo(puzzle)) return;
+      setPaused(true);
+      if (!audioReady && !await setSound(true)) return;
+      if (pageGone || document.hidden || !isSoundDemo(puzzle)) return;
+      audio.stop();
+      if (cue === 'soft' || cue === 'hard') audio.auditionGlide(cue, iceVariant);
+      else audio.play(cue);
+      text('sound-last', preferences.volume === 0 ? 'Volume is zero. Raise it to hear the cue.'
+        : cue === 'soft' || cue === 'hard' ? `${SOUNDS[cue].label}: ${ICE_PALETTE_AUDIO.previewSeconds}-second ${ICE_PALETTE[iceVariant].label} preview.`
+        : `${SOUNDS[cue].label}: ${SOUNDS[cue].description}`);
+    }, options);
+    element('sound-auditions').append(button);
+  }
+  element('boundstoy').addEventListener('click', event => {
+    const button = (event.target as HTMLElement).closest('button');
+    if (button && !button.id.startsWith('audition-') && !button.id.startsWith('ice-') && !['audio', 'demo-audio'].includes(button.id))
+      audio.play('ui');
+  }, { ...options, capture: true });
   element('fullscreen').addEventListener('click', async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -987,7 +1218,7 @@ function boot(scene: Scene) {
   element('level-name').addEventListener('change', rename, options);
   element('playtest').addEventListener('click', () => {
     if (!rename()) return;
-    draft = parseLevel(level); saveDraft(); mode = 'play'; testing = true;
+    draft = parseLevel(level); saveDraft(); mode = 'play'; testing = true; screen = 'play';
     load(draft, 'play');
   }, options);
   element('export').addEventListener('click', () => {
@@ -1013,7 +1244,7 @@ function boot(scene: Scene) {
   }, options);
   const cancelNewRun = () => {
     pendingNew = null; newRunDialog.close(); overlay(); syncRendering();
-    element('primary-action').focus({ preventScroll: true });
+    element(screen === 'home' ? 'new-run' : 'primary-action').focus({ preventScroll: true });
   };
   element('new-run-cancel').addEventListener('click', cancelNewRun, options);
   newRunDialog.addEventListener('cancel', event => { event.preventDefault(); cancelNewRun(); }, options);
@@ -1028,7 +1259,8 @@ function boot(scene: Scene) {
   }, options);
   const closeSaveDialog = () => {
     if (!persistenceReady || storageBusy || continuation?.status.phase === 'error') return;
-    saveDialog.close(); overlay(); syncRendering(); element('primary-action').focus();
+    saveDialog.close(); overlay(); hud(); syncRendering();
+    element(settingsDialog.open ? 'save-status' : screen === 'home' ? 'home-play' : 'primary-action').focus();
   };
   element('save-close').addEventListener('click', closeSaveDialog, options);
   saveDialog.addEventListener('cancel', event => { event.preventDefault(); closeSaveDialog(); }, options);
@@ -1108,7 +1340,7 @@ function boot(scene: Scene) {
         if (!saveDialog.open) saveDialog.showModal();
       }
       overlay(); hud(); syncRendering();
-      (menu.open ? element('menu-play') : element('primary-action')).focus({ preventScroll: true });
+      (settingsDialog.open ? element('settings-close') : screen === 'home' ? element('home-play') : element('primary-action')).focus({ preventScroll: true });
     } catch (error) {
       console.warn('[Boundstoy] Graphics recovery failed', error);
       showGraphicsFailure('Graphics could not be restored. The game remains frozen. Reload the page to try again; unsaved play may be lost.');
@@ -1131,6 +1363,7 @@ function boot(scene: Scene) {
       });
     },
     graphics: () => ({ status: graphics.status, visualTime, accumulator }),
+    sound: () => audio.inspect(),
     persistence: () => ({
       ready: persistenceReady && !storageBusy,
       phase: memoryOnly ? 'memory' : continuation?.status.phase ?? 'unavailable',
@@ -1140,15 +1373,17 @@ function boot(scene: Scene) {
     load: (index: number) => {
       if (!graphics.available) return;
       if (abort.signal.aborted) throw new Error('The game has been disposed.');
-      loadCourse(index, 'paused'); visualTime = 0; loop.drawNow();
+      screen = 'play'; loadCourse(index, 'paused'); visualTime = 0; loop.drawNow();
     },
     advance: (ticks: number, input: Point = STILL) => {
       if (!canPlay() || graphics.awaitingResume) return structuredClone(state);
       if (abort.signal.aborted) throw new Error('The game has been disposed.');
       if (!Number.isInteger(ticks) || ticks < 0 || ticks > 100_000) throw new Error('advance accepts 0-100000 ticks.');
       if (mode !== 'play') throw new Error('Use Play or Playtest before advancing the simulation.');
+      if (screen !== 'play') showScreen('play');
       paused = true; started = true; accumulator = 0; clearInput();
       for (let i = 0; i < ticks && !state.won; i++) tick(input);
+      if (isSoundDemo(puzzle)) audio.stop();
       visualTime = state.tick * DT; manualClock = true; hud(); overlay(); syncRendering(); loop.drawNow();
       return structuredClone(state);
     },
@@ -1168,17 +1403,17 @@ function boot(scene: Scene) {
     if (!graphics.available) return;
     if (!canPlay()) { hud(); scene.draw(sceneState(), visualTime, mode === 'edit'); return; }
     if (graphics.awaitingResume) { hud(); scene.draw(sceneState(), visualTime, mode === 'edit'); return; }
-    if (!menu.open && !paused && mode === 'play' && !state.won) {
+    if (!settingsDialog.open && !paused && mode === 'play' && screen === 'play' && !state.won) {
       visualTime += elapsed;
       const pending = fixedSteps(accumulator, elapsed);
       accumulator = pending.remainder;
       const input = movement();
       for (let i = 0; i < pending.count && !state.won; i++) tick(input);
-    } else if (!manualClock && !menu.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
-    const live = !menu.open && !paused && mode === 'play' && !state.won;
+    } else if (!manualClock && !settingsDialog.open && (!started || mode === 'edit' || state.won)) visualTime += elapsed;
+    const live = !settingsDialog.open && !paused && mode === 'play' && !state.won;
     hud(); scene.draw(sceneState(), visualTime, mode === 'edit', live ? accumulator / DT : 1);
   }
-  load(LEVELS[selectedCourse]); element('primary-action').focus({ preventScroll: true });
+  load(LEVELS[selectedCourse]); element('home-play').focus({ preventScroll: true });
   window.addEventListener('pagehide', event => {
     clearInput(); setPaused(true); saveCurrent(); loop.setVisible(false);
     pageGone = true; persistenceReady = false;

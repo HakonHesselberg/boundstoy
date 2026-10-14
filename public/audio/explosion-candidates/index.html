@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>Explosion listening room - Boundstoy</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #2b4052; background: radial-gradient(ellipse at top, #dfeef0, #f8f5ee); font: 17px/1.55 system-ui, sans-serif; }
+    main { max-width: 1080px; margin: auto; padding: 36px 24px; }
+    h1 { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.12; margin: .4em 0; }
+    h2 { font-size: 1.25rem; margin: 0; }
+    a { color: #28586a; text-underline-offset: .2em; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 22px; padding: 10px 16px; background: #315e70; color: white; }
+    button.secondary { background: #e4edef; color: #2b4052; }
+    button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #97692f; outline-offset: 4px; }
+    .controls, article { border-radius: 24px; background: #ffffffd9; box-shadow: 0 10px 35px #385d6e12; }
+    .controls { position: sticky; top: 8px; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 16px 20px; margin: 24px 0; }
+    .volume { display: grid; gap: 2px; }
+    .visual { display: flex; align-items: center; gap: 14px; }
+    #pad { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 15px; background: radial-gradient(ellipse at 40% 25%, #d1e8e5, #8cb1b7); box-shadow: inset 0 -6px 12px #34677221; }
+    #pad[data-phase="buildup"] { background: radial-gradient(ellipse at 40% 25%, #fff3b8, #d4b984); }
+    #pad[data-phase="impact"] { background: radial-gradient(ellipse, #fffefa, #d1ddf8); }
+    #pad[data-phase="tail"] { background: radial-gradient(ellipse at 40% 25%, #dddff1, #b5b7d1); }
+    #phase { min-width: 90px; font-size: .85rem; }
+    #status { flex-basis: 100%; margin: 0; font-size: .9rem; min-height: 1.5em; }
+    #candidates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    article { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+    article p { margin: 0; }
+    article[data-playing] { background: #fff; box-shadow: 0 10px 35px #385d6e35; }
+    .description { flex: 1; }
+    .parts { font-size: .92rem; }
+    .actions, .downloads { display: flex; flex-wrap: wrap; gap: 8px; }
+    .downloads { font-size: .83rem; gap: 14px; }
+    footer { margin-top: 26px; font-size: .9rem; }
+    @media (max-width: 700px) { #candidates { grid-template-columns: 1fr; } main { padding: 24px 16px; } article { padding: 20px; } }
+    @media (max-height: 500px) { .controls { position: static; } }
+  </style>
+  <script type="module" src="./audition.js"></script>
+</head>
+<body>
+  <main>
+    <a href="../../index.html">Back to the game</a>
+    <p><a href="../sound-board/index.html">Compare the other game sounds</a></p>
+    <h1>Gather. Pop. Dissolve.</h1>
+    <p>Eight suggestions for buildup and explosion sounds. From gentle magic to a punchier arcade burst:
+      compare the feeling, not just the volume. The softened <strong>Airy puff impact is approved
+      and used in the game</strong>. Buildups and other impacts remain listening alternatives.</p>
+    <p><strong>Hear pair</strong> plays a 225 ms buildup, then the impact.
+      <strong>Pattern x4</strong> repeats that pair four times, 1.2 seconds apart, then stops.
+      <strong>Rapid x8 (4/sec)</strong> plays eight impacts without buildups, 250 ms apart,
+      to compare frequent bursts. Airy puff has been softened for this pace.</p>
+    <div class="controls">
+      <button id="stop" type="button">Stop</button>
+      <label class="volume">Listening volume <input id="volume" type="range" min="0" max="100" value="65" aria-label="Listening volume"></label>
+      <label><input id="mono" type="checkbox"> Mono</label>
+      <div class="visual" aria-hidden="true"><div id="pad" data-phase="idle"></div><span id="phase">Ready</span></div>
+      <p id="status" role="status" aria-live="polite">Loading the suggestions...</p>
+    </div>
+    <div id="candidates"></div>
+    <footer>
+      <p>No autoplay. Only one preview runs at a time. Stop or leave the page to silence it.
+        Buildups use the game's actual 27-tick warning duration. The impact represents one simulation tick;
+        its audible decay does not mean lingering danger. The colour preview is illustrative only.</p>
+      <p>Components are measured in the same repeated-event context, with buildups 7 LU quieter
+        than impacts. Airy puff is deliberately 3 dB quieter than the other sketches.
+        Short-clip peaks alone do not establish equal perceived loudness.
+        Listen for a readable warning, a satisfying impact and whether repetitions become tiring.</p>
+      <p>Sixteen original CC0 sound files; no recordings or external samples.
+        <a href="./LICENSE.txt">License</a> · <a href="./manifest.json">Measurements and provenance</a>.
+        No choice, game progress or editor draft is saved here. The game uses the approved Airy puff
+        impact; its existing warning and other cues are unchanged.</p>
+    </footer>
+  </main>
+</body>
+</html>

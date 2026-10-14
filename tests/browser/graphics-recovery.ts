@@ -66,11 +66,12 @@ export async function checkGraphics({ page, origin, signal, log }: BrowserContex
   const attackEntries = async () => {
     // Dispatch rather than .click alone: disabled UI is not sufficient protection.
     await evaluate(`(() => {
-      for (const id of ['primary-action', 'retry-course', 'restart', 'pause', 'play-tab',
-        'editor-return', 'menu-play', 'editor-tab', 'playtest', 'undo', 'new-course', 'copy-course', 'import']) {
+      for (const id of ['primary-action', 'retry-course', 'restart', 'pause', 'play-tab', 'overlay-exit', 'overlay-settings',
+        'editor-return', 'home-play', 'new-run', 'home-levels', 'level-play', 'levels-back', 'editor-tab', 'sounds-open',
+        'playtest', 'undo', 'new-course', 'copy-course', 'import']) {
         document.getElementById(id).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       }
-      for (const b of document.querySelectorAll('[data-level]')) b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      for (const b of document.querySelectorAll('[data-puzzle], [data-set]')) b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       const v = document.getElementById('viewport');
       for (const code of ['Space', 'Enter', 'KeyR', 'ArrowRight', 'KeyW', 'Escape', 'KeyZ'])
         v.dispatchEvent(new KeyboardEvent('keydown', { code, ctrlKey: code === 'KeyZ', bubbles: true, cancelable: true }));
@@ -90,10 +91,10 @@ export async function checkGraphics({ page, origin, signal, log }: BrowserContex
     });
     await page.call('Emulation.setTouchEmulationEnabled', { enabled: mode === 'touch' });
     await reload();
-    if (mode === 'initial-menu') await click('menu-toggle');
-    else if (mode === 'editor') await evaluate(`document.getElementById('menu-toggle').click(); document.getElementById('editor-tab').click()`);
+    if (mode === 'initial-menu') await click('home-settings');
+    else if (mode === 'editor') await evaluate(`document.getElementById('home-settings').click(); document.getElementById('editor-tab').click()`);
     else {
-      await click('primary-action');
+      await click('home-play');
       if (mode === 'touch') {
         const point = await evaluate<{ x: number; y: number }>(`(() => {
           const r = document.querySelector('[data-direction="right"]').getBoundingClientRect();
@@ -130,7 +131,7 @@ export async function checkGraphics({ page, origin, signal, log }: BrowserContex
     assert.deepEqual(await probe(), restored, 'held/repeated keys cannot resume or catch up');
     await capture(`${mode}-restored-paused`);
     evidence.push({ mode, frozen, restored });
-    if (mode === 'initial-menu') await click('menu-play'); else await click('primary-action');
+    if (mode === 'initial-menu') { await click('settings-close'); await click('home-play'); } else await click('primary-action');
     await wait(100);
     const resumed = await probe();
     assert.equal(resumed.graphics.status, 'ready');

@@ -153,9 +153,9 @@ export async function captureMotionClips({ page, origin, signal, log }: BrowserC
     await setup(width, height, reduced, `ui-${tag}`);
     await begin(`ui-${tag}`);
     for (let i = 0; i < 6; i++) await record(false);
-    await evaluate(`document.getElementById('menu-toggle').click()`);
+    await evaluate(`document.getElementById('home-settings').click()`);
     for (let i = 0; i < 24; i++) { await seekUi(i * 1000 / 60); await record(false); }
-    await evaluate(`document.getElementById('menu-close').click()`);
+    await evaluate(`document.getElementById('settings-close').click()`);
     for (let i = 0; i < 12; i++) { await seekUi(i * 1000 / 60); await record(false); }
     await evaluate(`document.getElementById('primary-action').click()`);
     await waitFor('Motion UI start commits before playing', () => evaluate<boolean>(

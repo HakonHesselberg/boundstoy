@@ -111,9 +111,16 @@ test('World_DefensiveDimensionAndHazardLimits_AcceptBoundaryRejectBeyond', () =>
   }));
   assert.equal(parseLevel(raw).hazards.length, 640);
   assert.throws(() => parseLevel({ ...raw, tiles: [...raw.tiles, raw.tiles[0]] }), /tiles|rows/i);
-  assert.throws(() => parseLevel({ ...raw, tiles: raw.tiles.map(r => `${r}.`) }), /width/i);
+  assert.throws(() => parseLevel({ ...raw, tiles: raw.tiles.map(r => `${r}.`) }), /width|cells/i);
   assert.throws(() => parseLevel({ ...raw, hazards: [...raw.hazards, raw.hazards[0]] }), /hazards/i);
   assert.throws(() => parseLevel({ ...fixture(), tiles: ['.......'] }), /tiles|rows|width/i);
+});
+
+test('World_LongThinWorlds_AllowWidthUpTo320WithinTheSameCellBudget', () => {
+  const raw = fixture();
+  assert.equal(parseLevel({ ...raw, tiles: Array.from({ length: 64 }, () => '.'.repeat(320)) }).tiles[0].length, 320);
+  assert.throws(() => parseLevel({ ...raw, tiles: Array.from({ length: 6 }, () => '.'.repeat(321)) }), /width/i);
+  assert.throws(() => parseLevel({ ...raw, tiles: Array.from({ length: 65 }, () => '.'.repeat(320)) }), /cells/i);
 });
 
 test('World_ImportLimit_IsOneMillionUTF8BytesNotCharacters', () => {

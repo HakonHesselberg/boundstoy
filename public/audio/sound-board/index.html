@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>Other sounds - Boundstoy sound board</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; color: #2b4052; background: radial-gradient(ellipse at top, #e0eeeb, #f8f5ee); font: 17px/1.55 system-ui, sans-serif; }
+    main { max-width: 1100px; margin: auto; padding: 32px 24px; }
+    h1 { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.12; margin: .4em 0; }
+    h2 { font-size: 1.45rem; } h3 { font-size: 1.2rem; margin: 0; }
+    a { color: #28586a; text-underline-offset: .2em; }
+    nav, .actions, .links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .links { gap: 20px; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 22px; min-height: 44px; padding: 10px 16px; background: #315e70; color: white; }
+    button.secondary, #groups button { background: #e4edef; color: #2b4052; }
+    #groups button[aria-pressed="true"] { background: #315e70; color: white; }
+    button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #97692f; outline-offset: 4px; }
+    .controls, article { border-radius: 24px; background: #ffffffdf; box-shadow: 0 10px 35px #385d6e12; }
+    .controls { position: sticky; top: 8px; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 16px 20px; margin: 24px 0; }
+    .volume { display: grid; gap: 2px; }
+    #status { flex-basis: 100%; margin: 0; font-size: .9rem; min-height: 1.5em; overflow-wrap: anywhere; }
+    #candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    article { padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+    article p { margin: 0; }
+    article[data-playing] { background: #fff; box-shadow: 0 10px 35px #385d6e40; }
+    .badge { font-size: .8rem; color: #536c75; }
+    .description { flex: 1; }
+    .download, footer { font-size: .85rem; }
+    footer { margin-top: 26px; }
+    @media (max-width: 900px) { #candidates { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { #candidates { grid-template-columns: 1fr; } main { padding: 24px 16px; } }
+    @media (max-height: 500px) { .controls { position: static; } }
+  </style>
+  <script type="module" src="./board.js"></script>
+</head>
+<body>
+  <main>
+    <div class="links"><a href="../../index.html">Back to the game</a><a href="../explosion-candidates/index.html">Explosion listening room</a></div>
+    <h1>Soft steps. Clear feedback.</h1>
+    <p><strong>Falling feather</strong> for retry and <strong>Soft tick</strong> for buttons
+      are approved and now used in the game, alongside the unchanged Airy puff explosion.</p>
+    <p>Try the new warm checkpoint jingles, triumphant exit jingles, and fresh footsteps,
+      mud and wall contacts. These remain suggestions. Choose a group to compare them
+      with current game cues; the twelve existing ice directions are also here.</p>
+    <p><strong>Hear once</strong> previews one sound. <strong>Repeat x4</strong> tests its rhythm.
+      <strong>With explosion</strong> adds the approved Airy puff at its gameplay level.
+      Ice options play one finite source preview, never an endless loop.</p>
+    <div class="controls">
+      <button id="stop" type="button">Stop</button>
+      <label class="volume">Listening volume <input id="volume" type="range" min="0" max="100" value="65" aria-label="Listening volume"></label>
+      <label><input id="mono" type="checkbox"> Mono</label>
+      <p id="status" role="status" aria-live="polite">Loading the sound board...</p>
+    </div>
+    <nav id="groups" aria-label="Sound groups"></nav>
+    <h2 id="group-title"></h2>
+    <p id="group-description"></p>
+    <section id="candidates" aria-labelledby="group-title"></section>
+    <footer>
+      <p>No autoplay. Selecting a group stops playback. Stop, zero volume, leaving or hiding
+        the page cancels all sounds, including pending downloads. Nothing is saved.</p>
+      <p>Suggestions are matched to fixed original game-cue references within each role,
+        including cue gain and fades. Approved choices keep their auditioned level.
+        Roles intentionally differ in level: buttons are quieter than exits.
+        The shared +12 dB playback calibration remains active.
+        Ice options retain their existing source levels; movement filters may sound different in game.</p>
+      <p>All sounds here are CC0. New suggestions are original offline synthesis, not recordings
+        or third-party samples. <a href="./LICENSE.txt">New-sound license and source</a> |
+        <a href="../physical-v2/LICENSE.txt">Current-cue credits</a> |
+        <a href="../ice-palette/LICENSE.txt">Ice credits</a> |
+        <a href="./manifest.json">Measurements and provenance</a>.</p>
+    </footer>
+  </main>
+</body>
+</html>

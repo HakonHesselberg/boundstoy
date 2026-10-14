@@ -1,0 +1,78 @@
+{
+  "selected": null,
+  "sampleRate": 48000,
+  "seconds": 12,
+  "targetLufs": -30,
+  "mastering": "Static EBU R128 loudness matching; cosine endpoint fades; no dynamic loudness normalization.",
+  "ffmpeg": "ffmpeg version n9.0.1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "candidates": [
+    {
+      "id": "weightless",
+      "label": "A · Weightless pad",
+      "description": "Rounded, floating sine tones. An open F4/C5 dyad with a slow entrance and a little space.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy composition and sine patch, rendered by Strudel. No external samples.",
+      "file": "weightless.wav",
+      "sha256": "7e71001430c5cb14fc2725e241264a873f2f64c23908e889406f10893e60b290",
+      "lufs": -30,
+      "truePeakDb": -23.9,
+      "sourceSha256": "53faed0793c6e05d2fde1f578f92e404b1f86e0fe8c10d50c7c9521829fd5942",
+      "filter": "atrim=duration=12,asetpts=PTS-STARTPTS",
+      "gainDb": 0.3999999999999986
+    },
+    {
+      "id": "silk",
+      "label": "B · Silk glide",
+      "description": "An unpitched fabric gesture, stretched into a fine, soft swish. No chord underneath.",
+      "license": "CC-BY-3.0",
+      "provenance": "Vinrax, Cloth swing sounds (cloth_sounds.flac), CC BY 3.0. Edited, filtered, time-stretched and mastered by Boundstoy.",
+      "file": "silk.wav",
+      "sha256": "9fca55df5799b891218f1e8217244aa0155253481494c797e506eeb53742a7aa",
+      "lufs": -30,
+      "truePeakDb": -16.5,
+      "sourceSha256": "d5668f27ef78b35da8920c23d54942f3342d4405ce3a5b4a3e165ec0122f6c26",
+      "filter": "atrim=start=6.32:end=7.55,asetpts=PTS-STARTPTS,highpass=f=850:p=2,lowpass=f=2700:p=2,atempo=0.5,atempo=0.5,atempo=0.5,apad=whole_dur=12,atrim=duration=12",
+      "gainDb": 15.600000000000001
+    },
+    {
+      "id": "veil",
+      "label": "C · Airy musical veil",
+      "description": "A lighter, vowel-shaped triangle chord with more diffusion. A soft synthetic vocal colour, not a choir sample.",
+      "license": "CC0-1.0",
+      "provenance": "Original Boundstoy composition and triangle/formant patch, rendered by Strudel. No external samples.",
+      "file": "veil.wav",
+      "sha256": "41f1af861af67ef121b597d9e76bce0a04340335c53e539ef4479a5b48663304",
+      "lufs": -30,
+      "truePeakDb": -22.7,
+      "sourceSha256": "f544bab160b9c37f9643d71c8c8161f8d1341f1fd8b39cd247cb81cce3bccaff",
+      "filter": "atrim=duration=12,asetpts=PTS-STARTPTS",
+      "gainDb": 10.799999999999997
+    }
+  ],
+  "context": [
+    {
+      "id": "bump",
+      "time": 4,
+      "file": "../physical-v2/bump/sound.wav",
+      "gain": 0.095,
+      "attack": 0.005,
+      "release": 0.025
+    },
+    {
+      "id": "warning",
+      "time": 7,
+      "file": "../physical-v2/warning/sound.wav",
+      "gain": 0.075,
+      "attack": 0.005,
+      "release": 0.025
+    },
+    {
+      "id": "blast",
+      "time": 7.225,
+      "file": "../explosion-candidates/airy-puff-blast.wav",
+      "gain": 0.6,
+      "attack": 0.005,
+      "release": 0.025
+    }
+  ]
+}

@@ -108,14 +108,17 @@ export async function checkRoughGame(context: BrowserContext) {
   assert.deepEqual(retired.retired, [{ runId: oldSnapshot.runId, completion: null }]);
   assert.equal(await readStored(page, RECOVERY_KEY, signal), null, 'no unwanted migration/archive feature');
   log('PASS obsolete active save deletion on production boot, preserving earlier revision records.');
-  assert.equal(await d.evaluate('document.querySelectorAll("[data-level]").length'), 1);
-  assert.equal(await d.text('primary-action'), 'Start →');
+  assert.equal(await d.evaluate("document.getElementById('boundstoy').dataset.screen"), 'home', 'boot shows Home');
+  assert.equal(await d.text('home-world-title'), world.name);
+  assert.equal(await d.text('home-play'), 'Play →');
+  assert.equal(await d.evaluate("document.getElementById('new-run').hidden"), true, 'no run to replace yet');
+  assert.equal(await d.evaluate('document.querySelectorAll("#home-pips li").length'), 0, 'sections are never selectable');
   assert.equal(await d.evaluate("document.getElementById('mastery-target').hidden"), true);
   const legacyBefore = await readStored(page, PROGRESS_KEY, signal);
   await delay(250, undefined, { signal });
   await page.call('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   const requestCount = requests.length;
-  await d.click('primary-action');
+  await d.click('home-play');
   await d.until('Start commits before live play', '__BOUNDSTOY__.persistence().ready && !__BOUNDSTOY__.snapshot().paused');
   for (const [width, height] of [[1280, 900], [390, 844], [844, 390]]) {
     await page.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -129,13 +132,18 @@ export async function checkRoughGame(context: BrowserContext) {
     await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
     await delay(180, undefined, { signal });
     assert.deepEqual((await d.snapshot()).state, before.state);
-    await d.click('menu-toggle'); await d.click('new-run');
+    await d.click('overlay-exit');
+    assert.equal(await d.evaluate("document.getElementById('boundstoy').dataset.screen"), 'home');
+    assert.equal(await d.text('home-play'), 'Continue →');
+    await d.click('new-run');
     assert.equal(await d.evaluate("document.getElementById('new-run-confirm').open"), true);
     const bytes = await readStored(page, RUN_STORAGE_KEY, signal);
     await d.click('new-run-cancel');
+    assert.equal(await d.evaluate('document.activeElement.id'), 'new-run');
     assert.deepEqual((await d.snapshot()).state, before.state);
     assert.equal(await readStored(page, RUN_STORAGE_KEY, signal), bytes);
-    await d.click('primary-action');
+    await d.click('home-play');
+    await d.until('Continue resumes the run', '!__BOUNDSTOY__.snapshot().paused');
     await page.call('Emulation.setTouchEmulationEnabled', { enabled: true });
     const point = await d.evaluate<{ x: number; y: number }>(`(() => {
       const r=document.querySelector('[data-direction="right"]').getBoundingClientRect();
@@ -158,8 +166,9 @@ export async function checkRoughGame(context: BrowserContext) {
     };`);
   await d.run([{ ticks: 360, x: 0, y: 0 }]); await d.saved();
   assert.equal(await d.evaluate('window.__runWrites'), 0, 'no periodic writes during ordinary play');
-  await d.click('menu-toggle'); await d.saved();
+  await d.click('overlay-settings'); await d.saved();
   assert.equal(await d.evaluate('window.__runWrites'), 1, 'pause saves elapsed totals');
+  await d.click('settings-close');
   await d.newRun(); await d.saved();
   const writes = await d.evaluate<number>('window.__runWrites');
   await d.run(sliceRoute(routes.ordinary, 0, 507)); await d.saved();
@@ -167,7 +176,7 @@ export async function checkRoughGame(context: BrowserContext) {
   log('PASS native write counts: no periodic saves, one pause boundary and one checkpoint boundary.');
   await d.newRun();
   const middle = await d.run(sliceRoute(routes.ordinary, 0, 850));
-  await d.evaluate("document.getElementById('menu-toggle').click()");
+  await d.evaluate("document.getElementById('overlay-settings').click()");
   const stored = await d.saved();
   const durable = createCheckpointSnapshot(world, JSON.parse(stored.active).runId, middle);
   assert.deepEqual(JSON.parse(stored.active), durable);
@@ -178,7 +187,8 @@ export async function checkRoughGame(context: BrowserContext) {
   await d.reload();
   assert.deepEqual((await d.snapshot()).state, durable.state);
   assert.equal((await d.snapshot()).paused, true);
-  assert.equal(await d.text('primary-action'), 'Continue →');
+  assert.equal(await d.text('home-play'), 'Continue →');
+  assert.match(await d.text('home-progress'), /^Section 2 of 8 · 00:07\.08 · 0 retries$/);
   // Every remaining puzzle is continued legally from a real checkpoint.
   let continued = durable.state;
   for (let index = 0; index < world.checkpoints.length; index++) {
@@ -204,9 +214,10 @@ export async function checkRoughGame(context: BrowserContext) {
   const first = await d.saved();
   assert.equal(first.active, null);
   assert.equal(getWorldRecord(first.records, world)?.ticks, 5752);
+  assert.equal(await d.text('primary-action'), 'Home →');
   await d.click('primary-action');
-  assert.equal(await d.evaluate("document.getElementById('game-menu').open"), true);
-  await d.click('menu-close');
+  assert.equal(await d.evaluate("document.getElementById('boundstoy').dataset.screen"), 'home');
+  assert.equal(await d.evaluate("document.getElementById('home-deathless').hidden"), false);
   await d.newRun();
   const fast = await d.run(routes.fast);
   assert.equal(fast.tick, 5648); assert.equal(fast.won, true); assert.equal(fast.deaths, 0);
@@ -215,8 +226,8 @@ export async function checkRoughGame(context: BrowserContext) {
   assert.equal(getWorldRecord(record.records, world)?.ticks, 5648);
   assert.equal(await readStored(page, PROGRESS_KEY, signal), legacyBefore, 'world does not rewrite old records');
   await d.reload();
-  assert.equal(await d.text('primary-action'), 'New run →');
-  assert.equal(await d.text('completion-count'), '1 / 1 cleared');
+  assert.equal(await d.text('home-play'), 'Play again →');
+  assert.match(await d.text('home-best'), /^Best 00:47\.06 · 0 retries$/);
   log(`PASS checkpoint reload and deathless continued finish ${continued.tick}; ordinary 5752/faster 5648, persistent records and offline play.`);
 }
 

@@ -1,0 +1,26 @@
+Boundstoy explosion and buildup listening sketches
+
+airy-puff-blast.wav is also the approved gameplay explosion sound.
+Its use in gameplay does not change the CC0 license below.
+
+All sixteen WAV files in this directory are original Boundstoy sound designs,
+dedicated to the public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No third-party samples, recordings, instrument banks, themes or compositions
+are used. Sounds are generated offline by seeded, original mathematical
+synthesis. No attribution is required for the sound files.
+
+Editable source in this repository:
+  data/explosion-palette.ts
+  scripts/prepare-explosion-palette.ts
+
+Rebuild with Node 24+ and FFmpeg:
+  node scripts/prepare-explosion-palette.ts
+
+The manifest records source hashes, mastering settings, per-file hashes and
+measured loudness/headroom. Measurement uses identical repeated-event trains;
+it does not claim integrated LUFS of an isolated 225 ms clip.
+
+Listening-page and tool code remain under the repository's MIT license.
+CC0 covers the generated sound assets; it does not relicense FFmpeg.

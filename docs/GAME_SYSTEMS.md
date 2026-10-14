@@ -21,7 +21,7 @@ and an independent deathless completion replace the prototypes' mastery targets.
 
 ## Explosion puzzle playtest
 
-Open **Menu > Explosion puzzles** for six normal-ground levels, separate from
+Open **Home > Levels > Explosions** for six normal-ground levels, separate from
 Aftershock. These replace the surface-comparison menu; no ice, mud or saws are
 used. The underlying movement rules and archived benchmark definitions remain
 unchanged. All levels use 27-tick warnings and one-tick pulse blasts.
@@ -42,15 +42,17 @@ collected; the completed wave stops. Restart after a downstream death is
 verified to finish in another 605 ticks without adding a death.
 
 Selection reveals the whole first puzzle, unobstructed and stationary.
-**Start trial** starts the clock; the initial landing is safe. The combination
+Selecting a tile previews the level; **Play** starts the clock; the initial landing is safe. The combination
 reveals the entire next puzzle after the checkpoint camera pan. Ordinary
 death preserves the current rhythm. **R** returns to the start or checkpoint
 and resets the pattern, retaining elapsed time and retries. After finishing,
-**New trial** starts fresh; **Choose a puzzle** returns to the six-level menu.
-The menu shows the last completed trial per level for this session only.
+**Next level** starts the following level in the same set (**All levels**
+after the last), **New trial** starts fresh and **Levels** returns to the
+level select. Tiles mark levels cleared this session; the detail panel shows
+the session's last completed time.
 
 Puzzle play never overwrites the Aftershock run, its records or the editor
-draft. Return through the world menu to its parked live state. Reload resumes
+draft. **Home > Continue** returns to its parked live state. Reload resumes
 normal production checkpoint persistence, not a saved puzzle trial.
 
 All six have exact input-only deathless witnesses and failure probes that
@@ -64,10 +66,135 @@ guarantee combined-error robustness, optimality or enjoyable human play.
 Finish ticks stop at victory; final held inputs may include unused slack.
 
 Evidence: `node --test tests/explosion-puzzles.test.ts` and, after a build,
-`node tests/browser/explosion-puzzles.ts --browser /absolute/path/to/chromium`.
+`node tests/browser/explosion-puzzles.ts --timeout 600000 --browser /absolute/path/to/chromium`.
 The old 24 surface comparisons remain in `data/benchmarks.ts` with their
 original evidence and `tests/benchmarks.test.ts`, but are not in the menu or
 runtime bundle. Human feedback for all 24 is recorded in BT-069.
+
+## Classic bounds (hard trials)
+
+The **Classic bounds** tab lists six harder trials (BT-076). They use only normal ground and one-tick pulses, with the same
+27-tick warnings, unsaved trial flow, controls and isolation. Each adapts the
+*idea* of an obstacle decoded in BT-068 from two archived StarCraft: Brood War
+bounds, **Beginner Bound** (credited to NewRecord) and **Level Up Bound**
+(credited to Mp(U)). Layouts, rhythms and timings are original; no map data,
+art, text or audio is shipped. Each card names its source obstacle.
+
+| Level / stable ID | Source idea | Adaptation | Reference ticks |
+| --- | --- | --- | --- |
+| Run-It / `bound-run-it` r2 | Beginner obstacles 1 and 5 | One orange wave of 2x2 blocks sweeps right (40 ticks per block, period 360); a blue wave sweeps the one-tile gaps half a cycle later | 1170 |
+| Side Pockets / `bound-side-pockets` r2 | Beginner obstacle 3 | Whole spine bursts every 240; green pockets 40 before it, blue 40 after; zigzag through eight pockets | 2088 |
+| Checker Flip / `bound-checker-flip` r2 | Level Up switch 46, Beginner obstacle 2 | 7x5 checker of 2x2 squares; blue bursts 40 ticks before orange (period 150) | 1119 |
+| Slalom / `bound-slalom` r2 | Beginner obstacle 4 | Quads fire top-right, bottom-left, top-left, bottom-right (period 150); each lower quad lags 94, so bursts climb two lanes toward you; includes diagonal retreats | 1283 |
+| Closing Corners / `bound-closing-corners` r2 | Level Up switches 40-41, 51 | Orange L rings sweep out at 0-90, the violet seam bursts alone at 125, blue rings sweep in at 160-250 (period 270) | 1166 |
+| Convergence / `bound-convergence` | Level Up switch 23 | Outer corners, outer edges, inner corners, inner edges, centre at 0/10/30/60/70 (period 150) | 826 |
+
+Every pattern is shifted 5 ticks so no pad shows its burst frame on the ready
+reveal. None has checkpoints.
+
+**First playtest (BT-081).** Run-It r1 repeated a 280-tick wave every 180
+ticks, so two fronts and the gap bursts interleaved and nothing read as a wave;
+r2 shows one front at a time. Side Pockets and Checker Flip gave too little time
+to change refuge (30 and 28 ticks); r2 uses 40. In Closing Corners r1 the seam
+and both neighbouring blue rings burst within 30 ticks and looked like a solid
+wall; r2 isolates the seam beat. Rotation never looked like rotation: the
+lagging quads read as two lanes of bursts travelling toward the player, a
+well-liked slalom, so it keeps its gameplay as **Slalom**. Convergence was
+judged hard but fair, suited to later stages. Tests now guard one-front waves
+and an isolated seam beat.
+
+Difficulty evidence (`data/classic-bound-replays.ts`) uses a **re-sync model**,
+because hard routes stop between bursts: one move that starts from rest begins
+up to N ticks early or late and the next pause absorbs the difference (the
+player re-reads the pattern while waiting). Values are capped at 16. Every
+witness decision keeps at least 8 ticks on each side, and each level has at
+least six decisions within 15 ticks per side: about 8 for Run-It, Slalom and
+Convergence, 10-12 for Closing Corners and 14-15 for Side Pockets and Checker
+Flip. Under the same measure, the BT-072 witnesses have 1-3 decisions at 12-16+
+ticks per side. Running each witness path without pauses is never easier than
+the witness. Authoring searched stop graphs with optional pass-through corners
+and straight runs; that search is not a proof for every possible route, and
+these measurements do not establish human comfort or fun.
+
+Evidence: `node --test tests/classic-bounds.test.ts`; the browser scenario
+above also selects every trial, checks whole-level reveals at three
+viewport sizes and replays every classic witness.
+
+## Ice escapes (hard soft-ice trials)
+
+The **Ice escapes** tab lists six hard soft-ice courses (BT-080),
+inspired by Warcraft III ice escape maps. They use the existing soft-ice rule
+(always gliding at 4.4 tiles/s, bounded turning, reverse U-turns clockwise,
+reflecting walls), normal-ground pads where you can stop, void off the track
+and saws as patrolling "creeps". No new mechanics; the trial flow, controls and
+save isolation are the same as the other trials. Only documented genre ideas
+are borrowed; each card credits its reference. Layouts and rhythms are original.
+
+| Level / stable ID | Reference idea | Adaptation | Reference ticks |
+| --- | --- | --- | --- |
+| Snow Line / `ice-snow-line` r2 | Ice Escape Template (IcemanBo): sliding; touching snow kills | Two-wide track over void; clockwise and counter-clockwise hairpins; two one-wide bridges; pure steering | 1582 |
+| Wolf Lanes / `ice-wolf-lanes` | Ice Escape Template: touching creeps kills | Six creeps run the length of three rows (period 960); swerve between rows while gliding | 957 |
+| Safe Zones / `ice-safe-zones` | Slide Kitty Slide v0.1 (version credited to TriggerHappy187): avoid dogs, safe points | Ground islands linked by chutes; paired creeps sweep each chute (period 180) | 1457 |
+| Bumper Alley / `ice-bumper-alley` r2 | Warden Ice Escape thread (Rufus): feedback favouring creative paths and turns | Reflecting walls turn two alleys into released bank shots through void gaps; no creeps | 1650 |
+| Spiral / `ice-spiral` r2 | Warden Ice Escape: arrow-key sliding tracks | Clockwise spiral of quarter turns; creeps cross each arm from void to void (period 160); void separates the exit from the earlier arm | 2231 |
+| Warden's Run / `ice-wardens-run` r2 | Warden Ice Escape: frequent checkpoints | Steering hairpins, creep chutes and a bank shot joined by two normal-ground checkpoints (radius 1.5); creeps only in the chutes | 1779 |
+
+Reversing on soft ice always swings clockwise, so counter-clockwise hairpins
+need the perpendicular key first; Snow Line's test proves pressing the reverse
+directly falls off. Creeps patrol from void to void so a gap opens; a creep that
+only crosses a two-wide lane would cover it at every tick.
+
+**First playtest (BT-082).** Fast creeps crossing tight soft-ice corridors felt
+unfair: a glider cannot wait, so passing them became guesswork (Snow Line r1,
+Bumper Alley r1, Warden's Run r1). r2 removes those creeps; creeps remain only
+where the player can stop first (Safe Zones and Warden's Run chutes) or has
+room to swerve (Wolf Lanes, Spiral). Wolf Lanes felt fair but plain, with
+agency from its room; Safe Zones was liked; Spiral was decent, but its exit
+touched an earlier arm so the last loop could be skipped, now fixed. Collectibles
+were suggested for Spiral-like courses and are recorded as a backlog idea, not
+implemented.
+
+Difficulty evidence (`data/ice-escape-replays.ts`) uses a **switch model**:
+one key change happens up to N ticks early or late while every later change
+keeps its tick, so a mistimed turn shifts the remaining path. No input on
+walkable ground stops at once, so leaving such a rest instead shifts the slide
+and the next rest absorbs it. Values are capped at 16. Each witness's tightest
+switch keeps 4-8 ticks on each side (Bumper Alley 4, Wolf Lanes and Spiral 5,
+Safe Zones 6, Snow Line and Warden's Run 8), with 2-8 switches at 8 ticks or
+fewer. In creep courses a mistimed departure into creeps survives for less than
+half of a cycle. Warden's Run reveals only its current puzzle's creeps; Restart
+after a death in the chutes returns to checkpoint 1 and its recovery route
+finishes 1074 ticks later without another death.
+
+Routes were authored as position-triggered key presses ("hold right until x
+passes 11.6, then press left"), tuned for clearance, then recorded as exact
+inputs. Windows describe these routes only, not every route, and cannot show
+human comfort or fun; human playtesting remains a separate gate. Earlier
+feedback (BT-069) found cramped, explosion-timed soft ice frustrating, so these
+courses rely on steering, bounces and creeps in open space instead of pulses.
+
+Evidence: `node --test tests/ice-escapes.test.ts`; the browser scenario also
+selects all eighteen trials and replays every ice witness.
+
+## Sound garden
+
+With `?dev`, **Settings > Developer > Sound garden** opens a separate two-section audio showcase. The first
+lane visits normal ground, mud, soft ice and hard ice; the checkpoint is on a
+safe landing before the explosion wave. The exit completes that wave.
+Expand **Audition sounds & volume** for eleven isolated cue buttons. Audition
+pauses gameplay and enables sound if necessary; the saved volume still applies.
+The exact route takes 769 ticks and has no deaths. This is not an additional
+production puzzle and never changes Aftershock saves or editor drafts.
+The panel also offers **A: Wind only / B: Wind + pad** and **Enter ice room**.
+Ice previews last eight seconds; A/B changes do not restart the wind.
+The optional room has wide soft/hard areas, nearby pulses and a safe middle
+path (820-tick exit witness, independent turn tolerance +/-10 ticks).
+Actual sliding sustains the sound even without held input; wall stopping and
+leaving ice release it. This audio experiment runs only in Sound garden.
+Other cues, production movement rules and the original materials route remain
+unchanged. **Materials walk** returns to that route; **Stop / pause** silences
+previews and pauses play.
+See [AUDIO.md](AUDIO.md) for sources, mastering and verification.
 
 ## Movement
 
@@ -399,7 +526,7 @@ integration is introduced by this pure contract.
 
 Checkpoint-mode worlds use **R / Restart** to return to the checkpoint with
 zero velocity and active pattern tick zero. Total elapsed ticks, deaths and
-ordered progress remain. **Menu / New run** separately confirms replacement.
+ordered progress remain. **Home > New run** separately confirms replacement.
 Reload applies the checkpoint-normalized committed state, paused with cleared
 controls; in-session Resume retains the live position. Editor playtests never
 replace campaign progress. Global-clock V2 imports retain their prior exact
@@ -672,7 +799,7 @@ A complete small joined example (not a campaign entry):
   `true` is rejected. This encodes the approved continuous hazard clock without
   changing V1 retries or implementing new progression yet.
 
-V2 defensive limits: 8–160 columns, 6–128 rows, 640 hazards, 1–64 sections,
+V2 defensive limits: 8–320 columns, 6–128 rows, at most 20,480 cells, 640 hazards, 1–64 sections,
 0–63 checkpoints (exactly section count minus one), 1,000,000 **UTF-8 bytes**
 including whitespace on import. Positive revision is at most
 `Number.MAX_SAFE_INTEGER`. These provisional budgets bound data and validation,

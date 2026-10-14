@@ -7,7 +7,8 @@
 - Tests: Node's native test runner and TypeScript stripping.
 - Art: local procedural geometry, a generated glow texture and studio
   environment map. System fonts; no CDN or asset store.
-- Audio: synthesized effects created only after explicit user interaction.
+- Audio: thirteen local CC0 PCM WAV masters, loaded after explicit user interaction;
+  WebAudio playback with bounded voices. See [AUDIO.md](AUDIO.md).
 
 `npm ci` installs locked dependencies. `npm run dev` serves port 4321.
 `npm run build` type-checks and writes the static `dist/`; `npm run preview`
@@ -40,6 +41,6 @@ visible and do not prevent play; export JSON to preserve drafts manually.
 
 Release scope: six teaching levels plus three focused practice courses using
 existing mechanics only, no more than ten levels without a new scope decision.
-The editor is a secondary menu action.
+The editor is a developer tool, reachable only with `?dev` or `?debug`.
 Desktop Chromium and emulated mobile viewports are checked; real Safari/Firefox
 and physical mobile GPU/device behaviour are not certified by those checks.

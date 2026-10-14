@@ -5,8 +5,9 @@ export const V1_LIMITS = Object.freeze({
 });
 
 // Provisional defensive budgets, NOT hardware/performance certification.
-// 20,480 cells; 8x the old hazard budget; bounded JSON before parsing.
+// 20,480 cells (long thin worlds may be up to 320 wide); 8x the old hazard budget;
+// bounded JSON before parsing.
 export const V2_LIMITS = Object.freeze({
-  minWidth: 8, maxWidth: 160, minHeight: 6, maxHeight: 128,
+  minWidth: 8, maxWidth: 320, minHeight: 6, maxHeight: 128, maxCells: 20_480,
   hazards: 640, checkpoints: 63, sections: 64, importBytes: 1_000_000,
 });

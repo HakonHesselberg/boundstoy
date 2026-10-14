@@ -20,6 +20,8 @@ const STROKE_WIDTH = 0.03;
 /** Only the player, spikes and saws cast shadows now; walls use baked contact shading. */
 export const SHADOW_MAP_SIZE = 1024;
 const GEM_GEOMETRY = new THREE.OctahedronGeometry(0.15);
+/** A recent player position, newest first; `fade` falls from 1 once its run stops. */
+type TrailPoint = { position: THREE.Vector3; fade: number };
 
 export class Scene {
   readonly renderer: THREE.WebGLRenderer;
@@ -44,7 +46,7 @@ export class Scene {
   private headingArrow!: THREE.Group;
   private deathRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   private trail: THREE.Mesh[] = [];
-  private trailPoints: THREE.Vector3[] = [];
+  private trailPoints: TrailPoint[] = [];
   private hazards: THREE.Group[] = [];
   private pulses = new Map<number, PulseView>();
   /** Idle pads share three batched draws; live pads switch to their own view. */
@@ -511,16 +513,22 @@ export class Scene {
     this.headingArrow.visible = !editing && !dead && !state.won && speed > 0.1;
     this.headingArrow.position.set(position.x, 0.05, position.y);
     this.headingArrow.rotation.y = Math.atan2(state.velocity.x, state.velocity.y);
-    const tail = this.trailPoints[0];
-    if (!tail || Math.hypot(tail.x - position.x, tail.z - position.y) > 0.09) {
-      this.trailPoints.unshift(new THREE.Vector3(position.x, 0.08, position.y));
+    // A run's dots stay lit while it moves; once it stops they fade out and are
+    // dropped, and a relaunch starts a new run rather than relighting old dots.
+    const moving = speed > 0.2, fading = dt / MOTION.trailFadeSeconds;
+    for (const point of this.trailPoints) if (!moving || point.fade < 1) point.fade = Math.max(0, point.fade - fading);
+    while (this.trailPoints.at(-1)?.fade === 0) this.trailPoints.pop();
+    const head = this.trailPoints[0]?.position;
+    if (moving && (!head || Math.hypot(head.x - position.x, head.z - position.y) > 0.09)) {
+      this.trailPoints.unshift({ position: new THREE.Vector3(position.x, 0.08, position.y), fade: 1 });
       this.trailPoints.length = Math.min(this.trailPoints.length, this.trail.length);
     }
     if (dead || editing || state.event === 'checkpoint') this.trailPoints = [];
     this.trail.forEach((dot, i) => {
-      dot.visible = !reduced && !!this.trailPoints[i] && speed > 0.2;
-      if (this.trailPoints[i]) dot.position.copy(this.trailPoints[i]);
-      (dot.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - i / this.trail.length);
+      const point = this.trailPoints[i];
+      dot.visible = !reduced && !!point;
+      if (point) dot.position.copy(point.position);
+      (dot.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - i / this.trail.length) * (point?.fade ?? 0);
     });
     // Saws share the player's interpolated moment; pulses stay on exact ticks.
     const sawTick = hazardTick(state) - (this.motion.previous?.patternOffset === state.patternOffset

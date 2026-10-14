@@ -20,6 +20,8 @@ export const MOTION = Object.freeze({
   spawnSeconds: 0.22,
   collectSeconds: 0.4,
   winSeconds: 0.7,
+  /** After a stop the trail fades out over this time instead of vanishing. */
+  trailFadeSeconds: 0.3,
   /** Larger single-tick jumps are teleports (respawn) and are never interpolated. */
   snapDistance: 0.5,
 });

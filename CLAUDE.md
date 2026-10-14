@@ -67,7 +67,8 @@ See docs/PLATFORM.md for platform-specific build/test commands.
 ```bash
 # Core workflow (adapt to your platform)
 npm run build       # Type-check and static production build
-npm test            # Node unit tests and deterministic course replays
+npm test            # Node unit tests and deterministic course replays (fast)
+npm run test:exhaustive  # Also runs opt-in historical phase/margin sweeps
 npm run dev         # http://127.0.0.1:4321
 npm run inspect -- 0 --replay
 ```

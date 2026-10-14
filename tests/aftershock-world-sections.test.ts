@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { exhaustive } from './exhaustive.ts';
 import { center, importLevel, type Level } from '../core/level.ts';
 import { createState, step, hazardSample, hazardTick, lethalAt, wallAt, reachesCheckpoint,
   STILL, type State } from '../core/simulation.ts';
@@ -93,7 +94,7 @@ test('BT-051: exact whole-world movement freezes on first actual goal contact, w
   assert.equal(duration(witnesses.EIGHT_SECTION_ROUTES.ordinary) - duration(witnesses.EIGHT_SECTION_ROUTES.fast), 714);
 });
 
-test('BT-051: full local cycles and every in-field decision have comfortable bands at BOTH real incoming states', t => {
+test('BT-051: full local cycles and every in-field decision have comfortable bands at BOTH real incoming states', exhaustive, t => {
   const world = aftershock.completeEight;
   const expected = [
     { ordinary: [[0, 30], [73, 111], [154, 192], [235, 247], [316, 325], [471, 479]],
@@ -128,7 +129,7 @@ test('BT-051: full local cycles and every in-field decision have comfortable ban
   }
 });
 
-test('BT-051: moving turns have early and late margins, excluding every blocked-motion attempt', t => {
+test('BT-051: moving turns have early and late margins, excluding every blocked-motion attempt', exhaustive, t => {
   const world = aftershock.completeEight;
   for (const section of [0, 1]) for (const kind of ['ordinary', 'fast'] as const) {
     const entry = finaleEntry(section, kind), route = witnesses.FINALE_ROUTES[section][kind];
@@ -201,7 +202,7 @@ test('BT-051: exact omitted-technique and wrong-time failures occur at actual or
   }
 });
 
-test('BT-051: phase-aware bank choice has real travel-versus-wait benefit, not an always-better untimed alternative', t => {
+test('BT-051: phase-aware bank choice has real travel-versus-wait benefit, not an always-better untimed alternative', exhaustive, t => {
   const world = aftershock.completeEight;
   for (const section of [0, 1]) for (const kind of ['ordinary', 'fast'] as const) {
     const entry = finaleEntry(section, kind), routes = witnesses.FINALE_ROUTES[section];
@@ -354,7 +355,7 @@ function finalePreferred(section: number): readonly number[] {
   return valid.filter(p => Array.from({ length: 24 }, (_, n) => (p + n) % 480).every(p => valid.includes(p)));
 }
 
-test('BT-051: both new checkpoint recoveries cover every initial and release phase without resetting either clock', t => {
+test('BT-051: both new checkpoint recoveries cover every initial and release phase without resetting either clock', exhaustive, t => {
   for (const section of [0, 1]) {
     const { world, entry, route, attempt, connector, firstRespawn } = finaleRecovery(section);
     const preferred = finalePreferred(section);
@@ -426,7 +427,7 @@ test('BT-051: every named final-pair pulse and saw failure has a legal real-chec
   }
 });
 
-test('BT-051: every expiring interior tile is legally reached, expires, and recovers from checkpoint six or seven', t => {
+test('BT-051: every expiring interior tile is legally reached, expires, and recovers from checkpoint six or seven', exhaustive, t => {
   for (const section of [0, 1]) {
     const { world, entry, connector, route } = finaleRecovery(section), preferred = finalePreferred(section);
     const records = [];
@@ -467,7 +468,7 @@ test('BT-051: every expiring interior tile is legally reached, expires, and reco
   }
 });
 
-test('BT-051: all 1440 whole-eight launch phases use real approaches and continuous safe waiting', t => {
+test('BT-051: all 1440 whole-eight launch phases use real approaches and continuous safe waiting', exhaustive, t => {
   const world = aftershock.completeEight;
   for (const kind of ['ordinary', 'fast'] as const) {
     let waiting = createState(world);
@@ -618,7 +619,7 @@ test('BT-050: exact joined movement, checkpoints and real phase-aware savings ha
   }
 });
 
-test('BT-050: complete local launch cycles and every reached decision retain measured margins at BOTH actual arrivals', t => {
+test('BT-050: complete local launch cycles and every reached decision retain measured margins at BOTH actual arrivals', exhaustive, t => {
   const world = aftershock.firstSix;
   const expected = [
     { ordinary: [[0, 99], [158, 231], [302, 322], [455, 479]],
@@ -654,7 +655,7 @@ test('BT-050: complete local launch cycles and every reached decision retain mea
   }
 });
 
-test('BT-050: all 1440 joined launch phases preserve continuous six-section opportunities', t => {
+test('BT-050: all 1440 joined launch phases preserve continuous six-section opportunities', exhaustive, t => {
   const world = aftershock.firstSix;
   for (const kind of ['ordinary', 'fast'] as const) {
     let waiting = createState(world);
@@ -686,7 +687,7 @@ test('BT-050: all 1440 joined launch phases preserve continuous six-section oppo
   }
 });
 
-test('BT-050: every ordinary movement turn has early AND late legal choices, not just delay tolerance', t => {
+test('BT-050: every ordinary movement turn has early AND late legal choices, not just delay tolerance', exhaustive, t => {
   const world = aftershock.firstSix;
   for (const section of [0, 1]) {
     const entry = combinedEntry(section, 'ordinary'), route = witnesses.COMBINED_ROUTES[section].ordinary;
@@ -754,7 +755,7 @@ test('BT-050: actual wrong-choice and omitted-technique failures identify both c
   }
 });
 
-test('BT-050: short and long arcs exchange the advantage across the ENTIRE cycle, including actual arrivals', t => {
+test('BT-050: short and long arcs exchange the advantage across the ENTIRE cycle, including actual arrivals', exhaustive, t => {
   const world = aftershock.firstSix, cycle = 720;
   for (const kind of ['ordinary', 'fast'] as const) {
     const entry = combinedEntry(1, kind);
@@ -908,7 +909,7 @@ test('BT-050: complete landing disks and both intended edge approaches are safe 
   }
 });
 
-test('BT-050: real preceding checkpoints recover ALL initial and release phases with comfortable forward windows', t => {
+test('BT-050: real preceding checkpoints recover ALL initial and release phases with comfortable forward windows', exhaustive, t => {
   const world = aftershock.firstSix;
   for (const section of [0, 1]) {
     const cycle = aftershock.AFTERSHOCK_COMBINED[section].cycle;
@@ -1178,7 +1179,7 @@ test('BT-048: joined routes collect the intermediate landing through geometry, s
   assert.ok(OPENING_PAIR_ROUTES.ordinary.every(c => c.x || c.y), 'no padded waiting');
 });
 
-test('BT-048: complete launch cycles and nearest useful waits, using only safe waiting states', t => {
+test('BT-048: complete launch cycles and nearest useful waits, using only safe waiting states', exhaustive, t => {
   for (const e of launch) {
     const world = openingSectionWorlds[e.section], route = OPENING_ROUTES[e.section][e.kind];
     const valid: number[] = [];
@@ -1214,7 +1215,7 @@ test('BT-048: actual joined arrival requires the refuge decisions, not blind for
   assert.equal(omittedUpper.deathCause, 'pulse');
 });
 
-test('BT-048: actual joined in-field decisions retain full-cycle measured input margins', t => {
+test('BT-048: actual joined in-field decisions retain full-cycle measured input margins', exhaustive, t => {
   for (const kind of ['ordinary', 'fast'] as const) {
     const route = OPENING_PAIR_ROUTES[kind];
     for (let at = 2; at < route.length; at++) {
@@ -1236,7 +1237,7 @@ test('BT-048: actual joined in-field decisions retain full-cycle measured input 
   }
 });
 
-test('BT-048: the joined pair also has complete continuous-clock launch bands', t => {
+test('BT-048: the joined pair also has complete continuous-clock launch bands', exhaustive, t => {
   for (const kind of ['ordinary', 'fast'] as const) {
     const valid: number[] = [];
     let entry = createState(openingPair);
@@ -1436,7 +1437,7 @@ test('BT-048: every interior pulse site has a legal stationary failure and actua
   }
 });
 
-test('BT-048: all 480 initial phases produce real failure-to-respawn-to-success paths', t => {
+test('BT-048: all 480 initial phases produce real failure-to-respawn-to-success paths', exhaustive, t => {
   for (const index of [0, 1]) {
     const world = openingSectionWorlds[index];
     const valid = expand(launch.find(e => e.section === index && e.kind === 'ordinary')!.bands);
@@ -1477,7 +1478,7 @@ function middleEntry(section: number, kind: 'ordinary' | 'fast'): State {
 const middleComplete = (section: number, state: State) =>
   section === 0 ? state.visited.length === 3 : state.won;
 
-test('BT-049: actual ordinary AND faster incoming phases retain full-cycle launch and local decision margins', t => {
+test('BT-049: actual ordinary AND faster incoming phases retain full-cycle launch and local decision margins', exhaustive, t => {
   for (const kind of ['ordinary', 'fast'] as const) for (const section of [0, 1]) {
     const world = aftershock.firstFour, route = witnesses.MIDDLE_ROUTES[section][kind];
     const entry = middleEntry(section, kind), valid: number[] = [];
@@ -1541,7 +1542,7 @@ test('BT-049: patrol turn and inside diagonal have measured early/late movement-
   }
 });
 
-test('BT-049: all four joined sections have full continuous launch bands and unpadded exact totals', t => {
+test('BT-049: all four joined sections have full continuous launch bands and unpadded exact totals', exhaustive, t => {
   const world = aftershock.firstFour;
   for (const kind of ['ordinary', 'fast'] as const) {
     let entry = createState(world), distance = 0, travelled = createState(world);
@@ -1680,7 +1681,7 @@ test('BT-049: the entire landing trigger and observation remain safe through all
   }
 });
 
-test('BT-049: actual checkpoint failure, 54-tick respawn and successful recovery cover every launch phase', t => {
+test('BT-049: actual checkpoint failure, 54-tick respawn and successful recovery cover every launch phase', exhaustive, t => {
   const world = aftershock.firstFour;
   for (const section of [0, 1]) {
     const route = witnesses.MIDDLE_ROUTES[section].ordinary;

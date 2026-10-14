@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { exhaustive } from './exhaustive.ts';
 import assert from 'node:assert/strict';
 import { AFTERSHOCK_LEVELS, AFTERSHOCK_LESSONS, AFTERSHOCK_TARGETS } from '../data/aftershock.ts';
 import { AFTERSHOCK_REPLAYS, AFTERSHOCK_MASTERY_REPLAYS } from '../data/aftershock-replays.ts';
@@ -321,7 +322,7 @@ const localEvidence = [
   { index: 2, mastery: true, point: 3, bands: [[0, 29], [43, 76], [90, 171]] },
   { index: 2, mastery: true, point: 4, bands: [[0, 171]] },
 ];
-test('Every in-field turn/transfer has a complete measured local-delay cycle and >=24-tick observation window', t => {
+test('Every in-field turn/transfer has a complete measured local-delay cycle and >=24-tick observation window', exhaustive, t => {
   for (const e of localEvidence) {
     const level = AFTERSHOCK_LEVELS[e.index], valid: number[] = [];
     const commands = (e.mastery ? AFTERSHOCK_MASTERY_REPLAYS : AFTERSHOCK_REPLAYS)[e.index];

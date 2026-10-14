@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { exhaustive } from './exhaustive.ts';
 import { center, parseLevel, type Level, type Point } from '../core/level.ts';
 import { createState, distance, hazardSample, hazardTick, step, STILL, terrainAt, type State } from '../core/simulation.ts';
 import { worldFixture, walkTo } from './fixtures/world.ts';
@@ -169,7 +170,7 @@ for (const [index, level] of LEVELS.entries()) {
     }
   });
 
-  test(`Recovery_${level.id}_EveryCyclePhaseCanFinishFromEveryRespawnCenter`, t => {
+  test(`Recovery_${level.id}_EveryCyclePhaseCanFinishFromEveryRespawnCenter`, exhaustive, t => {
     const period = cycleLength(level), sites = recoverySites(index);
     for (const { checkpoint, reference, inputs, dead } of sites) {
       const respawned = advance(level, dead, RULES.respawnTicks);

@@ -7,6 +7,15 @@ Run the full test suite and typecheck/build sequentially: Astro subprocess
 tests briefly generate `.ts` fixtures under their ignored artifacts directory.
 Concurrent typechecking can mistake those temporary fixtures for project source.
 
+`npm test` caps the runner at four concurrent files and skips exhaustive
+phase/margin sweeps over historical fixtures (the BT-048–BT-051 sweeps in
+`tests/aftershock-world-sections.test.ts`, legacy relay `EveryCyclePhase`
+recoveries and the original Aftershock local-delay cycle). Exact replays,
+necessity checks and the current production checkpoint gate stay in the default
+run. Tag such sweeps with `exhaustive` from `tests/exhaustive.ts`.
+`npm run test:exhaustive` runs everything and is part of `release:check`; run it
+after changing routes, hazards, timing or the simulation.
+
 For automated production-browser acceptance, run `npm run test:browser` with an
 installed Chromium. It builds, serves an owned temporary origin and drives an
 isolated sandboxed browser using native Node/CDP APIs. No AI/MCP session or npm
